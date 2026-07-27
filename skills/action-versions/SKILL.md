@@ -1,0 +1,104 @@
+---
+name: action-versions
+description: >
+  Verify every GitHub Action reference is pinned to its latest major version
+  before writing or committing a workflow. Run whenever a change adds or edits
+  a `uses: owner/repo@ref` line — a `.github/workflows/` file, a composite or
+  reusable action, or any YAML that references a GitHub Action. Use when asked
+  to "add a workflow", "set up CI", "update actions", or "check action
+  versions", and as part of any workflow-touching diff so stale majors never
+  reach review.
+---
+
+# Action versions
+
+Agents reach for a version tag they remember (`actions/checkout@v4`,
+`actions/setup-node@v4`) instead of the one that is current. Those memorized
+tags go stale constantly, and the drift is only caught in review — the exact
+thing this skill exists to prevent. **Never trust a tag from memory. Look it
+up every time.**
+
+This applies to real GitHub Actions — anything referenced as
+`uses: owner/repo@ref`.
+
+Read `.claude/project-profile.md` → `## Exemptions` first. Some CI systems use
+`uses:` for their own built-in steps, which are versionless platform primitives
+rather than GitHub Actions; a project that has one records it there. If the
+profile is missing, treat every `uses: owner/repo@ref` as in scope and say in
+your report that you ran without exemptions.
+
+## Procedure
+
+Run this on the diff you are about to commit, not the whole tree.
+
+### 1. Collect every action reference
+
+Find each `uses: owner/repo@ref` line the change adds or modifies, including
+`owner/repo/subdir@ref` forms that point at a composite action in a
+subdirectory — the action's repo is still `owner/repo`. Dedupe by `owner/repo`.
+
+Out of scope — do **not** rewrite these refs:
+
+- **Local** (`uses: ./path`) and **Docker** (`uses: docker://…`) references.
+- **Reusable-workflow calls** — a `uses:` whose path points at a workflow file,
+  i.e. ends in `.yml` or `.yaml` (`owner/repo/.github/workflows/build.yml@ref`).
+  There the `ref` selects a *version of that workflow file* at a git ref, not an
+  action release: the repo may publish no releases at all, and a release major
+  can point at a revision that lacks the file. Pinning such a ref to the repo's
+  latest release major can make the workflow unresolvable or silently run the
+  wrong revision. Leave reusable-workflow refs as-is; if they need currency,
+  validate them separately against that repo's tags for the workflow path, not
+  its action releases.
+- Anything the profile's `## Exemptions` names.
+
+### 2. Look up the current latest for each `owner/repo`
+
+Do not guess. Resolve the real latest release:
+
+- **Primary — WebFetch** `https://github.com/<owner>/<repo>/releases/latest`.
+  GitHub redirects it to the latest release tag (e.g. `…/releases/tag/v7.0.1`);
+  read the major from that tag. This works for any public action and does not
+  depend on the session's repo scope.
+- If the action publishes no releases, WebFetch
+  `https://github.com/<owner>/<repo>/tags` and take the highest semver tag.
+- **Alternative — GitHub MCP** `get_latest_release` (fall back to `list_tags`)
+  when the tooling permits querying the action's repo. Note that a session's
+  GitHub access may be scoped to the working repo only, in which case
+  out-of-scope action repos are denied — use WebFetch then.
+
+### 3. Pin to the latest major
+
+Actions conventionally maintain a moving major tag (`v7`) that tracks the
+newest `v7.x`. Reference that major:
+
+```yaml
+- uses: actions/checkout@v7        # not @v4
+- uses: actions/setup-node@v7      # not @v4
+```
+
+(`v7` is the verified latest major for both as of this writing — it is what
+step 2's lookup returns today, not a value copied from memory. Confirm the
+current major yourself rather than pasting the tag above; that is the whole
+point of step 2.)
+
+- Match what the rest of the workflow already does. If sibling steps pin full
+  commit SHAs (the hardening practice for third-party actions —
+  `uses: owner/repo@<40-char-sha> # v7.0.1`), pin the SHA of the latest
+  release's tag and comment the version. Otherwise the moving major tag is the
+  right default.
+- Bump every stale reference, not just the one a reviewer happened to flag.
+
+### 4. Only stay behind deliberately
+
+If the latest major is a breaking change you can't take right now (dropped
+Node runtime, changed inputs, a required migration), keeping an older major is
+a real decision — pin it intentionally and say why in a comment and the PR
+description. An out-of-date tag with no such reason is a defect: fix it before
+pushing.
+
+## When a reviewer flags a stale action
+
+Treat it as already-known work, not a debate: look up the current major per
+step 2, bump every stale `uses:` in the file (not only the flagged line),
+push, and reply with what you moved them to. This is the miss this skill is
+meant to stop reaching review at all.

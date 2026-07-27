@@ -1,0 +1,122 @@
+{
+  "version": 1,
+  "profilePath": ".claude/project-profile.md",
+  "placeholderMarkers": ["TODO", "<!-- fill", "REPLACE-ME"],
+  "sections": [
+    {
+      "heading": "Rules source",
+      "required": true,
+      "readBy": ["code-review", "pr-preflight", "review-sweep"],
+      "supplies": "The file holding this project's rules for agents, and any file that merely points at it.",
+      "fallback": "Skills look for AGENTS.md then CLAUDE.md at the repo root, and say in their report that they guessed."
+    },
+    {
+      "heading": "Repo",
+      "required": true,
+      "readBy": ["code-review", "review-sweep"],
+      "supplies": "owner/repo, visibility, and the collaborator model (single maintainer or a team).",
+      "fallback": "owner/repo is derived from the git remote. Without a stated collaborator model, review-sweep requires an APPROVED review and will not use the reaction-count shortcut."
+    },
+    {
+      "heading": "Mechanical checks",
+      "required": true,
+      "readBy": ["pr-preflight", "review-sweep"],
+      "supplies": "The commands that must pass before a push, one per line, most important first. Write 'none' if the project has no automated checks.",
+      "fallback": "pr-preflight reports that it ran no mechanical gate, which is a finding in itself."
+    },
+    {
+      "heading": "Review focus",
+      "required": false,
+      "readBy": ["code-review", "pr-preflight"],
+      "supplies": "This project's known failure modes: invariants that are easy to break, generated files that must not be hand-edited, conventions a reviewer should weight heavily.",
+      "fallback": "Reviews run the generic passes only and flag nothing project-specific."
+    },
+    {
+      "heading": "Not findings",
+      "required": false,
+      "readBy": ["code-review", "review-sweep"],
+      "supplies": "Classes of feedback this project never wants raised, each with the reason. This is what lets a reviewer decline a recurring objection without re-arguing it.",
+      "fallback": "Only the skill's built-in not-findings list applies."
+    },
+    {
+      "heading": "Local skills",
+      "required": false,
+      "readBy": ["pr-preflight"],
+      "supplies": "Skills that live only in this repo and what each one gates, so a shared skill can hand off to them. Write 'none' if there are none.",
+      "fallback": "No hand-off; pr-preflight runs only the vendored skills."
+    },
+    {
+      "heading": "Exemptions",
+      "required": false,
+      "readBy": ["action-versions", "code-review", "pr-preflight"],
+      "supplies": "Carve-outs, each naming the skill it applies to and why. Use for things that look like a violation but are not.",
+      "fallback": "No carve-outs; expect false positives where a project convention diverges from the generic rule."
+    },
+    {
+      "heading": "Ship",
+      "required": false,
+      "readBy": ["pr-preflight"],
+      "supplies": "How this project pushes and opens PRs: branch naming, draft or not, which tooling to use, what to do after opening.",
+      "fallback": "Push the branch and open a draft PR with whatever GitHub tooling the session has."
+    },
+    {
+      "heading": "Threat model",
+      "required": false,
+      "requiredWith": ["security-review"],
+      "readBy": ["security-review"],
+      "supplies": "One paragraph: what ships to parties you do not control, and what the single real control is that keeps one user out of another's data.",
+      "fallback": "security-review cannot rank findings by what actually matters here and will say so."
+    },
+    {
+      "heading": "Trust boundary",
+      "required": false,
+      "requiredWith": ["security-review"],
+      "readBy": ["security-review", "pr-preflight"],
+      "supplies": "A table of path glob to check groups. This is the authoritative trigger list: a changed path matching a row runs that row's groups. Groups are authorization, auth-session, secrets, client-data, supply-chain, release.",
+      "fallback": "security-review runs the secrets and supply-chain groups over the whole diff and reports every other group as not configured."
+    },
+    {
+      "heading": "Stack",
+      "required": false,
+      "requiredWith": ["security-review"],
+      "readBy": ["security-review"],
+      "supplies": "Which reference modules apply, from the skill's references directory: postgres-rls, ci-workflows, mobile-release. List only what this project actually uses.",
+      "fallback": "No reference module loads and the review stays at the level of the generic checks."
+    },
+    {
+      "heading": "Identity model",
+      "required": false,
+      "readBy": ["security-review"],
+      "supplies": "How a user proves who they are, what key rows are owned by, and every redirect or deep-link surface that participates in auth.",
+      "fallback": "The auth-session group reports as not configured."
+    },
+    {
+      "heading": "Secrets policy",
+      "required": false,
+      "readBy": ["security-review", "code-review", "pr-preflight"],
+      "supplies": "Which env prefixes are public by design, where real secrets live, and what must never appear in a commit.",
+      "fallback": "The secrets group flags only obvious credential patterns and cannot tell a public key from a private one."
+    },
+    {
+      "heading": "Probe policy",
+      "required": false,
+      "readBy": ["security-review"],
+      "supplies": "Whether live cross-account probing is permitted, against which environment, with which accounts, and what is off limits. Write 'no live probing' to forbid it.",
+      "fallback": "No live probing. Authorization findings rest on reading policy definitions only, which the report must state."
+    },
+    {
+      "heading": "Known gaps",
+      "required": false,
+      "readBy": ["security-review"],
+      "supplies": "Security findings already recorded, each with a status (open, accepted, launch blocker) so a review reports them as known rather than as new. Write 'none' when there are none.",
+      "fallback": "Every recurring finding is re-reported as new on each review, which trains the reader to skim them."
+    },
+    {
+      "heading": "Release targets",
+      "required": false,
+      "readBy": ["security-review"],
+      "supplies": "Where this project ships: app stores, a web deploy, a package registry, or none. Drives the release-readiness group.",
+      "fallback": "The release group is skipped and reported as skipped."
+    }
+  ]
+}
