@@ -79,6 +79,12 @@ section over renaming an existing one.
 - **Frontmatter is `name` plus `description`.** The description is what decides
   whether the skill triggers, so write it with the phrases a user would actually
   type.
+- **A skill describes work for the current turn, never a schedule.** No skill
+  here tells a session to arm a wake-up, a self check-in, or a recurring poll.
+  Recurrence is the project's decision, configured once as a scheduled routine —
+  a session that re-arms itself spends a full session to re-learn what an event
+  would have delivered, and multiplies by every open PR. Where a skill subscribes
+  to events, subscribing *is* the mechanism; say so and end the turn.
 
 ## Changing a skill that consumers have vendored
 

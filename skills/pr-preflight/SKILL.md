@@ -106,7 +106,12 @@ this repo; a harness without it should substitute reasoning through the flow.
   should say what changed, why, how it was verified, and any known gaps or
   skipped review findings.
 - Call `subscribe_pr_activity` for the new PR so review comments and CI
-  failures flow back into the session, where the tooling supports it.
+  failures flow back into the session, where the tooling supports it. **Then end
+  the turn.** Do not schedule a wake-up, a self check-in, or a recurring poll
+  for the PR. The subscription is the mechanism; a timer on top of it spends a
+  whole session to re-learn what the next webhook would have delivered anyway.
+  If a project wants a periodic backstop, that is a scheduled routine the
+  project configures once — not something a session arms for itself.
 
 After the PR is open, incoming reviewer feedback is handled by the
 `review-sweep` skill — either live in this session via the subscription, or by a

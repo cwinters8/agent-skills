@@ -298,6 +298,14 @@ finding is always addressed no matter which round it arrives in.
   needing a sixth round of fixes has a design problem that another round won't
   find.
 
+**A sweep never schedules its own next run.** Finish the sweep, report, and end
+the turn — no wake-up, no self check-in, no recurring poll, whether the PR is
+resolved or still waiting on something. Where a project runs a scheduled sweep,
+that routine is the recurrence; where it doesn't, the next sweep is invoked when
+someone wants one. A session that re-arms itself turns a bounded task into an
+unbounded one, which is the same failure the stop conditions above exist to
+prevent.
+
 **On stopping**, do not request another Codex round. Post one comment that:
 names the current head SHA, lists every comment left open with the one-line
 reason each was declined, and says plainly that the PR is being handed over
