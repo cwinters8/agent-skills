@@ -1,0 +1,29 @@
+{
+  "name": "@cwinters8/agent-skills",
+  "version": "1.0.0",
+  "description": "Portable Claude Code skills for QA and code review, vendored into consumer repos behind a project profile",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "agent-skills": "bin/agent-skills.mjs"
+  },
+  "files": [
+    "bin/",
+    "skills/",
+    "templates/",
+    "docs/",
+    "profile-schema.json"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cwinters8/agent-skills.git"
+  },
+  "keywords": [
+    "claude-code",
+    "agent-skills",
+    "code-review"
+  ]
+}

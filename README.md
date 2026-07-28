@@ -16,7 +16,8 @@ generic.
 ## How consumers get them
 
 **Vendored, not linked.** A consumer repo copies the skills it wants into its
-own `.claude/skills/` and commits them. That is deliberate:
+own `.claude/skills/` and commits them, using the `agent-skills` CLI this package
+provides. That is deliberate:
 
 - Skills must be available on a session's **first turn**, before any hook or
   fetch has run.
@@ -25,10 +26,12 @@ own `.claude/skills/` and commits them. That is deliberate:
 - No runtime dependency: committed skills work offline, during a GitHub outage,
   and in scheduled runs.
 
-The cost is that an update is a sync plus a PR in each consumer. The sync script
-makes that a one-liner and detects drift.
+The cost is that an update is a sync plus a PR in each consumer. The CLI makes
+that a one-liner and detects drift.
 
 ## Adopting in a new repo
+
+The consumer writes no tooling code. It owns two files and one command.
 
 1. Copy `templates/project-profile.md` to `.claude/project-profile.md` and fill
    it in. Read `docs/project-profile.md` for what each section does, and
@@ -37,28 +40,52 @@ makes that a one-liner and detects drift.
 
    ```json
    {
-     "source": "https://github.com/cwinters8/agent-skills",
-     "ref": "main",
      "skills": ["action-versions", "code-review", "pr-preflight", "review-sweep"]
    }
    ```
 
-3. Copy a sync script into the repo (see `scripts/sync-skills.mjs` in any
-   consumer, e.g. [`cwinters8/sprite-locker`](https://github.com/cwinters8/sprite-locker)).
-   It shallow-clones this repo at `ref`, copies the named skill directories into
-   `.claude/skills/`, validates your profile, and records the resolved commit.
-4. Run it, then commit both the vendored skills and the updated lock.
-5. Validate the profile any time you edit it:
+   (`agent-skills list` prints what this version ships.)
+3. Run the sync and commit both the vendored skills and the updated lock:
 
    ```sh
-   node scripts/check-profile.mjs .claude/project-profile.md --skills=code-review,pr-preflight
+   npx -y github:cwinters8/agent-skills#v1 sync
    ```
+
+   In a Node repo, wrap it as a script so the invocation lives in one place:
+
+   ```json
+   "scripts": {
+     "skills:sync": "npx -y github:cwinters8/agent-skills#v1 sync"
+   }
+   ```
+
+4. Validate the profile any time you edit it:
+
+   ```sh
+   npx -y github:cwinters8/agent-skills#v1 check-profile
+   ```
+
+## The version you invoke is the version you vendor
+
+The skills ship **inside this package**, so `sync` copies from the version you
+ran — there is no clone, no network beyond fetching the package, and **no second
+pin**. The ref in your npx invocation is the only thing that decides which skills
+you get.
+
+That is why `.claude/skills.json` has no `ref`, `source`, or `commit` field. An
+earlier design had one, and it could silently disagree with the invocation:
+bumping the ignored pin looked exactly like an upstream with no changes. The tool
+now refuses to run if it finds one of those fields, rather than ignoring it.
+
+`.claude/skills.json` is therefore config plus lock: you write `skills`, and the
+tool writes `version` (what produced the current copies) and `files` (a hash per
+vendored file, so a hand-edit is detectable).
 
 ## Updating
 
-Bump `ref` in `.claude/skills.json` (or leave it on `main`), re-run the sync, and
-commit the diff. Run the sync with `--check` in CI to be told when a vendored
-copy has fallen behind or been hand-edited.
+Bump the ref in your invocation — `#v2`, or a tag, or a commit SHA — re-run the
+sync, and commit the diff. Run `sync --check` in CI to be told when a vendored
+copy has fallen behind the version you invoke, or has been hand-edited.
 
 ## Editing a skill
 

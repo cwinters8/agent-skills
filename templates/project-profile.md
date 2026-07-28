@@ -13,7 +13,7 @@
   costs you.
 
   Validate with:
-    node scripts/check-profile.mjs .claude/project-profile.md --skills=<vendored skills>
+    npx -y github:cwinters8/agent-skills#v1 check-profile
 -->
 
 ## Rules source

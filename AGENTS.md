@@ -35,13 +35,29 @@ to fix.
 ## Layout
 
 ```
+bin/agent-skills.mjs     the CLI consumers run via npx: sync, check-profile, list
+package.json             `bin` + `files`; `files` decides what a consumer can actually receive
 profile-schema.json      canonical section list; the validator, template and docs all derive from it
 docs/project-profile.md  the schema reference consumers read
 templates/               the annotated blank consumers copy
 examples/                complete real profiles
-scripts/check-profile.mjs validates a consumer profile against the schema
 skills/<name>/SKILL.md   one skill; supporting files live alongside it
 ```
+
+**The package ships the skills, so the invoked version is the vendored version.**
+There is no ref in a consumer's `.claude/skills.json` — the npx spec is the only
+content pin, and the CLI refuses to run against a config carrying a leftover
+`ref`/`source`/`commit` rather than ignoring it.
+
+Two consequences when editing:
+
+- **Adding a top-level directory that consumers need means adding it to
+  `files`** in `package.json`, or it won't exist when the package is installed.
+  `skills/`, `templates/`, `docs/` and `profile-schema.json` are there for that
+  reason; `examples/` and `AGENTS.md` are repo-only.
+- **Bump `version` in `package.json` when skills change.** A consumer's
+  `sync --check` compares its recorded version against the running one, so an
+  unbumped version makes a real change look like no change.
 
 `skills/security-review/references/` holds per-stack depth loaded only when a
 consumer's `## Stack` names the module. That is where content too specific for a

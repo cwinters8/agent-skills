@@ -32,10 +32,13 @@ complete profile worth reading before you write your own.
 Run the validator after editing:
 
 ```sh
-node scripts/check-profile.mjs .claude/project-profile.md --skills=code-review,pr-preflight
+npx -y github:cwinters8/agent-skills#v1 check-profile
 ```
 
-Consumers using the sync script get this automatically on every sync.
+`sync` runs the same validation, so a normal sync catches profile problems too.
+Which sections are required depends on the skills your `.claude/skills.json`
+lists — a repo that doesn't vendor `security-review` is not asked for a threat
+model.
 
 ## Sections
 
