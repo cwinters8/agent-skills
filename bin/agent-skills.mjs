@@ -61,6 +61,8 @@ const usage = () => {
 
 const sha256 = (buffer) => createHash('sha256').update(buffer).digest('hex');
 
+const bannerText = `<!-- vendored from ${pkg.name}@${pkg.version} — edit upstream, then re-run the sync -->`;
+
 // A vendored SKILL.md carries a provenance banner this tool inserts, so the
 // on-disk file never equals its packaged original. Compare and lock the
 // banner-stripped content, or every run would see drift and re-copy.
@@ -159,7 +161,18 @@ for (const skill of lock.skills) {
     const localHash = existsSync(localPath) ? canonical(readFileSync(localPath)) : null;
     const lockedHash = lock.files?.[key] ?? null;
 
-    if (localHash === upstreamHash) continue;
+    if (localHash === upstreamHash) {
+      // The content hash is banner-stripped, so a deleted banner is invisible to
+      // it — the file would read as current while looking locally authored.
+      // Check for the banner's presence as its own condition. Presence, not exact
+      // text: a banner naming an older version is already reported by the version
+      // comparison below, and flagging both would put a redundant line against
+      // every unchanged skill on every version bump.
+      if (rel === 'SKILL.md' && !BANNER.test(readFileSync(localPath, 'utf8'))) {
+        problems.push(`${key}: provenance banner missing — re-run the sync to restore it`);
+      }
+      continue;
+    }
 
     // A local file matching neither the package nor the lock was hand-edited.
     // Overwriting it silently would discard work; refusing without --force is
@@ -223,7 +236,6 @@ for (const { from, to, files } of plan) {
 }
 for (const key of removed) rmSync(join(skillsDir, key), { force: true });
 
-const banner = `<!-- vendored from ${pkg.name}@${pkg.version} — edit upstream, then re-run the sync -->`;
 for (const skill of lock.skills) {
   const skillFile = join(skillsDir, skill, 'SKILL.md');
   if (!existsSync(skillFile)) continue;
@@ -234,7 +246,7 @@ for (const skill of lock.skills) {
   const end = body.indexOf('\n---', 3);
   if (!body.startsWith('---') || end === -1) continue;
   const cut = end + 4;
-  writeFileSync(skillFile, `${body.slice(0, cut)}\n${banner}${body.slice(cut)}`);
+  writeFileSync(skillFile, `${body.slice(0, cut)}\n${bannerText}${body.slice(cut)}`);
 }
 
 writeFileSync(

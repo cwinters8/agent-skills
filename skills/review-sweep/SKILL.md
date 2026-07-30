@@ -296,7 +296,12 @@ finding is always addressed no matter which round it arrives in.
 - **Fix-commit cap.** At most **5 review-driven fix commits** on one PR. On
   reaching the cap, stop pushing and hand the PR to the maintainer — a change
   needing a sixth round of fixes has a design problem that another round won't
-  find.
+  find. **The cap never applies to a Critical or High finding** (the severity
+  table in `security-review` defines those), nor to any defect that would
+  otherwise ship broken: fix those, push, and say in the hand-off that you passed
+  the cap deliberately and why. A budget that can leave a Critical security bug
+  unfixed is the wrong budget — the cap exists to stop rounds of polish, not to
+  ration correctness.
 
 **A sweep never schedules its own next run.** Finish the sweep, report, and end
 the turn — no wake-up, no self check-in, no recurring poll, whether the PR is
