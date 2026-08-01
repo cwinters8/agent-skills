@@ -25,6 +25,13 @@
       "fallback": "pr-preflight reports that it ran no mechanical gate, which is a finding in itself."
     },
     {
+      "heading": "Derived docs",
+      "required": false,
+      "readBy": ["pr-preflight"],
+      "supplies": "A table of canonical file to the files that restate what it says, so a change to a fact can be traced to every copy of it. Note which dependents a reader acts on outside the repo. Write 'none' if no doc restates another.",
+      "fallback": "Docs currency covers the rules source, the profile and the vendored skills only, and a human-facing doc quoting a changed fact goes stale silently."
+    },
+    {
       "heading": "Review focus",
       "required": false,
       "readBy": ["code-review", "pr-preflight"],

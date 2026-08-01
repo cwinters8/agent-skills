@@ -78,6 +78,27 @@ Write `none` if the project has none — that is a real answer and skills handle
 *Missing:* `pr-preflight` reports that it ran no mechanical gate, which is a
 finding in itself.
 
+### `## Derived docs` — optional
+
+Read by `pr-preflight`.
+
+A table of canonical file to the files that restate what it says. Docs currency
+otherwise covers only the rules source, the profile, and the vendored skills —
+the files that instruct an *agent*. This section is what extends it to the docs
+that instruct a *person*: a README quoting a policy page, a setup checklist
+quoting a config file.
+
+Declaring the edge is the whole point. Without it, catching a stale copy means
+re-reading every doc on every PR, which nobody does; with it, the check is a
+grep over a named list.
+
+Note which dependents a reader acts on outside the repo. Those rank first,
+because a stale sentence followed into a store form, a published page, or a
+signed submission becomes an external claim that no later PR retracts.
+
+*Missing:* docs currency checks the rules source, the profile and the vendored
+skills only, and a human-facing doc quoting a changed fact goes stale silently.
+
 ### `## Review focus` — optional
 
 Read by `code-review`, `pr-preflight`.
