@@ -22,7 +22,7 @@ profile supplies what each step actually does:
 | Step | Reads |
 | --- | --- |
 | 1. Mechanical checks | `## Mechanical checks` |
-| 3. Project checks | `## Review focus`, `## Secrets policy`, `## Exemptions`, `## Trust boundary`, `## Local skills` |
+| 3. Project checks | `## Review focus`, `## Secrets policy`, `## Exemptions`, `## Trust boundary`, `## Local skills`, `## Derived docs` |
 | 5. Ship | `## Ship`, `## Rules source` |
 
 If the profile is missing, run the generic gate — typecheck/test commands you
@@ -82,11 +82,33 @@ Review the diff yourself against the profile:
   profile itself, and the skills in `.claude/skills/` all state facts about this
   project: file layout, commands, invariants, whether tests and CI exist. If the
   diff changes a fact they state, update them **in the same PR** — grep those
-  files for the names and terms the diff touches. Stale guidance misleads every
+  files for the names and terms the diff touches, **and for the wording the diff
+  deleted**. A stale copy holds the *old* phrasing, which survives only on the
+  removed side of the diff, so grepping the added terms finds the corrected
+  sentence and misses every stale copy by construction. Scope this to the whole
+  branch diff against the base, never to the round of changes you just made: a
+  fact corrected in an earlier commit appears on neither side of a later fix's
+  diff, so a per-round grep stops being able to see it exactly when the stale
+  copies have had the longest to go unnoticed. Stale guidance misleads every
   future agent session, so treat a contradicted doc like a failing check.
   Remember that vendored skills are edited upstream, not here: a needed change
   to one is a PR against the skills repo plus a re-sync, and the profile is
   where a project-specific correction usually belongs instead.
+- **Derived docs** — `## Derived docs` maps each file that is canonical for some
+  fact to the files that restate it. If the branch diff touches a canonical
+  file, walk its dependents and reconcile them in the same PR. Nothing else in
+  this gate covers that direction: the bullet above asks whether a change
+  invalidated the docs that instruct an *agent*, and says nothing about one doc
+  invalidating a second doc that quotes it. **Editing a doc is itself a fact
+  change.** A docs-only diff is in scope here precisely because it is the shape
+  that arrives with every other gate correctly stood down — `code-review` does
+  not chase documentation gaps, and a docs-only diff is usually outside the
+  security gate's trust boundary. Rank a dependent first when a reader acts on
+  it somewhere you cannot revise: a checklist step followed into a store
+  submission, a form, or a published page turns a stale sentence into an
+  external claim that no later PR retracts. If the profile has no
+  `## Derived docs`, say in the PR description that doc-to-doc consistency was
+  not checked, rather than assuming no doc quotes another.
 
 ### 4. Verify behavior when feasible
 

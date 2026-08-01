@@ -153,10 +153,15 @@ For feedback worth addressing:
   the PR was authored by a human, or the fix is large, design-changing, or
   you're not fully confident in it. Name it `<pr-branch>-review-fixes`.
 - Before pushing, run `## Mechanical checks` **and** `pr-preflight`'s project
-  checks (review focus, secrets, security, docs currency) — a review fix is a
-  change like any other and can invalidate a doc or leak a secret just as
-  easily. If the fix touches anything `## Review focus` names, re-read the rules
-  source on that topic first.
+  checks (review focus, secrets, security, docs currency, derived docs) — a
+  review fix is a change like any other and can invalidate a doc or leak a
+  secret just as easily. If the fix touches anything `## Review focus` names,
+  re-read the rules source on that topic first. Run the two docs checks over the
+  **whole branch diff against the base**, not over the fix you just made: by
+  round three, a fact corrected in round one sits on neither side of the current
+  diff, and the copies still contradicting it are the ones nobody has looked at
+  since. A fix that corrects a claim is the most likely kind to leave a stale
+  quotation of it somewhere else.
 - Reply to the comment stating what changed, linking the commit. React 🚀
   and resolve the thread. When the feedback item is a review summary, the
   response takes its only possible form — a top-level

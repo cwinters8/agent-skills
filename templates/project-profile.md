@@ -39,6 +39,24 @@ TODO
 
 TODO
 
+## Derived docs
+
+<!-- Canonical file -> the files that restate what it says, so a changed fact
+     can be traced to every copy of it. Without this, docs currency covers only
+     the files that instruct an agent (the rules source, this profile, the
+     vendored skills) and never the ones that instruct a person.
+
+     | Canonical | Restated in |
+     | --- | --- |
+     | `docs/privacy.md` | `README.md`, `SETUP.md` (store-submission steps) |
+
+     Say which dependents a reader acts on outside the repo — a form, a store
+     submission, a published page. Those rank first: a stale sentence followed
+     off-repo becomes a claim no later PR retracts. "none" if no doc restates
+     another. -->
+
+TODO
+
 ## Review focus
 
 <!-- This project's known failure modes: invariants that are easy to break,

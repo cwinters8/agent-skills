@@ -26,6 +26,25 @@ that basis; revisit it if the repo goes public or gains collaborators.
 There is no test suite and no linter. CI runs the same typecheck on every PR via
 `.eas/workflows/pr-checks.yml`.
 
+## Derived docs
+
+| Canonical | Restated in |
+| --- | --- |
+| `web/privacy/index.html` — the published privacy policy | `README.md`, `APP_STORE_SETUP.md`, `AGENTS.md` |
+| `AGENTS.md` | this profile, wherever it summarizes rather than points |
+| `app.config.js` — per-variant bundle ids and schemes | `AGENTS.md` → App variants, `SUPABASE_SETUP.md` redirect allowlist |
+
+`APP_STORE_SETUP.md` is the copy to fix first. Its Data safety and App privacy
+steps get read top to bottom by someone filling in a store form, so a stale
+sentence there becomes a declaration to Apple or Google that contradicts the
+published policy — and the submission is not a file a later PR can correct.
+
+This section exists because #61 shipped exactly that failure: the policy page
+was corrected on what a guest account actually stores, and both `README.md` and
+the store checklist kept the superseded "hands over nothing" claim for three
+review rounds, because every check that ran was scoped to the files that
+instruct an agent.
+
 ## Review focus
 
 - **Locker sync invariants** — `utils/locker.ts` (`LockerEntry`, `reconcile`,
