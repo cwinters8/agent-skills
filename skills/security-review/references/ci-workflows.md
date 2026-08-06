@@ -266,8 +266,25 @@ credibility on repos that are fine; calling a repo safe because its trigger
 names look trusted is the mistake in the other direction, and it is the easier
 one to make.
 
-**Trace provenance, not event names.** A fork PR triggers only `pull_request`
-and `pull_request_target` directly — but what those runs *produce* flows onward.
+**Trace provenance, not event names.** Two ways fork-controlled content reaches
+a job, and the enumeration below is instances of the first, never its
+definition.
+
+*Directly.* `pull_request` and `pull_request_target` are the obvious pair, but a
+fork contributor does not need to push a commit to start a workflow — **a
+comment is enough**. `issue_comment` fires on a comment on any PR, including one
+from a fork, and runs in the *base* repository's context with its secrets and
+token; `pull_request_review_comment` and `pull_request_review` are the same
+shape. That is the mechanism behind every `/retest`-style command workflow, and
+such a job typically checks out the PR head by design — which is the whole point
+of it — so it is the case most likely to pair a fork-reachable trigger with
+fork-authored code. Read the `on:` block and ask **who can cause each event**,
+rather than checking names against a list; that is the question, and this list
+has already been wrong once. (`workflow_dispatch` is not one of these: firing it
+needs write access, which is why C9.5 treats it as an intentionality control
+rather than an authorization one.)
+
+*Indirectly.* What fork-triggered runs *produce* flows onward.
 The documented chain is in C3: a `pull_request` job builds fork-authored code and
 uploads an artifact, and a privileged `workflow_run` job downloads it. If that
 second job runs on the self-hosted runner and executes what it downloaded, fork
