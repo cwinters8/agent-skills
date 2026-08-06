@@ -61,15 +61,23 @@ commits those files — including scratch files that were never meant for the
 PR. (Verified: `git add -N . && git commit -a` swept an unrelated scratch file
 into the commit.) The review must not mutate the index it is reviewing.
 
-Resolve `base` rather than assuming a default-branch name. A stacked branch
-targets the branch below it, and diffing against the default there pulls in the
-parent PR's commits and reviews them as if they were new. Try in order and
-verify each: an open PR's base, as `origin/<that branch>`; then
-`git rev-parse --verify --quiet refs/remotes/origin/HEAD`, which is optional and
-absent in a repo whose remote was added by hand — the shorter
-`rev-parse --abbrev-ref origin/HEAD` exits 128 there rather than falling back;
-then `git remote set-head origin --auto` if you have network; otherwise ask.
-Getting this wrong does not fail loudly, it silently changes what you reviewed. Report
+Resolve `base` rather than assuming a default-branch name.
+
+**Only PR metadata establishes it.** An open PR's base is authoritative — use
+`origin/<that branch>` and move on. With no PR, nothing you can run tells you
+the answer: the default branch is a *guess* that happens to be right for
+unstacked work and is silently wrong for a stacked branch, which targets the
+branch below it. Diffing against the default there pulls in the parent's commits
+and reports their defects as introduced here. Nothing about that fails loudly;
+it just changes what you reviewed.
+
+So with no PR, **ask which branch this merges into.** Offer the default as the
+likely answer rather than adopting it — `git rev-parse --verify --quiet
+refs/remotes/origin/HEAD`, which is an optional ref, absent in a repo whose
+remote was added by hand (the shorter `rev-parse --abbrev-ref origin/HEAD` exits
+128 there rather than falling back), and populated by
+`git remote set-head origin --auto` if you have network. Adopt it without
+confirmation only when you can see the branch is not stacked. Report
 findings in the session; do not post to GitHub in this mode.
 
 **PR (`<number>` argument).** Review an open PR. Read it with

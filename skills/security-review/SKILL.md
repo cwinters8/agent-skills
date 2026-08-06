@@ -246,16 +246,28 @@ that the authorization finding rests on reading definitions only.
    both a repository compromise is a false finding. If `## Stack` does not name
    `ci-workflows`, report the shape, say the privilege grading was not
    available, and do not assume the write-scoped case.
-3. **Code-generating and data-writing scripts.** A script that writes into the
+3. **Untrusted text interpolated into a command is code execution.** A CI
+   expression substituted into a shell line before the shell parses it turns any
+   attacker-controlled field — a PR title or body, a branch name, a comment, an
+   author name — into shell syntax running as the runner. Bind it to an
+   intermediate environment variable and reference it quoted. `ci-workflows` →
+   C4 carries the platform detail.
+4. **A runner the project owns is part of the trust boundary.** Where CI runs on
+   self-hosted or otherwise persistent infrastructure rather than a disposable
+   host, ask what can reach it, what it can reach, and what survives between
+   jobs — fork-authored code reaching it, credentials it holds for other
+   systems, inbound exposure, and state left behind for the next job.
+   `ci-workflows` → C9 carries the platform detail and the severities.
+5. **Code-generating and data-writing scripts.** A script that writes into the
    repo must write data, never executable content, and must fail loud rather
    than emit something partial. Trace untrusted values into every path join,
    filename, and generated import: a value that reaches a path join can escape
    its directory with `../`, and when that value travels in a data file the whole
    attack arrives as a data-only diff. Constrain such values at both ends —
    reject the shape on the way in, and verify containment before writing.
-4. **Action pinning** — defer to the `action-versions` skill; don't duplicate it
+6. **Action pinning** — defer to the `action-versions` skill; don't duplicate it
    here.
-5. **Release and update channel integrity.** A token that can publish code to
+7. **Release and update channel integrity.** A token that can publish code to
    already-installed clients — an over-the-air update token, a package registry
    token, a deploy key — is usually the highest-value secret a project holds,
    because it reaches users with no review in the way. Confirm it lives only in
