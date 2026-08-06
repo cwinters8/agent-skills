@@ -57,17 +57,37 @@ verified it, couldn't, or skipped it.
 because it fails quietly: a command that no longer exists, or a script since
 renamed, means the pre-push gate executes nothing and reports a pass. A gate
 silently running zero checks is worse than a project that honestly says `none`.
-Three outcomes, and only one of them is drift. *The script or command no longer
-exists in the repo* — a renamed package script, a deleted file — is drift; fix
-the profile, citing what replaced it. *Command not found because the tool isn't
-installed here* is an environment gap, not drift: a package manager or SDK
-missing from this host says nothing about whether the gate is correct in CI or
-on a configured machine, and deleting the entry would remove a working check on
-the strength of your own missing dependency. Report it as unrun. *The command
-runs and fails* means the repo is broken — a finding for the maintainer, never a
-reason to edit the failing check out of the profile. Before touching an entry
-that would not run, confirm in the repository that the script or command is
-actually gone. Look for checks the project has **gained** too — a new script in the
+Four outcomes, and only one of them is drift.
+
+*The script or command was **renamed or replaced*** — a package script under a
+new name, a linter swapped for another, a file moved. That is drift: fix the
+profile and cite the replacement you found.
+
+*The script or command is **simply gone, with nothing in its place*** — and this
+is the case to get right, because it looks identical to the one above until you
+go looking for the replacement. Its absence proves the profile and the repo
+disagree; it does **not** prove the profile is the stale side. A test script
+deleted by accident, or dropped in a refactor that missed it, presents exactly
+this way. Removing the entry then converts a loud preflight failure into a
+permanent, silent loss of coverage — and does it under the authority of a
+"refresh", so nobody looks again. This is the repo regressing, not the profile
+aging: report it to the maintainer with the entry left intact. **Evidence of an
+intentional replacement is what moves a missing command into the bucket above;
+absence on its own never does.**
+
+*Command not found because the tool isn't installed here* is an environment gap,
+not drift: a package manager or SDK missing from this host says nothing about
+whether the gate is correct in CI or on a configured machine, and deleting the
+entry would remove a working check on the strength of your own missing
+dependency. Report it as unrun.
+
+*The command runs and fails* means the repo is broken — a finding for the
+maintainer, never a reason to edit the failing check out of the profile.
+
+The last three all share one shape: **the profile is the only record that the
+check was ever supposed to run.** Editing it is the one action that cannot be
+undone by re-reading the repo, which is why three of four outcomes leave the
+entry alone. Look for checks the project has **gained** too — a new script in the
 manifest, a new CI job, a linter added since. An unlisted check is a gate nobody
 runs before a push.
 
@@ -189,17 +209,27 @@ on an agent's inference is the worst artifact this skill could produce.
 
 Sort every drift into one of two buckets before touching the file.
 
-**Provable → fix it.** A command that **does not exist**, a path that does not
-exist, a named skill absent from the repo, a changed visibility. Note that a
-trust-boundary glob matching nothing is **not** in this bucket — it may be
-guarding a surface not yet built, so it goes to judgment below. The evidence is mechanical and reproducible: correct the profile,
-and say what the evidence was.
+**Provable → fix it.** A command or path that has a **located replacement**, a
+named skill absent from the repo, a changed visibility. The evidence is
+mechanical and reproducible: correct the profile, and say what the evidence was.
 
-A command that exists and **exits non-zero** is not in this bucket, however
-mechanical the evidence looks. That is the repo being broken, not the profile
-being wrong, and it goes to the maintainer untouched — editing a failing gate
-out of `## Mechanical checks` is how a refresh run during a real test failure
-silently weakens every later preflight.
+Three things look provable and are not. Sending any of them to this bucket is
+the characteristic failure of a refresh run, because each one edits the file on
+evidence that only proves a disagreement, never which side is wrong.
+
+- A command that exists and **exits non-zero**. That is the repo being broken,
+  not the profile being wrong — editing a failing gate out of
+  `## Mechanical checks` is how a refresh run during a real test failure
+  silently weakens every later preflight.
+- A command or script that is **gone with no replacement**. Identical in
+  appearance to a rename until you look for what replaced it, and a deleted
+  test script presents this way. What you can prove is that the two disagree;
+  that the *profile* is the stale half is an inference, and the wrong one turns
+  a loud failure into permanent silent coverage loss.
+- A **trust-boundary glob matching nothing** — it may be guarding a surface not
+  yet built.
+
+All three go to judgment below, with the entry left intact.
 
 **Judgment → report it.** Is this still the threat model? Should this new
 directory be `authorization` or `client-data`? Has this carve-out's reason

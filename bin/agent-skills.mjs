@@ -26,6 +26,7 @@ import {
   readFileSync,
   readdirSync,
   rmSync,
+  lstatSync,
   statSync,
   writeFileSync,
 } from 'node:fs';
@@ -271,6 +272,24 @@ for (const skill of lock.skills) {
     problems.push(localHash === null ? `${key}: missing` : `${key}: out of date`);
   }
 
+  // The skill directory itself, on its own terms. Everything below enumerates
+  // what is *under* `to` and so structurally cannot see `to`: a skill directory
+  // that is a symlink has nothing beneath it to report if its target is empty,
+  // and if the link dangles, existsSync follows it and reports the whole
+  // directory absent. Both read as "nothing here to protect" while the write
+  // step's recursive rm replaces the link. lstat, because every other check on
+  // this path follows links and that is exactly what hides this one.
+  let rootIsLink = false;
+  try {
+    rootIsLink = lstatSync(to).isSymbolicLink();
+  } catch {
+    rootIsLink = false; // absent: the normal first-sync case.
+  }
+  if (rootIsLink && !force) {
+    problems.push(`${skill}: the skill directory is a symlink, not something this tool vendored — refusing to replace it`);
+    continue;
+  }
+
   // The write step rms the whole directory, so anything this package does not
   // ship and the lock does not know about would be destroyed as collateral —
   // it never appears in the per-file loop above, because that iterates the
@@ -302,9 +321,12 @@ if (existsSync(schemaPath)) {
   for (const line of result.lines) (result.ok ? process.stdout : process.stderr).write(`${line}\n`);
 }
 
-const hasEdits = problems.some(
-  (p) => p.includes('edited locally') || p.includes('refusing to overwrite') || p.includes('refusing to delete'),
-);
+// Any problem that refuses. Matching "refusing to" rather than each exact
+// phrasing: the previous form listed the three messages that existed when it
+// was written, so adding a fourth refusal silently produced a problem that
+// printed as advice and then let the write proceed anyway. The refusal is the
+// property; the wording after it is not.
+const hasEdits = problems.some((p) => p.includes('refusing to') || p.includes('edited locally'));
 const staleVersion = lock.version !== pkg.version;
 
 if (check) {

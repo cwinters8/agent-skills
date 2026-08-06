@@ -222,9 +222,18 @@ rather than implying it did.
 Both modes below rely on phase 1's verification, so run it again rather than
 trusting the ref already recorded. Keeping the profile *true* as the repo
 changes is a different job: if `profile-refresh` is vendored here, defer to
-`profile-refresh` for it; that is the
-skill for it; if it is not, re-derive the affected sections per phase 2 and say
-which ones you checked.
+`profile-refresh` for it.
+
+If it is not, **do not approximate it from phase 2.** That skill audits the
+whole profile section by section — every mechanical check actually run, every
+named path grepped, every carve-out re-read as a condition that may have expired
+— and sorts what it finds into what it may fix and what it may only report.
+Re-deriving the sections this particular change happened to touch is a different
+and much smaller thing. Offered as profile maintenance it leaves stale commands,
+dead trust-boundary rows and expired exemptions exactly where they were while
+the run reads as complete, which is the failure mode this skill's own opening
+warns about: something that looks finished. Say the profile was not re-verified,
+name `profile-refresh` as the skill that would do it, and stop there.
 
 ### Adding a skill to a repo that already has them
 
