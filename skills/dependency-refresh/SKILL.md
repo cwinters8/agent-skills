@@ -18,8 +18,9 @@ to the action's current latest major. It stops at the workflow file. Everything
 else a project pulls in from outside — packages, provider plugins, a tool
 downloaded as a tarball, a container base image, a system package installed by a
 setup script — arrives through this skill. If a change touches a `uses:` ref,
-that is `action-versions`' call, not this one; if that skill isn't vendored
-here, say so rather than pinning action refs from memory.
+defer to `action-versions` for it rather than pinning the ref here; if that
+skill isn't vendored, say the reference went unchecked rather than pinning it
+from memory.
 
 `security-review` → **Group 5 — Supply chain and CI**, item 1, states the
 posture this skill executes. Read it there; it is not restated here, because a
