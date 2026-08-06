@@ -189,18 +189,31 @@ self-hosted runner machine by creating a pull request that executes the code in 
 workflow." If the runner holds a key with privileged access to other
 infrastructure, the runner is a lateral-movement path into it.
 
-Grade it by whether fork-authored code can reach the runner *today*, and report
-it either way. Fork PRs can only trigger `pull_request` and
-`pull_request_target`, so a public repo whose self-hosted jobs run solely on
-trusted events — a protected-branch `push`, a `schedule`, a `workflow_dispatch` —
-is not currently reachable, and calling that critical burns the finding's
-credibility on a repo that is fine. But it is still a finding, at lower severity,
-because nothing enforces the arrangement: the control is a trigger line in a
-workflow file, changeable by anyone with write access in a PR that reads like a
-CI tweak, and the runner's privilege does not change when it does. Read the
-`on:` block of every workflow whose jobs name the runner, say which triggers you
-found, and rank on that — never on visibility alone, and never on the absence of
-a PR trigger as though it were a guarantee.
+Grade it by whether fork-authored content can reach the runner *today*, and
+report it either way. Calling every public repo critical burns the finding's
+credibility on repos that are fine; calling a repo safe because its trigger
+names look trusted is the mistake in the other direction, and it is the easier
+one to make.
+
+**Trace provenance, not event names.** A fork PR triggers only `pull_request`
+and `pull_request_target` directly — but what those runs *produce* flows onward.
+The documented chain is in C3: a `pull_request` job builds fork-authored code and
+uploads an artifact, and a privileged `workflow_run` job downloads it. If that
+second job runs on the self-hosted runner and executes what it downloaded, fork
+code is running on owned hardware, and the runner's workflow never names a
+fork-triggerable event at all. Anything else a fork can influence and a later job
+consumes — a cache entry, a checked-out PR ref, a container image built from the
+PR — is the same shape.
+
+So for every job that names the runner, ask what it *executes* and where that
+came from, not just what triggered it. A repo whose self-hosted jobs run solely
+on a protected-branch `push`, a `schedule` or a `workflow_dispatch`, and consume
+nothing produced by a fork-triggered run, is not currently reachable — say so
+and rank it lower. It is still a finding at that lower severity, because nothing
+enforces the arrangement: the control is a trigger line and a download step,
+either changeable by anyone with write access in a PR that reads like a CI
+tweak, and the runner's privilege does not change when they do. Never rank on
+visibility alone, and never treat the absence of a PR trigger as a guarantee.
 
 **The approval gate is not that control.** GitHub's default — *Require approval
 for first-time contributors* — exempts anyone who has ever had a commit or PR
