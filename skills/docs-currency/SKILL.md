@@ -140,6 +140,17 @@ step 2 does not cover: step 2 asks whether a change invalidated the docs that
 instruct an *agent*, and says nothing about one doc invalidating a second doc
 that quotes it.
 
+**Walk it to a fixed point, not once.** The table can chain: A is canonical for
+B, and B is canonical for C. Editing B to match A is itself a change to a
+canonical file, so it re-opens B's own dependents — and a single pass scoped to
+the files the diff touched when the pass *began* stops at B, leaving C quoting
+wording that no longer exists anywhere. Feed each file you edit back through the
+table as a newly changed canonical, and keep going until a pass reaches no row
+you have not already reconciled. Two rounds usually settle it; the point is that
+you stop on the table going quiet, never on having finished the original list.
+If the table chains back on itself, reconcile each row once and say so rather
+than looping.
+
 **Rank a dependent first when a reader acts on it somewhere the project cannot
 revise.** A checklist step followed into a store submission, a form, or a
 published page turns a stale sentence into an external claim that no later PR

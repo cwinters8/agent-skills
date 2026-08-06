@@ -222,7 +222,13 @@ if (command === 'init') {
   console.log('');
   console.log('An agent can do the whole thing: see "Adopting in a new repo" in the');
   console.log(`${pkg.name} README for a prompt to hand it.`);
-  process.exit(0);
+  // A link that blocked scaffolding means a file init exists to create does not
+  // exist, so the run did not do its job — and the next `sync` fails on the
+  // missing lock regardless. Exiting zero there tells a script the adoption
+  // succeeded and leaves the failure to surface one command later, detached
+  // from its cause. Refusing to write through the link was the right call;
+  // reporting success afterwards would undo the point of it.
+  process.exit(links.length ? 1 : 0);
 }
 
 if (command !== 'sync' && command !== 'check-profile') usage();

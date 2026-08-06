@@ -126,9 +126,14 @@ a migration you don't want yet or was simply forgotten, so say which. This
 section also informs `security-review`'s supply-chain group, which ranks
 dependency findings by whether the package executes in CI or reaches users.
 
-*Missing:* `dependency-refresh` discovers manifests by scanning, cannot tell a
-deliberate pin from a stale one, and says so — reporting every pin it could not
-classify rather than bumping it.
+*Missing:* two skills lose input here, not one. `dependency-refresh` discovers
+manifests by scanning, cannot tell a deliberate pin from a stale one, and says
+so — reporting every pin it could not classify rather than bumping it. And
+`security-review`'s supply-chain group loses what it ranks by: which packages
+execute in CI or reach users, and whether a pin is held deliberately or was
+forgotten. Omitting this section is close to free for a single-manifest project
+with no security review; it is not free for one that vendors `security-review`,
+which is the case the one-skill wording used to hide.
 
 ### `## Review focus` — optional
 

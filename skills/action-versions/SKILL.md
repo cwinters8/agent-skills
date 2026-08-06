@@ -153,10 +153,19 @@ Out of scope — do **not** rewrite these refs:
   write-scoped `permissions:` — and a mutable tag on the call selects which code
   receives them. That is the same exposure as a tagged action, through a
   different syntax, so a privileged caller pins the full commit SHA of the ref
-  it currently resolves to, with the tag in a trailing comment. Resolve that SHA
-  from the workflow path's own history, never from a release major. The
-  exclusion above is about *which lookup* is valid, not about whether the ref may
-  move.
+  it currently resolves to, with the tag in a trailing comment.
+
+  **Resolve the ref itself to a commit — not the workflow file's history.**
+  `owner/repo/.github/workflows/x.yml@v1` selects the whole repository at
+  whatever `v1` points to, and the workflow file is only read out of that tree.
+  Its own last-touched commit is usually older, because unrelated commits land
+  after a workflow is edited, and pinning to that older commit silently rewinds
+  everything else in the tree the workflow depends on — the local composites it
+  calls, the scripts it runs, the files it reads. The reference would still
+  resolve and would still run, which is what makes this the wrong kind of
+  mistake: a rollback that reports success. So resolve the tag or branch to its
+  SHA, then confirm the workflow file exists at that SHA. The exclusion above is
+  about *which lookup* is valid, not about whether the ref may move.
 - Anything the profile's `## Exemptions` names.
 
 ### 2. Look up the current latest for each `owner/repo`

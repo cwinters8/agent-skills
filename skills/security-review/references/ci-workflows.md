@@ -214,8 +214,13 @@ missed by a reviewer matching on shape:
 
 - a **reusable-workflow call**, `owner/repo/.github/workflows/x.yml@ref`, which
   runs with whatever the caller passes it, so a mutable tag there selects which
-  code receives those secrets. Its SHA resolves from the workflow path's own
-  history rather than a release major, but the requirement is identical;
+  code receives those secrets. The requirement is identical; only the resolution
+  differs. Pin the commit **the ref itself resolves to** — the path selects a
+  whole repository state and reads the workflow out of it — not the workflow
+  file's own last-touched commit, which is usually older and would rewind the
+  composites, scripts and files that workflow depends on while still resolving
+  and running. Not a release major either, which may point at a revision lacking
+  the file;
 - a **container step**, `uses: docker://registry/image:tag`. An image tag is
   mutable exactly as a git tag is, and repointing it runs attacker-chosen code
   holding whatever the job holds. Require the digest —
