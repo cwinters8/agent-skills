@@ -369,12 +369,27 @@ working directory hands the next job every file, cache and background process
 the last one left. That is the whole of what this rule is trying to prevent, and
 it survives the flag intact.
 
-So require the second half explicitly: the host is a fresh VM or container per
-job, discarded after de-registration and never re-registered. Actions Runner
-Controller gets this right by construction — a new pod per job — which is why it
-is the easy recommendation on Kubernetes. Elsewhere, read the autoscaler or the
-supervisor that restarts the runner and confirm it *replaces* the host rather
-than restarting the agent on it. A persistent runner that reaches other
+So require the second half explicitly: **the job's whole execution environment
+is new, and nothing the last job wrote survives into the next one.** Not just a
+new agent registration, and not just a new process — a fresh VM, container or
+pod, with fresh storage, discarded afterwards and never reused.
+
+Read the autoscaler or the supervisor that restarts the runner and confirm it
+*replaces* the environment rather than restarting the agent inside it. That
+includes what the environment mounts: a new host attached to old storage is the
+same finding as an old host, because the files, caches and credentials the rule
+is about live in the storage, not in the agent.
+
+Actions Runner Controller is the easy path on Kubernetes and usually satisfies
+this — a new pod per job — but **check the pod template rather than the product
+name.** A pod that mounts a reused `PersistentVolumeClaim`, a shared work
+volume, or a `hostPath` carries the previous job's files into the next one
+exactly as a recycled VM does, and a `hostPath` reaches further still, exposing
+node state no job should see. "New pod" is the same claim as "new registration"
+one layer down, and this rule already rejects that claim: the lifecycle of the
+thing that runs the job is not the lifecycle of the thing that holds its files.
+Confirm the workspace is per-pod and discarded with it; then ARC is a shortcut
+for the control, which is what it was ever offered as. A persistent runner that reaches other
 infrastructure is a finding on its own; a nominally ephemeral runner on a
 recycled host is the same finding wearing a flag.
 

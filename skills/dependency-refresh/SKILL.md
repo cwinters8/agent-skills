@@ -84,12 +84,24 @@ reported as unknown, never as clean.
 
 ### 1. Derive the toolchain from the repo
 
-Do not assume an ecosystem. Scan for manifests and lockfiles, and **identify the
-package manager from the lockfile that is actually present**, not from what the
-manifest implies or what the project used last time you looked. The lockfile is
-what performs the install; a repo can carry a manifest one manager wrote and a
-lockfile another one did, and only the lockfile tells you which resolution the
-next install reproduces.
+Do not assume an ecosystem. Scan for manifests and lockfiles — then **identify
+the package manager from what actually installs, not from which lockfiles
+exist.** A lockfile's presence proves some manager wrote it once; it does not
+prove that manager still runs. Read the install path: the CI or build workflow,
+the container image, a `Makefile` or task runner, the setup script a contributor
+follows, and any package-manager declaration the manifest carries — a
+`packageManager` field, a toolchain or version file. Those select the manager.
+The lockfile only records a result, and is evidence about resolution once you
+know which one is live.
+
+This decides whether the run does anything at all. A repo mid-migration, or one
+that switched managers and never deleted the old file, carries two lockfiles;
+audit the wrong one and you produce a complete, clean-looking report on a
+dependency tree no build installs — worse than not running, because it is filed
+as coverage. **Conflicting lockfiles are a finding in their own right.** Say
+which one the install path selects, that the other is unused, and that it needs
+resolving: two lockfiles are a question the repo has left open, and the next
+reader will answer it differently than you did.
 
 **A project usually has several ecosystems at once.** Expect to find more than
 one of:
