@@ -64,9 +64,17 @@ just landed on the branch.
 
 ```sh
 # Resolve the branch this work merges into. Only an open PR's base establishes
-# it — use origin/<that branch>. With no PR, ASK: the default branch is a guess,
-# right for unstacked work and silently wrong for a stacked branch, which
-# targets the branch below it.
+# it — and the PR's base lives in the PR's *base repository*, which is not
+# always the remote named `origin`. On a fork checkout `origin` is the fork and
+# the PR targets `upstream`, so `origin/<base>` is a different branch that may
+# be stale, unrelated, or absent; the merge-base diff then covers the wrong
+# commits or fails outright, and neither announces itself.
+#   So: read the PR's base repo and branch, find the local remote whose URL is
+#   that repo (`git remote -v`), and use <that remote>/<base>. If no local
+#   remote points at it, fetch the base ref and diff against the SHA you
+#   fetched rather than naming a remote you do not have.
+# With no PR, ASK: the default branch is a guess, right for unstacked work and
+# silently wrong for a stacked branch, which targets the branch below it.
 #   Offer the default as the likely answer, do not adopt it unconfirmed:
 #     git symbolic-ref -q --short refs/remotes/origin/HEAD
 #     (symbolic-ref, because the name is what you need: `rev-parse --verify`
