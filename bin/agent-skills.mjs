@@ -84,6 +84,28 @@ const walk = (dir, base = dir) => {
   return out.sort();
 };
 
+// Everything under a directory, including the symlinks and empty directories
+// walk() omits. The deletion guard has to see strictly more than the copier
+// does: walk() skips a symlink so it is never hashed or copied, and never
+// yields a directory holding no file — but the write step rms the tree
+// recursively, so every entry walk() cannot see is destroyed silently, which
+// is the class of loss the guard exists to refuse. Hashing and copying still
+// go through walk(); only this enumeration is wider.
+const walkAll = (dir, base = dir) => {
+  const out = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const full = join(dir, entry.name);
+    if (entry.isDirectory() && !entry.isSymbolicLink()) {
+      const inner = walkAll(full, base);
+      // A directory holding nothing is itself the thing that would be lost, so
+      // it stands in for its absent contents.
+      if (inner.length === 0) out.push(relative(base, full));
+      else out.push(...inner);
+    } else out.push(relative(base, full));
+  }
+  return out.sort();
+};
+
 const available = () =>
   readdirSync(packageSkills, { withFileTypes: true })
     .filter((e) => e.isDirectory() && existsSync(join(packageSkills, e.name, 'SKILL.md')))
@@ -249,12 +271,14 @@ for (const skill of lock.skills) {
     problems.push(localHash === null ? `${key}: missing` : `${key}: out of date`);
   }
 
-  // The write step rms the whole directory, so a file this package does not
+  // The write step rms the whole directory, so anything this package does not
   // ship and the lock does not know about would be destroyed as collateral —
   // it never appears in the per-file loop above, because that iterates the
-  // package's files. Enumerate the target instead.
+  // package's files. Enumerate the target instead, with walkAll rather than
+  // walk: a locally authored symlink or an empty directory is invisible to the
+  // copier by design and would otherwise pass this guard and then be removed.
   if (existsSync(to)) {
-    for (const rel of walk(to)) {
+    for (const rel of walkAll(to)) {
       const key = `${skill}/${rel}`;
       if (key in nextFiles || lock.files?.[key] !== undefined) continue;
       if (!force) problems.push(`${key}: not shipped by this package and not in the lock — refusing to delete`);

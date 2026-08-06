@@ -18,10 +18,14 @@ both produce something that *looks* finished:
 - **A profile of plausible filler.** Seventeen headings invite an agent to write
   a sentence under each from what a repo of this shape usually does. Every skill
   downstream then acts on invented facts, and reports as configured.
-- **A ref that does not ship what its docs describe.** The docs and the
-  validator both travel inside the package, so a stale tag hands a consumer a
-  template and a validator from different versions — with no symptom until the
-  first sync fails.
+- **A ref that lags the instructions that sent you here.** Everything travels
+  inside the package, so a stale tag is perfectly *self*-consistent: its
+  template, its docs and its validator all ship together and all agree, and
+  Phase 4's `check-profile` runs that tag's validator against that tag's
+  template and passes. Nothing fails. What you get instead is an adoption
+  silently missing the skills and the profile sections released since — absent,
+  not broken, and therefore invisible to every check inside the ref. Phase 1
+  compares against the default branch for exactly this reason.
 
 Work the phases in order and commit nothing until the done bar at the end is
 met: the adoption is one reviewable diff. This needs the repo, its history, and

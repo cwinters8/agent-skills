@@ -72,11 +72,15 @@ and reports their defects as introduced here. Nothing about that fails loudly;
 it just changes what you reviewed.
 
 So with no PR, **ask which branch this merges into.** Offer the default as the
-likely answer rather than adopting it — `git rev-parse --verify --quiet
-refs/remotes/origin/HEAD`, which is an optional ref, absent in a repo whose
-remote was added by hand (the shorter `rev-parse --abbrev-ref origin/HEAD` exits
-128 there rather than falling back), and populated by
-`git remote set-head origin --auto` if you have network. Adopt it without
+likely answer rather than adopting it — `git symbolic-ref -q --short
+refs/remotes/origin/HEAD`, which prints a name such as `origin/main`. Use
+`symbolic-ref` and not `rev-parse --verify`: the latter resolves the ref and
+prints its object ID, which answers whether a default exists but not which
+branch it is, and a SHA is not something the user can confirm. Keep `-q`,
+because this ref is optional — absent in a repo whose remote was added by hand,
+where both `rev-parse --abbrev-ref origin/HEAD` and a bare `symbolic-ref` exit
+128 rather than falling back, while `-q` exits 1 and prints nothing. Populate it
+with `git remote set-head origin --auto` if you have network. Adopt it without
 confirmation only when you can see the branch is not stacked. Report
 findings in the session; do not post to GitHub in this mode.
 
