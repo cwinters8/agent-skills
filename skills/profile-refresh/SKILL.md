@@ -266,9 +266,17 @@ grouped by section — what you checked, what you found, whether you changed it.
 
 **A profile edit is a change that ships**, not a side effect. It goes through
 the project's normal gate: run the `pr-preflight` skill, which runs the
-project's mechanical checks and a self review over the diff. If `pr-preflight`
-isn't vendored here, run the commands in `## Mechanical checks` yourself and say
-the rest of the gate did not run.
+project's mechanical checks and a self review over the diff.
+
+If `pr-preflight` isn't vendored here, **say the gate did not run and stop
+there** — do not stand in for it. Running the mechanical checks alone would be
+the recognizable half of that skill and not the load-bearing one: preflight also
+carries the self review, the project's own review focus, the security gate and
+the docs-currency pass, and a profile edit is precisely the kind of diff those
+catch, since it changes what every later review is told about the repo. A run
+that names one quarter of the gate and reports finishing reads, to whoever
+merges it, as gated. Name the skill, say the gate is missing, and let the
+maintainer decide.
 
 Re-run `check-profile` after editing — this skill changes prose inside sections,
 but a rewritten section that lost its heading, or a deleted optional section a
