@@ -4,9 +4,9 @@ description: >
   Update and audit a project's dependencies: find every manifest and lockfile,
   read the ecosystem's own advisories, and decide whether a bump is safe to
   take. Use when asked to "update dependencies", "bump dependencies", "check
-  for vulnerable packages", "run npm audit", "are our deps out of date", or to
-  respond to a "dependency advisory", and before a release whose tree has not
-  been refreshed.
+  for vulnerable packages", "audit dependencies", "are our deps out of date",
+  or to respond to a "dependency advisory", and before a release whose tree has
+  not been refreshed.
 ---
 
 # Dependency refresh
@@ -67,11 +67,13 @@ is not a tiebreaker — a package that executes in CI through an entry point the
 advisory does not touch is not a blocker, and calling it one because question 1
 said yes makes question 3 decorative and every routine refresh a fight.
 
-This is the same two-yes bar `security-review` states in Group 5 and its
-`ci-workflows` module states in C5, deliberately: the three questions above are
-this skill's *procedure*, and it has to work when `security-review` isn't
-vendored, so the bar itself lives in both places. If you ever find them
-disagreeing, the security skill is canonical and the divergence is the finding.
+This is the same two-yes bar `security-review`'s `ci-workflows` module states in
+C5, deliberately: the three questions above are this skill's *procedure*, and it
+has to work when `security-review` isn't vendored at all, so the bar itself
+lives in both places. **C5 is canonical** — `security-review`'s Group 5 states
+only the shape and defers the ranking to it, so C5 is the one file to change and
+this one is the copy that follows. If you find them disagreeing, that divergence
+is the finding.
 
 Downgrade in either direction and say which question did it: an advisory in a
 package that never executes during install, build or test and never ships, or
@@ -160,10 +162,21 @@ time. Two rules keep it true:
   root, so say in the report that the pin is TOFU rather than implying it was
   verified. Naming which of the two you got is the whole point; "we checksummed
   it" hides the difference.
-- **For a package manager, the lockfile is the pin.** A range in a manifest is a
-  statement of intent — two installs a week apart resolve differently and both
-  satisfy it. A change that edits a range and leaves the lockfile alone has
-  pinned nothing; a change that updates a lockfile is the real diff to review.
+- **For a package manager, the lockfile is the unit that pins** — but check
+  what it pins. A range in a manifest is a statement of intent: two installs a
+  week apart resolve differently and both satisfy it. So a change that edits a
+  range and leaves the lockfile alone has pinned nothing, and a change that
+  updates a lockfile is the real diff to review. That much holds everywhere.
+
+  **Whether it pins the same *bytes* depends on the ecosystem.** A lockfile
+  recording an integrity digest per entry does. One recording only a name,
+  version and source does not — it pins what to ask for, and the source decides
+  what to hand back, so the reviewed bytes and the installed bytes are the same
+  only as long as that source behaves. Read the lockfile before claiming
+  reproducibility, and where it carries no digest, say the pin is on the
+  coordinates rather than the artifact. That is the same distinction as the
+  checksum case above: naming which one you have is the point, and "it's
+  locked" hides the difference exactly as "we checksummed it" does.
 
 ### 4. Separate the bump from the fix
 
