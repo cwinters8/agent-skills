@@ -174,8 +174,10 @@ CI often runs a script that commits generated content. Two properties matter:
 
 A hosted runner is a fresh VM the platform throws away. A self-hosted runner is a
 machine someone owns, and every rule below follows from that difference. When
-the project also provisions that machine, read
-`references/infra-provisioning.md` alongside this.
+the project also provisions that machine, read `references/infra-provisioning.md`
+alongside this — and `references/cloud-network.md` where a provider firewall
+decides what reaches the runner, or `references/config-as-code.md` where the
+provisioning is declarative.
 
 **C9.1 Only private repositories may target the runner.** A fork PR on a
 **public** repo can run code on a self-hosted runner — GitHub's own words:
