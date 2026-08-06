@@ -98,15 +98,27 @@ Review the diff yourself against the profile:
   here: a second copy drifts, and the clause it drops is the one that mattered.
   Reconcile what it reports **in the same PR** — a contradicted doc is a failing
   check, not a follow-up — and carry anything it says it skipped into the PR
-  description. If it isn't vendored here, this step is **degraded, not skipped**
-  — an earlier version of this skill carried the docs check inline, so a repo
-  that upgrades without adding `docs-currency` to `.claude/skills.json` loses
-  coverage it already had, silently and with nothing in the diff to show for it.
-  Add the skill and re-sync. Until that lands, run the irreducible minimum —
-  grep the rules source, the profile and the vendored skills for the terms the
-  diff touches *and for the wording it deleted* — and say in the PR description
-  that the full check did not run. Don't guess at the rest of what that skill
-  would have done.
+  description.
+
+  If it isn't vendored here, this step is **degraded, not skipped**, and that is
+  a deliberate exception to the rule that a missing skill means skip and say so.
+  The exception exists for one reason and does not generalize: this skill
+  *carried the docs check inline* until `docs-currency` was split out of it, so
+  a repo that upgrades without adding the name to `.claude/skills.json` loses
+  coverage it already had — silently, with nothing in the diff to show for it.
+  Skipping cleanly is the right default everywhere else; here it would hand a
+  regression to the consumers least likely to notice.
+
+  Bound it accordingly. Add the skill and re-sync — that is the fix. Until it
+  lands, run only the irreducible minimum: grep the rules source, the profile
+  and the vendored skills for the terms the diff touches *and for the wording it
+  deleted*. That is a mechanical action, not a summary of what `docs-currency`
+  decides, which is why it cannot drift as that skill evolves — and it is why
+  nothing may be added to it here. Say in the PR description that the full check
+  did not run. Don't guess at the rest of what that skill would have done.
+
+  This paragraph is deletable, and should be deleted once no supported consumer
+  predates the split.
 
 ### 4. Verify behavior when feasible
 
