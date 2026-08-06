@@ -92,19 +92,31 @@ const walk = (dir, base = dir) => {
 // recursively, so every entry walk() cannot see is destroyed silently, which
 // is the class of loss the guard exists to refuse. Hashing and copying still
 // go through walk(); only this enumeration is wider.
+//
+// Each entry carries its `kind`, and that is deliberate rather than
+// convenient. Every guard downstream has to decide by what an entry *is* — a
+// pathname is not evidence of a type, since a consumer can put a file where a
+// directory belongs, or a symlink where either does — and each time that
+// information was left to be re-derived at the call site, a call site forgot.
+// Returning it with the path makes forgetting take an explicit `kind` check
+// rather than an omitted one.
 const walkAll = (dir, base = dir) => {
   const out = [];
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const full = join(dir, entry.name);
-    if (entry.isDirectory() && !entry.isSymbolicLink()) {
+    const rel = relative(base, full);
+    // Dirent types come from lstat, so a link to a directory lands here and not
+    // in the branch below — which is what keeps the walk from descending it.
+    if (entry.isSymbolicLink()) out.push({ rel, kind: 'symlink' });
+    else if (entry.isDirectory()) {
       const inner = walkAll(full, base);
       // A directory holding nothing is itself the thing that would be lost, so
       // it stands in for its absent contents.
-      if (inner.length === 0) out.push(relative(base, full));
+      if (inner.length === 0) out.push({ rel, kind: 'dir' });
       else out.push(...inner);
-    } else out.push(relative(base, full));
+    } else out.push({ rel, kind: 'file' });
   }
-  return out.sort();
+  return out.sort((a, b) => (a.rel < b.rel ? -1 : a.rel > b.rel ? 1 : 0));
 };
 
 // lstat, never stat: every other check on these paths follows links, which is
@@ -153,13 +165,33 @@ if (command === 'init') {
   // part of adoption — the scaffolding is the cheap part.
   const wrote = [];
   const kept = [];
+  const links = [];
   mkdirSync(join(repoRoot, '.claude'), { recursive: true });
 
-  if (existsSync(lockPath)) kept.push('.claude/skills.json');
-  else {
-    writeFileSync(lockPath, `${JSON.stringify({ skills }, null, 2)}\n`);
-    wrote.push('.claude/skills.json');
-  }
+  // Scaffold one file, deciding by what is at the path rather than by whether
+  // reading it would succeed. existsSync follows links and so reports a
+  // *dangling* symlink as absent — after which writeFileSync follows it too and
+  // creates the link's target, which need not be in this repository at all.
+  // That is a write outside the tree reported as ".claude/…: wrote", the worst
+  // combination available. A link is something the adopter put there
+  // deliberately; neither writing through it nor silently calling it fine is
+  // right, so name it and leave it alone.
+  const scaffold = (path, label, write) => {
+    if (isSymlink(path)) {
+      links.push(label);
+      return;
+    }
+    if (existsSync(path)) {
+      kept.push(label);
+      return;
+    }
+    write();
+    wrote.push(label);
+  };
+
+  scaffold(lockPath, '.claude/skills.json', () =>
+    writeFileSync(lockPath, `${JSON.stringify({ skills }, null, 2)}\n`),
+  );
 
   // Warn where the adopter can still act on it: a directory already sitting
   // under .claude/skills/ with a name this package also ships is almost
@@ -168,14 +200,15 @@ if (command === 'init') {
   // than a failed sync the adopter has to interpret.
   const collisions = skills.filter((s2) => existsSync(join(skillsDir, s2)));
 
-  if (existsSync(profilePath)) kept.push('.claude/project-profile.md');
-  else {
-    copyFileSync(join(packageRoot, 'templates', 'project-profile.md'), profilePath);
-    wrote.push('.claude/project-profile.md');
-  }
+  scaffold(profilePath, '.claude/project-profile.md', () =>
+    copyFileSync(join(packageRoot, 'templates', 'project-profile.md'), profilePath),
+  );
 
   for (const f of wrote) console.log(`agent-skills: wrote ${f}`);
   for (const f of kept) console.log(`agent-skills: kept existing ${f}`);
+  for (const f of links) {
+    console.error(`agent-skills: ${f} is a symlink — left alone, nothing written through it`);
+  }
   if (collisions.length) {
     console.log('');
     console.log('agent-skills: these names already exist under .claude/skills/ and are listed:');
@@ -344,30 +377,30 @@ for (const skill of lock.skills) {
   // walk: a locally authored symlink or an empty directory is invisible to the
   // copier by design and would otherwise pass this guard and then be removed.
   if (targetIsDir) {
-    for (const rel of walkAll(to)) {
+    for (const { rel, kind } of walkAll(to)) {
       const key = `${skill}/${rel}`;
-      // Type before pathname. This tool only ever writes regular files, so a
-      // symlink is never something it vendored no matter whose name it wears —
-      // and occupying a shipped path is the likeliest way for one to exist
-      // (a repo pointing several copies at one checkout). Both guards would
-      // otherwise wave it through on the name alone: the hash check above
+      // Type before pathname, every time. This tool only ever writes regular
+      // files, so a symlink is never something it vendored no matter whose name
+      // it wears — and occupying a shipped path is the likeliest way for one to
+      // exist (a repo pointing several copies at one checkout). Both guards
+      // would otherwise wave it through on the name alone: the hash check above
       // reads through the link, so a link onto the shipped content matches
       // exactly, and the exemption below matches the key. The rm then replaces
       // the link with a regular file, silently, which is the whole failure.
-      if (isSymlink(join(to, rel)) && !force) {
+      if (kind === 'symlink' && !force) {
         problems.push(`${key}: a symlink, not a file this tool vendored — refusing to replace it`);
         continue;
       }
-      // walkAll yields a directory only when it holds nothing at all, and an
-      // empty directory that this package ships files *into* is not local
-      // content — it is our own directory with its files deleted. The two look
-      // identical by name, since nextFiles holds the files and never the
-      // directory. Refusing here would block the restore of the very files the
-      // loop above just reported missing, turning a recoverable state into a
-      // sync that cannot proceed without --force.
-      if (shipsFilesUnder(key)) {
-        continue;
-      }
+      // walkAll yields kind 'dir' only for a directory holding nothing at all,
+      // and an empty directory this package ships files *into* is not local
+      // content — it is our own directory with its files deleted. Refusing
+      // there would block the restore of the very files the loop above just
+      // reported missing. The `kind` test is load-bearing and not a formality:
+      // nextFiles holds `<skill>/references/x.md` and never `<skill>/references`
+      // itself, so a consumer's own *file* sitting at that path matches
+      // shipsFilesUnder on the name alone, and this exemption would hand it
+      // straight to the rm.
+      if (kind === 'dir' && shipsFilesUnder(key)) continue;
       if (key in nextFiles || lock.files?.[key] !== undefined) continue;
       if (!force) problems.push(`${key}: not shipped by this package and not in the lock — refusing to delete`);
     }
