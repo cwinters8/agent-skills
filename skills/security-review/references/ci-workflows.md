@@ -203,11 +203,15 @@ only one safe on a moving tag:
   Substituting it reaches users through a path nobody reviews again.
 
 The last two are the ones a credentials-and-runners test waves through, and they
-are why this is a question rather than a pair of conditions. `action-versions`
-asks the same question against the same four answers, deliberately: the two
-skills must never prescribe opposite fixes for one line, and a project may vendor
-either one without the other, so neither may be the only place a class of
-exposure is named. If you find them differing, that divergence is the finding.
+are why this is a question rather than a pair of conditions.
+
+`action-versions` carries the same four answers, deliberately — it has to pin
+correctly when `security-review` is not vendored, and a skill that cannot answer
+its own central question alone is not usable alone. **This module is canonical
+and that copy is the follower**, on the same terms as C5 and
+`dependency-refresh`: a fifth asset gets added here first and propagated in the
+same commit. The two must never prescribe opposite fixes for one line, so if you
+find them differing, that divergence is the finding.
 **Read "action" here as any third-party code the step runs, not as the `uses:
 owner/repo@ref` syntax.** Two other forms carry the identical exposure and are
 missed by a reviewer matching on shape:
