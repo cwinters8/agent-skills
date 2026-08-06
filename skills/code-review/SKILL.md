@@ -63,8 +63,13 @@ into the commit.) The review must not mutate the index it is reviewing.
 
 Resolve `base` rather than assuming a default-branch name.
 
-**Only PR metadata establishes it.** An open PR's base is authoritative — use
-`origin/<that branch>` and move on. With no PR, nothing you can run tells you
+**Only PR metadata establishes it.** An open PR's base is authoritative — but it
+names a branch *in the PR's base repository*, which is not always the remote
+called `origin`. On a fork checkout `origin` is the fork and the PR targets
+`upstream`, so `origin/<base>` is some other branch: stale, unrelated, or
+missing. Match the base repository to the local remote whose URL is that repo
+and use `<that remote>/<base>`; if no remote points at it, fetch the base ref
+and diff against the SHA you fetched. With no PR, nothing you can run tells you
 the answer: the default branch is a *guess* that happens to be right for
 unstacked work and is silently wrong for a stacked branch, which targets the
 branch below it. Diffing against the default there pulls in the parent's commits

@@ -145,12 +145,21 @@ const available = () =>
 // guard one level below the thing being followed cannot see the following.
 //
 // `list` is exempt: it reads the package and never touches the repo.
-if (command !== 'list' && isSymlink(join(repoRoot, '.claude'))) {
-  die(
-    '.claude is a symlink — refusing to read or write through it, because every path ' +
-      'below it would resolve somewhere this command cannot honestly report. ' +
-      'Replace it with a real directory.',
-  );
+if (command !== 'list') {
+  const claudeDir = join(repoRoot, '.claude');
+  if (isSymlink(claudeDir)) {
+    die(
+      '.claude is a symlink — refusing to read or write through it, because every path ' +
+        'below it would resolve somewhere this command cannot honestly report. ' +
+        'Replace it with a real directory.',
+    );
+  }
+  // Not-a-symlink is not the same as is-a-directory. A regular file here reached
+  // init's recursive mkdir and died on an uncaught EEXIST — a stack trace where
+  // this command has a refusal for every other shape at every other path.
+  if (existsSync(claudeDir) && !statSync(claudeDir).isDirectory()) {
+    die('.claude exists but is not a directory — nothing can be read or written under it.');
+  }
 }
 
 if (command === 'list') {
@@ -279,10 +288,8 @@ if (!Array.isArray(lock.skills) || lock.skills.length === 0) {
 // and would stamp one file twice, after which canonical() strips only the first
 // banner and the skill reads as locally edited forever. Normalizing on read
 // makes that true of every path into the file, not just the one command.
-if (new Set(lock.skills).size !== lock.skills.length) {
-  console.error('agent-skills: ignoring duplicate names in "skills"');
-  lock.skills = [...new Set(lock.skills)];
-}
+const duplicateNames = [...new Set(lock.skills.filter((s, i) => lock.skills.indexOf(s) !== i))];
+if (duplicateNames.length) lock.skills = [...new Set(lock.skills)];
 
 // A ref here would be a second content pin competing with the npx spec, and the
 // two can disagree silently — bumping the one that is ignored looks like an
@@ -314,6 +321,18 @@ for (const skill of lock.skills) {
 const problems = [];
 const nextFiles = {};
 const plan = [];
+
+// A duplicate name is drift in the file, not something to normalize away in
+// memory and forget. The deduped list above is what this run uses — the write
+// path needs it, since a name appearing twice would stamp one SKILL.md with two
+// provenance banners and leave it reading as locally edited forever. But
+// --check writes nothing, so silently normalizing there would report the repo
+// up to date while the duplicate stayed on disk, which is exactly the promise
+// --check makes and would be breaking. Reporting it means CI fails until a real
+// sync rewrites the lock.
+for (const name of duplicateNames) {
+  problems.push(`${name}: listed more than once in .claude/skills.json — run a sync to rewrite the lock`);
+}
 
 // Scan every skill before writing any of them. Deciding and writing in one pass
 // would overwrite the skills listed before a hand-edited one and then abort,
