@@ -54,6 +54,7 @@ const die = (message) => {
 
 const usage = () => {
   console.error('usage: agent-skills sync [--check] [--force]');
+  console.error('       agent-skills init [skill...]');
   console.error('       agent-skills check-profile');
   console.error('       agent-skills list');
   process.exit(2);
@@ -95,12 +96,55 @@ if (command === 'list') {
   process.exit(0);
 }
 
+// `init` scaffolds the two files a consumer owns, so it is the one command that
+// must run before .claude/skills.json exists. It deliberately does NOT sync:
+// the profile it writes is still a template full of placeholders, and a sync
+// would fail validation on it. Write, then let the adopter fill it in.
+if (command === 'init') {
+  const requested = argv.filter((a) => !a.startsWith('--') && a !== 'init');
+  const skills = requested.length ? requested : available();
+  const unknown = skills.filter((s) => !available().includes(s));
+  if (unknown.length) {
+    die(`unknown skill${unknown.length === 1 ? '' : 's'} ${unknown.join(', ')} — available: ${available().join(', ')}`);
+  }
+
+  // Never overwrite. A second `init` in a configured repo would otherwise
+  // discard a filled-in profile, and the adopter's own work is the expensive
+  // part of adoption — the scaffolding is the cheap part.
+  const wrote = [];
+  const kept = [];
+  mkdirSync(join(repoRoot, '.claude'), { recursive: true });
+
+  if (existsSync(lockPath)) kept.push('.claude/skills.json');
+  else {
+    writeFileSync(lockPath, `${JSON.stringify({ skills }, null, 2)}\n`);
+    wrote.push('.claude/skills.json');
+  }
+
+  if (existsSync(profilePath)) kept.push('.claude/project-profile.md');
+  else {
+    copyFileSync(join(packageRoot, 'templates', 'project-profile.md'), profilePath);
+    wrote.push('.claude/project-profile.md');
+  }
+
+  for (const f of wrote) console.log(`agent-skills: wrote ${f}`);
+  for (const f of kept) console.log(`agent-skills: kept existing ${f}`);
+  console.log('');
+  console.log('Next: fill in .claude/project-profile.md — every TODO must be replaced.');
+  console.log('Then: agent-skills sync    (validates the profile and vendors the skills)');
+  console.log('');
+  console.log('An agent can do the whole thing: see "Adopting in a new repo" in the');
+  console.log(`${pkg.name} README for a prompt to hand it.`);
+  process.exit(0);
+}
+
 if (command !== 'sync' && command !== 'check-profile') usage();
 
 if (!existsSync(lockPath)) {
   console.error(`agent-skills: no .claude/skills.json in ${repoRoot}`);
   console.error('create one naming the skills this repo wants:');
   console.error(`  { "skills": ${JSON.stringify(available())} }`);
+  console.error('or run: agent-skills init');
   process.exit(1);
 }
 
@@ -259,7 +303,22 @@ console.log(
   `agent-skills: ${lock.skills.length} skills at ${pkg.version}` +
     (changed ? ` — ${changed} file${changed === 1 ? '' : 's'} updated` : ' — already current'),
 );
-if (!profileOk) die('vendored skills are current, but the project profile failed validation');
+// The skills were written above before this check, deliberately: on a first
+// adoption the profile is still the untouched template, and the adopter needs
+// the vendored `skills-adopt` on disk to be told how to fill it in. So this exit
+// is non-zero (unattended callers must still see a failure) but it is a normal
+// step of adoption, not a broken sync — say which of the two this is.
+if (!profileOk) {
+  const untouched = validateProfile().lines.filter((l) => l.includes('template text')).length;
+  if (untouched > 1) {
+    console.error('');
+    console.error('agent-skills: the skills are vendored, but the profile is still the template.');
+    console.error('  That is expected on a first adoption — fill it in, then re-run the sync.');
+    console.error(`  The vendored skills-adopt skill walks through it, if you listed it.`);
+    process.exit(1);
+  }
+  die('vendored skills are current, but the project profile failed validation');
+}
 
 // --- profile validation -----------------------------------------------------
 

@@ -1,6 +1,6 @@
 {
   "name": "@cwinters8/agent-skills",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Portable Claude Code skills for QA and code review, vendored into consumer repos behind a project profile",
   "license": "MIT",
   "type": "module",

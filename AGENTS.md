@@ -20,17 +20,28 @@ Concretely, a skill must never name:
 The mechanical check before committing:
 
 ```sh
-grep -rniE '\b(sprite|locker|supabase|postgrest|expo|eas|cwinters8)\b' skills/ \
-  --include=SKILL.md
+grep -rniE '\b(sprite|locker|supabase|postgrest|expo|eas|cwinters8|nordvpn|tinyproxy|hostinger|digitalocean|droplet|doppler|opentofu)\b' \
+  skills/ --include=SKILL.md
 ```
 
 Word boundaries matter here: an unanchored `locker` matches "blocker" and an
 unanchored `expo` matches "exposure", and a check that cries wolf gets skipped.
-Extend the alternation as new consumers adopt these skills.
+Extend the alternation as new consumers adopt these skills — and only with terms
+that are unambiguously a product or vendor. A generic word a skill has a
+legitimate reason to use (`just`, `ansible`, `tofu`) belongs in review, not in
+this grep: the moment it fires on a correct sentence, the check stops being run.
 
 Hits inside `skills/security-review/references/` may be legitimate — those
 modules are deliberately stack-specific — but a hit in any `SKILL.md` is a leak
-to fix.
+to fix, with one standing exception: `skills-adopt` names this package's own npx
+invocations, because a skill explaining how to vendor this package cannot avoid
+naming it. That is the package identifying itself, not a consumer's fact leaking
+in. Any *other* `cwinters8` hit is a real leak.
+
+The rule that a module may name a *stack* does not let it name a *vendor's
+product*. A module describing an ecosystem writes "a commercial VPN client with a
+kill switch" or "a provider whose firewalls default-deny outbound", because the
+rule generalizes to every consumer on that stack and the product name does not.
 
 ## Session behavior
 
@@ -63,7 +74,7 @@ session decides for itself.
 
 ```
 CLAUDE.md                pointer that @-imports AGENTS.md, so the rules load on turn one
-bin/agent-skills.mjs     the CLI consumers run via npx: sync, check-profile, list
+bin/agent-skills.mjs     the CLI consumers run via npx: init, sync, check-profile, list
 package.json             `bin` + `files`; `files` decides what a consumer can actually receive
 profile-schema.json      canonical section list; the validator, template and docs all derive from it
 docs/project-profile.md  the schema reference consumers read

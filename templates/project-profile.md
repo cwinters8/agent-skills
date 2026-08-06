@@ -57,6 +57,20 @@ TODO
 
 TODO
 
+## Dependencies
+
+<!-- Which manifests and lockfiles are authoritative, which ecosystems are in
+     play, what is deliberately pinned and why, and the update policy. List
+     every ecosystem, not just the obvious one: an application manifest, an
+     infrastructure provider lockfile, a tool pinned as a downloaded archive,
+     container base images, system packages a setup script installs.
+
+     The "why" behind a pin is the part scanning cannot recover — a version held
+     back deliberately looks exactly like one that was forgotten. Without it a
+     refresh leaves those pins alone and reports them as unclassified. -->
+
+TODO
+
 ## Review focus
 
 <!-- This project's known failure modes: invariants that are easy to break,
@@ -120,8 +134,9 @@ TODO
 ## Stack
 
 <!-- REQUIRED IF YOU VENDOR security-review. Which reference modules apply:
-     postgres-rls, ci-workflows, mobile-release. List only what you actually
-     use — naming one you don't produces checks that cannot pass. -->
+     postgres-rls, ci-workflows, mobile-release, infra-provisioning. List only
+     what you actually use — naming one you don't produces checks that cannot
+     pass. -->
 
 TODO
 

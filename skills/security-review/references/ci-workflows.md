@@ -104,3 +104,43 @@ CI often runs a script that commits generated content. Two properties matter:
   writing.
 - It fails loud rather than writing something partial. A half-written generated
   file that still parses is worse than a failed job.
+
+## C8. Self-hosted runners are part of the trust boundary
+
+A hosted runner is a fresh VM the platform throws away. A self-hosted runner is a
+machine someone owns, and every rule below follows from that difference. When the
+project also provisions that machine, read
+`references/infra-provisioning.md` alongside this.
+
+**Only private repositories may target the runner.** A fork PR on a **public**
+repo can run arbitrary code on a self-hosted runner — GitHub's own documented
+behavior, not an edge case. If that runner holds a key with privileged access to
+other infrastructure, the runner is a lateral-movement path into it: a fork PR
+becomes root on the machine that key reaches. State this as a rule to verify, not
+an assumption. Read which repositories the runner is registered to and confirm
+each is private, and record the constraint where the visibility decision gets
+made — a repo flipped to public later removes the control silently, with no diff
+anywhere.
+
+**A runner reaching other infrastructure uses a dedicated, individually revocable
+credential.** One `authorized_keys` line that can be deleted to lock CI out —
+never a shared operator key, which cannot be revoked without locking the operator
+out too. Generate the pair for CI alone and confirm the private half lives only
+on the runner, at a mode only the runner's service account can read.
+
+**Inbound exposure is a finding.** Self-hosted runners are outbound-only by
+design: the agent long-polls for work and nothing ever connects in. Any open
+inbound port beyond maintenance access is attack surface the runner does not need
+— check the firewall in front of it, not only the machine's own config.
+
+**Runners persist state between jobs.** Unlike an ephemeral hosted runner, the
+working directory, caches, installed tools and anything a job leaves on disk
+survive into the next job, possibly from a different workflow. Treat "a
+compromised job can leave something behind for the next one" as the default
+rather than the exotic case.
+
+**Gate a privileged apply/deploy workflow to manual dispatch.** When a workflow
+reconfigures infrastructure unattended and a bad change can leave the target
+unreachable, `workflow_dispatch` — with a dry-run input defaulting to true — is
+the right trigger. An automatic `push` trigger on that workflow means discovering
+the breakage from a merge; add one only once the change path is trusted.

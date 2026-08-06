@@ -5,13 +5,24 @@ code review, written to work in any repository. Project-specific facts live in
 the consumer repo, in a single overlay file, so the skills themselves stay
 generic.
 
+Shipping a change:
+
 | Skill | What it does |
 | --- | --- |
 | `pr-preflight` | Pre-push QA gate: mechanical checks, self review, project checks, then push and open a draft PR |
 | `code-review` | Reviews a local branch diff or an open PR, scoring findings for confidence and dropping the weak ones |
 | `review-sweep` | Triages every review comment on open PRs to a terminal state, and knows when to stop |
-| `action-versions` | Pins every GitHub Action reference to its current latest major, looked up rather than remembered |
 | `security-review` | Security gate driven by the project's stated trust boundary, with per-stack reference modules |
+| `docs-currency` | Finds every doc a change invalidated, including the copies that only hold the wording the diff deleted |
+
+Keeping the repo's inputs honest:
+
+| Skill | What it does |
+| --- | --- |
+| `action-versions` | Pins every GitHub Action reference to its current latest major, looked up rather than remembered |
+| `dependency-refresh` | Bumps and audits dependencies across whatever ecosystems the repo actually has, ranked by reachability |
+| `skills-adopt` | Vendors these skills into a new repo, deriving the profile from the repo instead of a template |
+| `profile-refresh` | Re-derives an existing profile against the repo, because a stale profile reads exactly like a current one |
 
 ## How consumers get them
 
@@ -31,11 +42,36 @@ that a one-liner and detects drift.
 
 ## Adopting in a new repo
 
-The consumer writes no tooling code. It owns two files and one command.
+The consumer writes no tooling code. It owns two files — `.claude/skills.json`
+and `.claude/project-profile.md` — and runs one command.
+
+**Hand it to an agent.** Filling in the profile is the whole job, and it is
+research: the answers have to come from the repo, not from a template. Paste
+this into a session at the root of the repo you are adopting into.
+
+> Adopt the shared Claude Code skills from `cwinters8/agent-skills` into this
+> repository.
+>
+> 1. Run `npx -y github:cwinters8/agent-skills#v1 init` to scaffold
+>    `.claude/skills.json` and a blank `.claude/project-profile.md`.
+> 2. Run `npx -y github:cwinters8/agent-skills#v1 sync`. It vendors the skills
+>    and then exits non-zero because the profile is still the template — that is
+>    expected, and it is what puts `.claude/skills/skills-adopt/SKILL.md` on
+>    disk.
+> 3. Read that skill and follow it. It covers deriving each profile section from
+>    this repo, what to do when there is no rules source to point at, and how to
+>    confirm the ref you pinned ships the schema the template was written for.
+
+That is the whole bootstrap, and it settles the obvious objection: the skill
+explaining adoption is vendored *by* step 2, before it is needed in step 3.
+`sync` writes the skills before it validates the profile, deliberately, so a
+first run always leaves the guidance on disk even though it fails.
+
+**Or do it by hand.** `init` is a convenience, not a requirement.
 
 1. Copy `templates/project-profile.md` to `.claude/project-profile.md` and fill
-   it in. Read `docs/project-profile.md` for what each section does, and
-   `examples/` for a complete real one.
+   it in. Read `docs/project-profile.md` for what each section does and what
+   omitting it costs you, and `examples/` for a complete real one.
 2. Add `.claude/skills.json` naming the skills you want:
 
    ```json
@@ -64,6 +100,14 @@ The consumer writes no tooling code. It owns two files and one command.
    ```sh
    npx -y github:cwinters8/agent-skills#v1 check-profile
    ```
+
+**Confirm the ref ships what these docs describe.** The ref in your invocation is
+the only content pin, so a tag that has fallen behind this README hands you an
+older schema than the template you just copied — and the validator then rejects a
+section the template told you to write. `agent-skills list` plus a
+`check-profile` against a freshly-copied template surfaces the disagreement in
+one run. When a tag has drifted, pin a commit instead and record why in your
+rules source.
 
 ## The version you invoke is the version you vendor
 

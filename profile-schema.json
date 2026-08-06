@@ -6,7 +6,7 @@
     {
       "heading": "Rules source",
       "required": true,
-      "readBy": ["code-review", "pr-preflight", "review-sweep"],
+      "readBy": ["code-review", "docs-currency", "pr-preflight", "review-sweep"],
       "supplies": "The file holding this project's rules for agents, and any file that merely points at it.",
       "fallback": "Skills look for AGENTS.md then CLAUDE.md at the repo root, and say in their report that they guessed."
     },
@@ -20,16 +20,23 @@
     {
       "heading": "Mechanical checks",
       "required": true,
-      "readBy": ["pr-preflight", "review-sweep"],
+      "readBy": ["dependency-refresh", "pr-preflight", "review-sweep"],
       "supplies": "The commands that must pass before a push, one per line, most important first. Write 'none' if the project has no automated checks.",
       "fallback": "pr-preflight reports that it ran no mechanical gate, which is a finding in itself."
     },
     {
       "heading": "Derived docs",
       "required": false,
-      "readBy": ["pr-preflight"],
+      "readBy": ["docs-currency", "pr-preflight"],
       "supplies": "A table of canonical file to the files that restate what it says, so a change to a fact can be traced to every copy of it. Note which dependents a reader acts on outside the repo. Write 'none' if no doc restates another.",
       "fallback": "Docs currency covers the rules source, the profile and the vendored skills only, and a human-facing doc quoting a changed fact goes stale silently."
+    },
+    {
+      "heading": "Dependencies",
+      "required": false,
+      "readBy": ["dependency-refresh", "security-review"],
+      "supplies": "Which manifests and lockfiles are authoritative, which ecosystems are in play, what is deliberately pinned and why, and the project's update policy.",
+      "fallback": "dependency-refresh discovers manifests by scanning, cannot tell a deliberate pin from a stale one, and reports every pin it could not classify."
     },
     {
       "heading": "Review focus",
@@ -87,7 +94,7 @@
       "required": false,
       "requiredWith": ["security-review"],
       "readBy": ["security-review"],
-      "supplies": "Which reference modules apply, from the skill's references directory: postgres-rls, ci-workflows, mobile-release. List only what this project actually uses.",
+      "supplies": "Which reference modules apply, from the skill's references directory: postgres-rls, ci-workflows, mobile-release, infra-provisioning. List only what this project actually uses.",
       "fallback": "No reference module loads and the review stays at the level of the generic checks."
     },
     {

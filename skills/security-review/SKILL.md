@@ -40,7 +40,14 @@ lets this review rank findings by consequence instead of by category.
 | `## Secrets policy` | which values are public by design |
 | `## Probe policy` | whether authorization can be tested rather than only read |
 | `## Release targets` | whether the release group applies |
+| `## Dependencies` | which ecosystems exist and what is deliberately pinned, for group 5 |
 | `## Known gaps` | findings already recorded, so they are reported as known rather than as new |
+
+Load the `references/` modules `## Stack` names **before** working the groups.
+Most add depth to one group, but a module can also change how a group should be
+*read* — `infra-provisioning` is the case that exists today, and a reviewer who
+reaches it only from inside group 1 has already worked the others on the wrong
+definitions.
 
 **Without a profile, this skill cannot do its job.** Run the `secrets` and
 `supply-chain` groups over the diff, report every other group as *not
@@ -111,6 +118,10 @@ else in this group serves that question.
 When `## Stack` names `postgres-rls`, read `references/postgres-rls.md` — it
 carries the RLS-specific rules, the live audit queries, and the two-account
 probe procedure, including the ways a probe passes while proving nothing.
+
+When `## Stack` names `infra-provisioning`, that module's translation of this
+group applies: `authorization` on a machine is which accounts exist, the sudo
+policy, and what identity each service runs as.
 
 Whether you may probe at all is `## Probe policy`. Reading policy definitions is
 weaker evidence than testing them; when probing is forbidden, say in the report
