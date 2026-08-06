@@ -194,10 +194,21 @@ asks the same question against the same four answers, deliberately: the two
 skills must never prescribe opposite fixes for one line, and a project may vendor
 either one without the other, so neither may be the only place a class of
 exposure is named. If you find them differing, that divergence is the finding.
-**A reusable-workflow call is in scope here too** — `owner/repo/.github/workflows/x.yml@ref`
-runs with whatever the caller passes it, so a mutable tag there selects which
-code receives those secrets. Its SHA resolves from the workflow path's history
-rather than a release major, but the requirement is identical.
+**Read "action" here as any third-party code the step runs, not as the `uses:
+owner/repo@ref` syntax.** Two other forms carry the identical exposure and are
+missed by a reviewer matching on shape:
+
+- a **reusable-workflow call**, `owner/repo/.github/workflows/x.yml@ref`, which
+  runs with whatever the caller passes it, so a mutable tag there selects which
+  code receives those secrets. Its SHA resolves from the workflow path's own
+  history rather than a release major, but the requirement is identical;
+- a **container step**, `uses: docker://registry/image:tag`. An image tag is
+  mutable exactly as a git tag is, and repointing it runs attacker-chosen code
+  holding whatever the job holds. Require the digest —
+  `docker://registry/image@sha256:…` — with the tag in a trailing comment.
+
+The pin is on immutability, and immutability is a property of the reference, not
+of the syntax that expresses it.
 First-party actions from the platform vendor are lower risk, not exempt. Where
 the organization can enforce rather than review it, the allowed-actions policy
 supports requiring a SHA, and a workflow using an unpinned action fails outright.

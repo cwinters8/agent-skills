@@ -3,12 +3,15 @@ name: action-versions
 description: >
   Verify every GitHub Action reference is pinned correctly — the current latest
   major, and a commit SHA where the workflow is privileged — before writing or
-  committing a workflow. Run whenever a change adds or edits a
-  `uses: owner/repo@ref` line, and also whenever a change increases what a
+  committing a workflow. Run whenever a change adds or edits any `uses:` line,
+  whatever follows it — an action, a `docker://` image, a local composite or
+  reusable workflow. Run it also whenever a change increases what a
   workflow job can reach or changes where its steps run — a secret expression, a
   widened `permissions:`, an added `environment:`, a changed event, a move to a
   self-hosted runner — since any of those can make existing references need a
-  SHA without touching them. Covers
+  SHA without touching them, and whenever a change makes another job's output
+  trusted, such as a new publish, deploy, or registry push of an artifact built
+  elsewhere, which re-opens the unchanged job that produced it. Covers
   `.github/workflows/` files, composite and reusable actions, and any YAML
   referencing a GitHub Action. Use when asked to "add a workflow", "set up CI",
   "update actions", or "check action versions", and as part of any
@@ -38,9 +41,19 @@ Run this on the diff you are about to commit, not the whole tree.
 
 ### 1. Collect every action reference
 
-Find each `uses: owner/repo@ref` line the change adds or modifies, including
-`owner/repo/subdir@ref` forms that point at a composite action in a
-subdirectory — the action's repo is still `owner/repo`. Dedupe by `owner/repo`.
+**Collect on the keyword, not on a shape.** Find every `uses:` line the change
+adds or modifies, whatever sits to the right of it, and classify afterwards. Do
+not filter to `owner/repo@ref` while collecting: the `docker://` and `./local`
+forms are excluded from the *currency lookup* further down and from nothing
+else, so a collector that never sees them makes those exclusions unreachable —
+a newly added `docker://registry/image:tag` in a privileged job would be dropped
+here and never reach the digest rule that governs it. Filtering at collection
+time is also what forces every new `uses:` syntax to be re-litigated one finding
+at a time; matching the keyword covers the next one for free.
+
+`owner/repo/subdir@ref` forms point at a composite action in a subdirectory —
+the action's repo is still `owner/repo`. Dedupe registry references by
+image, everything else by `owner/repo`.
 
 **A diff can arm existing references without touching them.** The rule: *any
 change that increases what a job can reach, or changes where its steps run,
@@ -63,13 +76,32 @@ Known instances, none of which contains a `uses:` line:
 - the job **adds a local call** — `uses: ./some-action`, or a call to a local
   reusable workflow. Nothing about the job's privilege changed and the callee's
   file did not change either, but the callee's references now execute under that
-  privilege for the first time. The collection step cannot see them on its own:
-  it matches `owner/repo@ref`, and a local call is neither.
+  privilege for the first time. The collection step cannot see them on its own,
+  because a local call is not an action reference.
 
 Treat that list as instances, not as the definition. If a change grants reach by
 some route not listed, it still triggers the sweep — the enumeration has been
 extended three times, and the next path is likelier to be missing from it than
 the principle is to be wrong.
+
+**A second rule, pointing the other way.** Everything above asks what changed
+about a job and re-opens *that* job. There is a case the whole shape of that
+question misses: *a change that makes some other, unchanged job's output
+trusted re-opens the references in the job that produces it.* A diff adds a
+step that publishes an artifact, deploys it, or pushes an image built earlier;
+the producing job's permissions, secrets, runner and `uses:` lines are all
+exactly as they were. Nothing about it appears in the diff. But step 3's fourth
+asset — an output something downstream trusts — has just become true of it, so
+its moving tags now decide what reaches users, and no trigger phrased as "what
+changed about this job" will ever fire on it.
+
+So when a diff **adds or widens a consumer of an existing artifact** — a new
+publish, deploy, release, or registry push, or an existing one that starts
+consuming something it did not before — trace the edge back to whatever produced
+that artifact and sweep the producer, in whatever workflow it lives. The
+producer is usually the innocuous-looking half: a hosted, read-only build job
+that was genuinely safe on a moving tag right up until the moment something
+started trusting what it emitted.
 
 **Sweep transitively.** Collect every `uses:` in the affected workflow, then
 follow each local call into the file it names and collect that file's references

@@ -75,13 +75,22 @@ Review the diff yourself against the profile:
 - **Local gates** — run anything `## Local skills` names for the paths this diff
   touches, using that skill's own trigger list as authoritative.
 - **GitHub Action versions** — run the `action-versions` skill if the diff adds
-  or edits any `uses: owner/repo@ref` reference, **or** if it increases what a
-  workflow job can reach or changes where its steps run: a new secret
+  or edits **any `uses:` line at all**, whatever follows it. Match the keyword
+  and let the skill classify: `docker://` and `./local` forms are exempt from
+  its currency lookup and from nothing else, so a trigger written as
+  `uses: owner/repo@ref` silently declines to run the skill on exactly the
+  references whose pinning rules it would have applied.
+
+  Run it **also** when no `uses:` line changed but the diff increases what a
+  workflow job can reach or changes where its steps run — a new secret
   expression, a widened `permissions:`, an added `environment:`, a changed
-  event, a move to a self-hosted runner. That second trigger matters because a
-  job can become worth attacking without any `uses:` line changing, and its
-  existing references then need a commit SHA rather than a moving major. The
-  skill states the principle and keeps the current list of instances — read it
+  event, a move to a self-hosted runner — because a job can become worth
+  attacking without any reference changing, and its existing references then
+  need a commit SHA rather than a moving major. And run it when the diff makes
+  some **other** job's output trusted: a new publish, deploy, release, or
+  registry push consuming an artifact built elsewhere re-opens the references in
+  the producing job, which is unchanged and will not otherwise be looked at. The
+  skill states both principles and keeps the current list of instances — read it
   there rather than treating this summary as complete. Apply any carve-out in
   `## Exemptions`.
 - **Docs currency** — run the `docs-currency` skill on the whole branch diff. It
