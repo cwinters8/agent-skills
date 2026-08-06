@@ -149,8 +149,9 @@ this repo; a harness without it should substitute reasoning through the flow.
   If a project wants a periodic backstop, that is a scheduled routine the
   project configures once — not something a session arms for itself.
 
-After the PR is open, incoming reviewer feedback is handled by the
-`review-sweep` skill — either live in this session via the subscription, or by a
-scheduled sweep. `review-sweep` is also what marks a draft ready for review once
-it reaches the ready-to-merge bar, so the maintainer's only remaining action is
-the merge.
+After the PR is open, hand off to the `review-sweep` skill for incoming
+reviewer feedback — either live in this session via the subscription, or by a
+scheduled sweep. That skill is also what marks a draft ready for review once it
+reaches the ready-to-merge bar, so the maintainer's only remaining action is the
+merge. If it isn't vendored here, say so when you report the PR: the draft stays
+a draft, and nothing triages the feedback this step just subscribed you to.

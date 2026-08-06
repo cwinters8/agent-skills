@@ -95,20 +95,30 @@ feature set on disk to choose from.
    ```
 
    (`agent-skills list` prints what this version ships.)
-3. Run the sync and commit both the vendored skills and the updated lock:
+3. **Confirm the ref ships what these docs describe, and pin it.** The ref in
+   your invocation is the only content pin, so a tag that has fallen behind this
+   README hands you an older schema than the template you just copied — and the
+   validator then rejects a section the template told you to write.
+   `agent-skills list` plus a `check-profile` against the freshly-copied
+   template surfaces the disagreement in one run. When a tag has drifted, pin a
+   commit instead and record why in your rules source. Everything below uses
+   that verified ref; `#main` appears only in the bootstrap above, which is the
+   one place you have no verified ref yet.
+
+4. Run the sync and commit both the vendored skills and the updated lock:
 
    ```sh
-   npx -y github:cwinters8/agent-skills#main sync
+   npx -y github:cwinters8/agent-skills#<verified-ref> sync
    ```
 
-   Wrap it as a script so the invocation lives in one place — and **pin that one
-   to the ref you verified below, never to `#main`.** A script is the *durable*
-   invocation: every later sync runs whatever it names, so `#main` there means
-   the content vendored can change from one sync to the next with no pin change
-   in any diff, and an upstream schema change can invalidate your profile during
-   a sync nobody thought was an upgrade. `#main` is for the one-shot bootstrap
-   commands above, where you have no verified ref yet — that is the whole
-   difference between the two.
+   Wrap it as a script so the invocation lives in one place. The rule for
+   every invocation that outlives adoption is the same: **pin the verified ref,
+   never `#main`.** A script, and the validation below, are *durable*
+   invocations — they run again and again, so `#main` in one means the content
+   can change between runs with no pin change in any diff, and an upstream
+   schema change can invalidate your profile during a routine command nobody
+   thought was an upgrade. Only the one-shot bootstrap gets `#main`, because
+   there is no verified ref yet at that point; that is the whole difference.
 
    ```json
    "scripts": {
@@ -116,19 +126,12 @@ feature set on disk to choose from.
    }
    ```
 
-4. Validate the profile any time you edit it:
+5. Validate the profile any time you edit it — a recurring command, so it
+   carries the pinned ref for the reason just given:
 
    ```sh
-   npx -y github:cwinters8/agent-skills#main check-profile
+   npx -y github:cwinters8/agent-skills#<verified-ref> check-profile
    ```
-
-**Confirm the ref ships what these docs describe.** The ref in your invocation is
-the only content pin, so a tag that has fallen behind this README hands you an
-older schema than the template you just copied — and the validator then rejects a
-section the template told you to write. `agent-skills list` plus a
-`check-profile` against a freshly-copied template surfaces the disagreement in
-one run. When a tag has drifted, pin a commit instead and record why in your
-rules source.
 
 ## The version you invoke is the version you vendor
 

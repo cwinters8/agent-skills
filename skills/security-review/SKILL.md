@@ -267,8 +267,14 @@ that the authorization finding rests on reading definitions only.
    vendored, report currency as unchecked rather than reconstructing the lookup:
    `ci-workflows` → C7 says why a bare latest-major check can prescribe a worse
    fix than the staleness it replaces. *Immutability* (can the ref move?) is the
-   shape to look for here — third-party code a privileged job runs needs a ref
-   that cannot be repointed, whatever `uses:` syntax names it. The ranking and
+   shape to look for here — **any externally maintained code** a privileged job
+   runs needs a ref that cannot be repointed, whatever `uses:` syntax names it.
+   Externally maintained, not third-party: C7 is explicit that actions from the
+   platform vendor are lower risk and **not exempt**, so a shape written as
+   "third-party" lets a privileged job on a mutable platform-owned action pass
+   this group while the loaded module would flag the same line. A generic
+   fallback narrower than the module it defers to is worse than none, because it
+   reports a pass the module never gave. The ranking and
    the platform detail belong to `ci-workflows` → C7; if `## Stack` does not name
    it, report the movable refs, say the grading was not available, and do not
    assume the worst case.
