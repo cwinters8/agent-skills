@@ -107,6 +107,17 @@ const walkAll = (dir, base = dir) => {
   return out.sort();
 };
 
+// lstat, never stat: every other check on these paths follows links, which is
+// precisely what hides a link from them. Absent counts as not-a-link — that is
+// the normal first-sync case.
+const isSymlink = (path) => {
+  try {
+    return lstatSync(path).isSymbolicLink();
+  } catch {
+    return false;
+  }
+};
+
 const available = () =>
   readdirSync(packageSkills, { withFileTypes: true })
     .filter((e) => e.isDirectory() && existsSync(join(packageSkills, e.name, 'SKILL.md')))
@@ -279,13 +290,7 @@ for (const skill of lock.skills) {
   // directory absent. Both read as "nothing here to protect" while the write
   // step's recursive rm replaces the link. lstat, because every other check on
   // this path follows links and that is exactly what hides this one.
-  let rootIsLink = false;
-  try {
-    rootIsLink = lstatSync(to).isSymbolicLink();
-  } catch {
-    rootIsLink = false; // absent: the normal first-sync case.
-  }
-  if (rootIsLink && !force) {
+  if (isSymlink(to) && !force) {
     problems.push(`${skill}: the skill directory is a symlink, not something this tool vendored — refusing to replace it`);
     continue;
   }
@@ -299,6 +304,18 @@ for (const skill of lock.skills) {
   if (existsSync(to)) {
     for (const rel of walkAll(to)) {
       const key = `${skill}/${rel}`;
+      // Type before pathname. This tool only ever writes regular files, so a
+      // symlink is never something it vendored no matter whose name it wears —
+      // and occupying a shipped path is the likeliest way for one to exist
+      // (a repo pointing several copies at one checkout). Both guards would
+      // otherwise wave it through on the name alone: the hash check above
+      // reads through the link, so a link onto the shipped content matches
+      // exactly, and the exemption below matches the key. The rm then replaces
+      // the link with a regular file, silently, which is the whole failure.
+      if (isSymlink(join(to, rel)) && !force) {
+        problems.push(`${key}: a symlink, not a file this tool vendored — refusing to replace it`);
+        continue;
+      }
       if (key in nextFiles || lock.files?.[key] !== undefined) continue;
       if (!force) problems.push(`${key}: not shipped by this package and not in the lock — refusing to delete`);
     }
