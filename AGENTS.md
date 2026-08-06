@@ -21,7 +21,7 @@ The mechanical check before committing:
 
 ```sh
 grep -rniE '\b(sprite|locker|supabase|postgrest|expo|eas|cwinters8|nordvpn|tinyproxy|hostinger|digitalocean|droplet|doppler|opentofu)\b' \
-  skills/ --include=SKILL.md
+  skills/ --include=SKILL.md --exclude-dir=skills-adopt
 ```
 
 Word boundaries matter here: an unanchored `locker` matches "blocker" and an
@@ -30,6 +30,14 @@ Extend the alternation as new consumers adopt these skills — and only with ter
 that are unambiguously a product or vendor. A generic word a skill has a
 legitimate reason to use (`just`, `ansible`, `tofu`) belongs in review, not in
 this grep: the moment it fires on a correct sentence, the check stops being run.
+
+`skills-adopt` is excluded for that exact reason, and it is the **only**
+exclusion. That skill's subject *is* this package — it tells an agent which
+`npx` invocation to run against which repository — so the owner name appears in
+it correctly and unavoidably, and a check firing five times on every commit is
+one nobody runs by the third. The exclusion is a directory, not a term: the
+alternation stays intact everywhere else, and `skills-adopt` naming any *other*
+vendor is still a defect that this grep no longer catches. Review it there.
 
 Hits inside `skills/security-review/references/` may be legitimate — those
 modules are deliberately stack-specific — but a hit in any `SKILL.md` is a leak
