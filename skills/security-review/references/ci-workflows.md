@@ -186,6 +186,19 @@ self-hosted runner machine by creating a pull request that executes the code in 
 workflow." If the runner holds a key with privileged access to other
 infrastructure, the runner is a lateral-movement path into it.
 
+Grade it by whether fork-authored code can reach the runner *today*, and report
+it either way. Fork PRs can only trigger `pull_request` and
+`pull_request_target`, so a public repo whose self-hosted jobs run solely on
+trusted events — a protected-branch `push`, a `schedule`, a `workflow_dispatch` —
+is not currently reachable, and calling that critical burns the finding's
+credibility on a repo that is fine. But it is still a finding, at lower severity,
+because nothing enforces the arrangement: the control is a trigger line in a
+workflow file, changeable by anyone with write access in a PR that reads like a
+CI tweak, and the runner's privilege does not change when it does. Read the
+`on:` block of every workflow whose jobs name the runner, say which triggers you
+found, and rank on that — never on visibility alone, and never on the absence of
+a PR trigger as though it were a guarantee.
+
 **The approval gate is not that control.** GitHub's default — *Require approval
 for first-time contributors* — exempts anyone who has ever had a commit or PR
 merged. It is per-contributor and permanent, not per-PR, so a merged typo fix

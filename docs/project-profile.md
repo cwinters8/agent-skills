@@ -32,7 +32,7 @@ complete profile worth reading before you write your own.
 Run the validator after editing:
 
 ```sh
-npx -y github:cwinters8/agent-skills#v1 check-profile
+npx -y github:cwinters8/agent-skills#main check-profile
 ```
 
 `sync` runs the same validation, so a normal sync catches profile problems too.
