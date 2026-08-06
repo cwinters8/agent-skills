@@ -136,30 +136,38 @@ const available = () =>
     .map((e) => e.name)
     .sort();
 
-// The directory every write below goes through. Guarding the children is not
-// enough: if `.claude` is itself a symlink, mkdirSync follows it and succeeds,
-// every child path then resolves inside the link's target, and each per-file
-// check sees an ordinary absent path and writes. The result is `init`
-// scaffolding into another location — or `sync` deleting and rewriting a skills
-// tree there — while both report the in-repo names they were asked about. A
-// guard one level below the thing being followed cannot see the following.
-//
-// `list` is exempt: it reads the package and never touches the repo.
-if (command !== 'list') {
-  const claudeDir = join(repoRoot, '.claude');
-  if (isSymlink(claudeDir)) {
+// The directories every write below goes through. Guarding the children is not
+// enough: if an ancestor is a symlink, mkdirSync follows it and succeeds, every
+// child path then resolves inside the link's target, and each per-file check
+// sees an ordinary absent path and writes. The result is `init` scaffolding
+// into another location — or `sync` deleting and rewriting a skills tree there
+// — while both report the in-repo names they were asked about. A guard one
+// level below the thing being followed cannot see the following.
+// Every ancestor directory the writes below pass through must be absent or a
+// real directory, and *each* one has to be checked. A guard on `.claude` alone
+// leaves `.claude/skills`, and this was found three times in three shapes
+// before it was stated as a rule: a symlink here silently redirects every path
+// underneath, and a regular file here makes each child probe report "absent" —
+// so `init` scaffolds and exits 0, and the `sync` it tells you to run next dies
+// on an uncaught ENOTDIR. Neither is a shape the rest of this command lacks a
+// refusal for; they were simply never reached.
+const requireWritableDir = (path, label) => {
+  if (isSymlink(path)) {
     die(
-      '.claude is a symlink — refusing to read or write through it, because every path ' +
+      `${label} is a symlink — refusing to read or write through it, because every path ` +
         'below it would resolve somewhere this command cannot honestly report. ' +
         'Replace it with a real directory.',
     );
   }
-  // Not-a-symlink is not the same as is-a-directory. A regular file here reached
-  // init's recursive mkdir and died on an uncaught EEXIST — a stack trace where
-  // this command has a refusal for every other shape at every other path.
-  if (existsSync(claudeDir) && !statSync(claudeDir).isDirectory()) {
-    die('.claude exists but is not a directory — nothing can be read or written under it.');
+  if (existsSync(path) && !statSync(path).isDirectory()) {
+    die(`${label} exists but is not a directory — nothing can be read or written under it.`);
   }
+};
+
+// `list` is exempt: it reads the package and never touches the repo.
+if (command !== 'list') {
+  requireWritableDir(join(repoRoot, '.claude'), '.claude');
+  requireWritableDir(skillsDir, '.claude/skills');
 }
 
 if (command === 'list') {
