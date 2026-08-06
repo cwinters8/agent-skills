@@ -152,19 +152,27 @@ For feedback worth addressing:
 - **Exception — use a side branch + draft PR targeting the PR's branch** when
   the PR was authored by a human, or the fix is large, design-changing, or
   you're not fully confident in it. Name it `<pr-branch>-review-fixes`.
-- Before pushing, run `## Mechanical checks` **and** run the `pr-preflight`
-  skill's project checks (review focus, secrets, security, docs currency,
-  derived docs) — a review fix is a change like any other and can invalidate a
-  doc or leak a secret just as easily. If `pr-preflight` isn't vendored here,
-  run `## Mechanical checks` alone, say in the PR thread which project checks
-  did not run, and don't reconstruct them from memory: a sweep that pushes
-  without disclosing the gap reads exactly like one that cleared it. If the fix touches anything `## Review focus` names,
-  re-read the rules source on that topic first. Run the two docs checks over the
-  **whole branch diff against the base**, not over the fix you just made: by
-  round three, a fact corrected in round one sits on neither side of the current
-  diff, and the copies still contradicting it are the ones nobody has looked at
-  since. A fix that corrects a claim is the most likely kind to leave a stale
-  quotation of it somewhere else.
+- Before pushing, run `## Mechanical checks` **and** hand off to the
+  `pr-preflight` skill for the project checks — a review fix is a change like
+  any other, and can invalidate a doc or leak a secret just as easily.
+
+  Give that skill the one instruction it cannot derive on its own: **scope its
+  docs checks to the whole branch diff against the base**, not to the fix you
+  just made. That is this skill's contribution and the reason the hand-off is
+  worth spelling out — by round three, a fact corrected in round one sits on
+  neither side of the current diff, and the copies still contradicting it are
+  exactly the ones nobody has looked at since. A fix that corrects a claim is
+  the most likely kind to leave a stale quotation of it somewhere else.
+
+  **If `pr-preflight` isn't vendored here, run `## Mechanical checks`, say in
+  the PR thread which project checks did not run, and stop there** — not part of
+  them. Re-reading the rules source and running the docs checks are pieces of
+  that skill, so doing them here is reconstructing it right after announcing it
+  was skipped, and that produces the most misleading report available: one that
+  names a gap while having quietly filled some of it, leaving no way to tell
+  which part. A sweep that pushes without disclosing the gap reads exactly like
+  one that cleared it; a sweep that discloses and then half-closes it reads
+  worse.
 - Reply to the comment stating what changed, linking the commit. React 🚀
   and resolve the thread. When the feedback item is a review summary, the
   response takes its only possible form — a top-level
