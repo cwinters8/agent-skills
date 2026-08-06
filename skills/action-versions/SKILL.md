@@ -71,13 +71,19 @@ some route not listed, it still triggers the sweep — the enumeration has been
 extended three times, and the next path is likelier to be missing from it than
 the principle is to be wrong.
 
-**Sweep transitively.** Collect every `uses:` in the affected workflow, and then
-follow each `uses: ./path` into the local composite it names and collect that
-file's references too, recursively. A composite's steps run in the calling job,
-so the privilege the diff just granted reaches straight through — and `./path`
-is out of scope for *rewriting* (below) while the third-party tags inside it are
-squarely in scope. Say in your report that you swept the workflow and which
-composites you descended into.
+**Sweep transitively.** Collect every `uses:` in the affected workflow, then
+follow each local call into the file it names and collect that file's references
+too, recursively. **Both call shapes, not one** — a `uses: ./path` naming a
+composite action, *and* a `uses: ./.github/workflows/x.yml` naming a local
+reusable workflow. The justification is identical, and it is the same one that
+makes the sweep necessary at all: a composite's steps run inside the calling job,
+and a called workflow runs on the permissions and secrets its caller passes it,
+so the privilege the diff just granted reaches straight through either one.
+Descending into composites alone is the mistake to avoid, because the shape it
+skips is the one whose callee is a whole file of its own steps — the larger
+blast radius, not the smaller. A local call is out of scope for *rewriting*
+(below) while the third-party tags inside it are squarely in scope. Say in your
+report that you swept the workflow and which callees you descended into.
 
 Out of scope — do **not** rewrite these refs:
 

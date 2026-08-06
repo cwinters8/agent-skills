@@ -171,13 +171,29 @@ commit SHA "is currently the only way to use an action as an immutable release."
 
 So a current major is not a pinned action. Require a full 40-character SHA with
 the version in a trailing comment — `uses: owner/repo@a1b2c3… # v4.2.1` — for
-any third-party action in a job **worth attacking**, which is two conditions and
-not one. The job *holds something*: a secret, or a write-scoped token. Or it
-*runs somewhere that matters*: a self-hosted runner, where repointing a tag
-executes attacker-chosen code on an owned host regardless of what token the job
-carries — C9.4 and C9.2 are the reason, since that code outlives the job and the
-host commonly reaches other infrastructure. `action-versions` states the same
-two conditions; if you find them differing, that divergence is the finding.
+any third-party action in a job **worth attacking**. Decide that by asking what
+an attacker gets if a reference in the job is repointed, rather than by matching
+a list — four answers so far, and a job answering "nothing" to all four is the
+only one safe on a moving tag:
+
+- **a credential** — a secret, or a write-scoped token;
+- **a host** — a self-hosted runner, where repointing a tag executes
+  attacker-chosen code on an owned machine regardless of what token the job
+  carries. C9.4 and C9.2 are the reason: that code outlives the job, and the host
+  commonly reaches other infrastructure. The host *is* the asset;
+- **private data the job can read** — a private checkout, a fetched dataset. A
+  hosted job holding no secret, on a read-only token, still hands over
+  everything it cloned;
+- **an output something downstream trusts** — an artifact a later workflow
+  publishes or deploys, an image pushed to a registry, a release asset.
+  Substituting it reaches users through a path nobody reviews again.
+
+The last two are the ones a credentials-and-runners test waves through, and they
+are why this is a question rather than a pair of conditions. `action-versions`
+asks the same question against the same four answers, deliberately: the two
+skills must never prescribe opposite fixes for one line, and a project may vendor
+either one without the other, so neither may be the only place a class of
+exposure is named. If you find them differing, that divergence is the finding.
 **A reusable-workflow call is in scope here too** — `owner/repo/.github/workflows/x.yml@ref`
 runs with whatever the caller passes it, so a mutable tag there selects which
 code receives those secrets. Its SHA resolves from the workflow path's history

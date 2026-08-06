@@ -68,12 +68,15 @@ just landed on the branch.
 # right for unstacked work and silently wrong for a stacked branch, which
 # targets the branch below it.
 #   Offer the default as the likely answer, do not adopt it unconfirmed:
-#     git rev-parse --verify --quiet refs/remotes/origin/HEAD
-#     (--verify, because this symbolic ref is optional: a repo whose remote was
-#     added by hand has none, and `rev-parse --abbrev-ref origin/HEAD` exits 128
-#     there rather than falling back)
+#     git symbolic-ref -q --short refs/remotes/origin/HEAD
+#     (symbolic-ref, because the name is what you need: `rev-parse --verify`
+#     resolves the ref and prints the object ID, so it answers "does this
+#     exist" and not "which branch". -q, because this symbolic ref is
+#     optional: a repo whose remote was added by hand has none, and both
+#     `rev-parse --abbrev-ref origin/HEAD` and a bare symbolic-ref exit 128
+#     there rather than falling back — -q exits 1 and prints nothing)
 #     git remote set-head origin --auto  — populates it, needs network
-# Whatever resolves is already a full remote ref such as origin/main.
+# What that prints is already a full remote ref such as origin/main.
 # Do not prefix it again.
 base=<the confirmed result>
 
