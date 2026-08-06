@@ -74,24 +74,28 @@ Review the diff yourself against the profile:
   moment, not a deferral.
 - **Local gates** — run anything `## Local skills` names for the paths this diff
   touches, using that skill's own trigger list as authoritative.
-- **GitHub Action versions** — run the `action-versions` skill if the diff adds
-  or edits **any `uses:` line at all**, whatever follows it. Match the keyword
-  and let the skill classify: `docker://` and `./local` forms are exempt from
-  its currency lookup and from nothing else, so a trigger written as
-  `uses: owner/repo@ref` silently declines to run the skill on exactly the
-  references whose pinning rules it would have applied.
+- **GitHub Action versions** — run the `action-versions` skill whenever the diff
+  touches **any CI definition at all**: a file under `.github/workflows/`, an
+  `action.yml` or `action.yaml`, or any other YAML this project treats as CI
+  (`## Exemptions` names those, if it names any). That is the whole routing
+  rule. Do not decide here whether the change is the *kind* that needs the
+  skill.
 
-  Run it **also** when no `uses:` line changed but the diff increases what a
-  workflow job can reach or changes where its steps run — a new secret
-  expression, a widened `permissions:`, an added `environment:`, a changed
-  event, a move to a self-hosted runner — because a job can become worth
-  attacking without any reference changing, and its existing references then
-  need a commit SHA rather than a moving major. And run it when the diff makes
-  some **other** job's output trusted: a new publish, deploy, release, or
-  registry push consuming an artifact built elsewhere re-opens the references in
-  the producing job, which is unchanged and will not otherwise be looked at. The
-  skill states both principles and keeps the current list of instances — read it
-  there rather than treating this summary as complete. Apply any carve-out in
+  This gate is deliberately wider than the skill's own triggers, because a
+  narrower one cannot be kept correct. Its trigger list has grown four times
+  during this repo's life — container references, local calls, a job whose reach
+  changed without any reference changing, a job whose output something
+  downstream started trusting — and each time, a copy of the list living here
+  would have gone on matching the old conditions and quietly declining to invoke
+  the skill for the new ones. **A routing test that is a stale copy of the
+  callee's triggers fails closed on exactly the cases most recently understood
+  to matter**, and it fails silently, because nothing reports a skill that was
+  never asked to run.
+
+  So the file-path test is the point: it needs no maintenance, it cannot narrow
+  as the skill widens, and its worst case is one cheap invocation that reports
+  nothing to do. **The skill owns the question of whether there is work** — read
+  its trigger list there, in the skill, and let it answer. Apply any carve-out in
   `## Exemptions`.
 - **Docs currency** — run the `docs-currency` skill on the whole branch diff. It
   reads the profile sections it needs itself, and its rules are not restated
