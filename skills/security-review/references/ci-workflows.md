@@ -170,8 +170,14 @@ perfectly current major at the time. GitHub's position: pinning to a full-length
 commit SHA "is currently the only way to use an action as an immutable release."
 
 So a current major is not a pinned action. Require a full 40-character SHA with
-the version in a trailing comment — `uses: owner/repo@a1b2c3… # v4.2.1` — for any
-third-party action in a workflow that holds a secret or a write-scoped token.
+the version in a trailing comment — `uses: owner/repo@a1b2c3… # v4.2.1` — for
+any third-party action in a job **worth attacking**, which is two conditions and
+not one. The job *holds something*: a secret, or a write-scoped token. Or it
+*runs somewhere that matters*: a self-hosted runner, where repointing a tag
+executes attacker-chosen code on an owned host regardless of what token the job
+carries — C9.4 and C9.2 are the reason, since that code outlives the job and the
+host commonly reaches other infrastructure. `action-versions` states the same
+two conditions; if you find them differing, that divergence is the finding.
 **A reusable-workflow call is in scope here too** — `owner/repo/.github/workflows/x.yml@ref`
 runs with whatever the caller passes it, so a mutable tag there selects which
 code receives those secrets. Its SHA resolves from the workflow path's history

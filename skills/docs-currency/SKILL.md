@@ -63,11 +63,18 @@ just landed on the branch.
 ### 1. Scope to the whole branch diff, never to the last round of edits
 
 ```sh
-# Resolve the branch this work merges into — never assume it.
-#   open PR:  its base, as origin/<that branch> — authoritative
-#   no PR:    the line below; --abbrev-ref already yields a full remote ref
-#             such as origin/main, so do not prefix it again
-base=$(git rev-parse --abbrev-ref origin/HEAD)
+# Resolve the branch this work merges into. Try in order, verify each, and stop
+# at the first that works:
+#   1. an open PR's base, as origin/<that branch> — authoritative
+#   2. git rev-parse --verify --quiet refs/remotes/origin/HEAD
+#      (--verify, because this symbolic ref is optional: a repo initialised
+#      locally with a remote added by hand has none, and the shorter
+#      `rev-parse --abbrev-ref origin/HEAD` then exits 128)
+#   3. git remote set-head origin --auto  — populates it, needs network
+#   4. otherwise ASK which branch this merges into
+# When it resolves, it is already a full remote ref such as origin/main.
+# Do not prefix it again.
+base=<the verified result>
 
 git diff "$(git merge-base HEAD "$base")"...HEAD   # committed work
 git diff HEAD                                      # uncommitted edits to tracked files

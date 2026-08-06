@@ -147,17 +147,26 @@ point of step 2.)
   preference — it is the same one `security-review`'s `ci-workflows` module
   states in C7, and the two skills must not prescribe opposite fixes for one
   line.
-- **A composite action inherits its callers' privilege, so pin its references
-  by default.** A composite's steps run inside the calling job, with whatever
-  that job holds. So a third-party `uses:` inside `action.yml` executes with the
-  caller's secrets and token — while the composite file itself contains no
-  secret expression and no `permissions:` block, and therefore looks unprivileged
-  to the test above. Decide by the callers, not the file: if any workflow
-  reaching it through `uses: ./path` is privileged, the reference needs the SHA.
-  When you cannot enumerate every caller — a composite published for other repos
-  to consume, or simply more callers than you checked — pin the SHA anyway. The
-  cost of an unnecessary SHA is a bump you had to make regardless; the cost of a
-  missed one is the caller's credentials.
+- **A file that runs on someone else's privilege is as privileged as its most
+  privileged caller.** Judge those by the callers, never by the file — the file
+  itself holds no secret expression and no `permissions:` block, so the test
+  above reads it as unprivileged every time. Two shapes have this property, and
+  the reasoning is identical for both:
+
+  - a **composite action** (`action.yml` reached by `uses: ./path`), whose steps
+    run inside the calling job with whatever that job holds;
+  - a **local reusable workflow** (`on: workflow_call`), which runs with the
+    permissions and secrets its caller passes — the same inheritance C7 describes
+    for calls to *other* repos' reusable workflows, which applies no less when
+    the callee is in this one.
+
+  Treat those as the known shapes rather than the definition: anything whose
+  steps execute under a caller's token belongs here. Trace the callers, and if
+  **any** is a job worth attacking, every third-party reference inside needs the
+  SHA. When you cannot enumerate every caller — a file published for other repos
+  to consume, or simply more callers than you checked — pin the SHA anyway. An
+  unnecessary SHA costs a bump you had to make regardless; a missed one costs the
+  caller's credentials.
 - **Otherwise match what the rest of the workflow already does.** If sibling
   steps pin SHAs, pin a SHA. If not, the moving major tag is the right default
   for a workflow with nothing worth stealing in its environment.
