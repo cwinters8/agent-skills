@@ -183,6 +183,7 @@ if (command === 'init') {
   const wrote = [];
   const kept = [];
   const links = [];
+  const blocked = [];
   mkdirSync(join(repoRoot, '.claude'), { recursive: true });
 
   // Scaffold one file, deciding by what is at the path rather than by whether
@@ -199,7 +200,14 @@ if (command === 'init') {
       return;
     }
     if (existsSync(path)) {
-      kept.push(label);
+      // "Kept" has to mean the adopter's own file is there, not merely that
+      // something occupies the name. A directory at either of these paths makes
+      // the repo unusable — sync reads one as JSON and validates the other as
+      // the profile — so recording it as kept would report an initialization
+      // that cannot work, and the failure would surface one command later
+      // against a file init said was fine.
+      if (!statSync(path).isFile()) blocked.push(label);
+      else kept.push(label);
       return;
     }
     write();
@@ -226,6 +234,9 @@ if (command === 'init') {
   for (const f of links) {
     console.error(`agent-skills: ${f} is a symlink — left alone, nothing written through it`);
   }
+  for (const f of blocked) {
+    console.error(`agent-skills: ${f} exists but is not a regular file — nothing written, and sync cannot read it`);
+  }
   if (collisions.length) {
     console.log('');
     console.log('agent-skills: these names already exist under .claude/skills/ and are listed:');
@@ -245,7 +256,7 @@ if (command === 'init') {
   // succeeded and leaves the failure to surface one command later, detached
   // from its cause. Refusing to write through the link was the right call;
   // reporting success afterwards would undo the point of it.
-  process.exit(links.length ? 1 : 0);
+  process.exit(links.length || blocked.length ? 1 : 0);
 }
 
 if (command !== 'sync' && command !== 'check-profile') usage();

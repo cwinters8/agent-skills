@@ -211,16 +211,18 @@ that the authorization finding rests on reading definitions only.
 
 ## Group 5 — Supply chain and CI
 
-1. **Dependencies.** Audit the full tree, not production-only. A development
-   dependency still executes during install, build, and typecheck in CI — the
-   place where privileged tokens are in the environment. Judge findings by
-   reachability rather than by dev/prod, and reachability is two questions, not
-   one: does the package execute during install, build or test (or reach users),
-   **and** is the vulnerable path reachable from how this project uses it? A
-   blocker needs both. A package that runs in CI through an entry point the
-   advisory never touches is not one — say which question downgraded it. An
-   advisory you cannot rank on either question is reported as unknown, never as
-   clean.
+1. **Dependencies.** Audit the full tree, not production-only — that is the
+   shape. A development dependency still executes during install, build and
+   typecheck in CI, the place where privileged tokens sit in the environment, so
+   dev/prod is not the axis; **reachability** is. The *ranking* belongs to
+   `ci-workflows` → C5 and is not restated here: which combination of answers
+   makes a finding a blocker, and which downgrades it, is a severity call, and a
+   second copy of it here would drift from the module until the generic group
+   reported a blocker the loaded module had already downgraded. Read it there
+   and say which question decided each finding. If `## Stack` does not name
+   `ci-workflows`, report each advisory with its reachability answers and say
+   the severity grading was unavailable — do not supply a bar of your own. An
+   advisory you cannot answer on is reported as unknown, never as clean.
 
    `## Dependencies` names which manifests are authoritative, which ecosystems
    are in play, and what is deliberately pinned. **Without it**, discover

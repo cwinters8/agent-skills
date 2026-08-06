@@ -101,11 +101,18 @@ feature set on disk to choose from.
    npx -y github:cwinters8/agent-skills#main sync
    ```
 
-   In a Node repo, wrap it as a script so the invocation lives in one place:
+   Wrap it as a script so the invocation lives in one place — and **pin that one
+   to the ref you verified below, never to `#main`.** A script is the *durable*
+   invocation: every later sync runs whatever it names, so `#main` there means
+   the content vendored can change from one sync to the next with no pin change
+   in any diff, and an upstream schema change can invalidate your profile during
+   a sync nobody thought was an upgrade. `#main` is for the one-shot bootstrap
+   commands above, where you have no verified ref yet — that is the whole
+   difference between the two.
 
    ```json
    "scripts": {
-     "skills:sync": "npx -y github:cwinters8/agent-skills#main sync"
+     "skills:sync": "npx -y github:cwinters8/agent-skills#<verified-ref> sync"
    }
    ```
 

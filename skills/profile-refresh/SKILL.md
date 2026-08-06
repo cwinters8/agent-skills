@@ -229,11 +229,11 @@ on an agent's inference is the worst artifact this skill could produce.
 
 Sort every drift into one of two buckets before touching the file.
 
-**Provable → fix it.** A command or path that has a **located replacement**, a
-named skill absent from the repo, a changed visibility. The evidence is
-mechanical and reproducible: correct the profile, and say what the evidence was.
+**Provable → fix it.** A command, path, or named skill that has a **located
+replacement**, and a changed visibility. The evidence is mechanical and
+reproducible: correct the profile, and say what the evidence was.
 
-Three things look provable and are not. Sending any of them to this bucket is
+Four things look provable and are not. Sending any of them to this bucket is
 the characteristic failure of a refresh run, because each one edits the file on
 evidence that only proves a disagreement, never which side is wrong.
 
@@ -246,10 +246,19 @@ evidence that only proves a disagreement, never which side is wrong.
   test script presents this way. What you can prove is that the two disagree;
   that the *profile* is the stale half is an inference, and the wrong one turns
   a loud failure into permanent silent coverage loss.
+- A **local skill named here but absent from the repo**, with nothing named in
+  its place. The same reasoning as the deleted script, and the consequence is
+  the same shape: `## Local skills` is where a project records that a gate
+  exists, so deleting the entry is deleting the only surviving evidence that
+  something was meant to run. A skill lost in a bad merge presents exactly as
+  one deliberately retired. Report the missing skill and leave the row; a
+  rename or a retirement you can point at moves it into the bucket above.
 - A **trust-boundary glob matching nothing** — it may be guarding a surface not
   yet built.
 
-All three go to judgment below, with the entry left intact.
+All four go to judgment below, with the entry left intact. The pattern joining
+them: absence is evidence of a disagreement and never, on its own, evidence of
+which side moved.
 
 **Judgment → report it.** Is this still the threat model? Should this new
 directory be `authorization` or `client-data`? Has this carve-out's reason
