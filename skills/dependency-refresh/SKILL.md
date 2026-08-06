@@ -67,6 +67,12 @@ is not a tiebreaker — a package that executes in CI through an entry point the
 advisory does not touch is not a blocker, and calling it one because question 1
 said yes makes question 3 decorative and every routine refresh a fight.
 
+This is the same two-yes bar `security-review` states in Group 5 and its
+`ci-workflows` module states in C5, deliberately: the three questions above are
+this skill's *procedure*, and it has to work when `security-review` isn't
+vendored, so the bar itself lives in both places. If you ever find them
+disagreeing, the security skill is canonical and the divergence is the finding.
+
 Downgrade in either direction and say which question did it: an advisory in a
 package that never executes during install, build or test and never ships, or
 one whose vulnerable path this project never calls. Note it, don't block on it,
