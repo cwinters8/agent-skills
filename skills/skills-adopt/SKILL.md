@@ -183,9 +183,13 @@ The profile states facts a skill can act on. Derive every answer; guess none.
     hand-edited. `pr-preflight` runs that section before every push, which in a
     repo with no CI is the only place drift gets caught.
 
-15. **Record every location of the ref in `## Derived docs`.** The ref does not
-    live in one place: in a real adoption it landed in the rules source twice
-    and in `## Mechanical checks`. Nothing else knows those copies exist —
+15. **Record every location of the ref in `## Derived docs`.** The ref rarely
+    lives in one place, so find its occurrences in *this* repo rather than
+    assuming a set: grep the tree for the invocation and list what you actually
+    find — the rules source, this profile, a package script, CI config, a
+    contributing guide. Record only locations that exist; an invented row sends
+    a future bump looking for a file that never held it. Nothing else knows
+    those copies exist —
     `## Derived docs` maps a canonical fact to the files restating it, and
     `pr-preflight` walks that map when the canonical file changes. Without the
     entry, a future bump updates the invocation someone remembered and leaves

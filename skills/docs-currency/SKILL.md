@@ -63,30 +63,28 @@ just landed on the branch.
 ### 1. Scope to the whole branch diff, never to the last round of edits
 
 ```sh
-# Resolve the branch this work merges into. Try in order, verify each, and stop
-# at the first that works:
-#   1. an open PR's base, as origin/<that branch> — authoritative
-#   2. git rev-parse --verify --quiet refs/remotes/origin/HEAD
-#      (--verify, because this symbolic ref is optional: a repo initialised
-#      locally with a remote added by hand has none, and the shorter
-#      `rev-parse --abbrev-ref origin/HEAD` then exits 128)
-#   3. git remote set-head origin --auto  — populates it, needs network
-#   4. otherwise ASK which branch this merges into
-# When it resolves, it is already a full remote ref such as origin/main.
+# Resolve the branch this work merges into. Only an open PR's base establishes
+# it — use origin/<that branch>. With no PR, ASK: the default branch is a guess,
+# right for unstacked work and silently wrong for a stacked branch, which
+# targets the branch below it.
+#   Offer the default as the likely answer, do not adopt it unconfirmed:
+#     git rev-parse --verify --quiet refs/remotes/origin/HEAD
+#     (--verify, because this symbolic ref is optional: a repo whose remote was
+#     added by hand has none, and `rev-parse --abbrev-ref origin/HEAD` exits 128
+#     there rather than falling back)
+#     git remote set-head origin --auto  — populates it, needs network
+# Whatever resolves is already a full remote ref such as origin/main.
 # Do not prefix it again.
-base=<the verified result>
+base=<the confirmed result>
 
 git diff "$(git merge-base HEAD "$base")"...HEAD   # committed work
 git diff HEAD                                      # uncommitted edits to tracked files
 git ls-files --others --exclude-standard           # new files, still untracked
 ```
 
-The default branch is not always the answer and is not always named the same
-thing. On a **stacked** branch the target is the branch below it, and diffing
-against the default instead sweeps in the parent's commits — so this check
-re-examines facts the parent already reconciled and reports their restatements
-as though this change broke them. Getting `base` wrong doesn't fail loudly; it
-silently changes which facts are in scope.
+Getting `base` wrong is the quiet failure here: against the wrong target this
+check re-examines facts the parent branch already reconciled and reports their
+restatements as though this change broke them. Nothing errors.
 
 The third command is not optional. `git diff HEAD` reports nothing for a file
 that has never been added, so a run before the first commit sees neither a new
