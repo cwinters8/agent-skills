@@ -152,6 +152,10 @@ commit SHA "is currently the only way to use an action as an immutable release."
 So a current major is not a pinned action. Require a full 40-character SHA with
 the version in a trailing comment — `uses: owner/repo@a1b2c3… # v4.2.1` — for any
 third-party action in a workflow that holds a secret or a write-scoped token.
+**A reusable-workflow call is in scope here too** — `owner/repo/.github/workflows/x.yml@ref`
+runs with whatever the caller passes it, so a mutable tag there selects which
+code receives those secrets. Its SHA resolves from the workflow path's history
+rather than a release major, but the requirement is identical.
 First-party actions from the platform vendor are lower risk, not exempt. Where
 the organization can enforce rather than review it, the allowed-actions policy
 supports requiring a SHA, and a workflow using an unpinned action fails outright.

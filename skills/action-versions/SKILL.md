@@ -51,15 +51,25 @@ than the diff.
 Out of scope — do **not** rewrite these refs:
 
 - **Local** (`uses: ./path`) and **Docker** (`uses: docker://…`) references.
-- **Reusable-workflow calls** — a `uses:` whose path points at a workflow file,
-  i.e. ends in `.yml` or `.yaml` (`owner/repo/.github/workflows/build.yml@ref`).
-  There the `ref` selects a *version of that workflow file* at a git ref, not an
-  action release: the repo may publish no releases at all, and a release major
-  can point at a revision that lacks the file. Pinning such a ref to the repo's
-  latest release major can make the workflow unresolvable or silently run the
-  wrong revision. Leave reusable-workflow refs as-is; if they need currency,
-  validate them separately against that repo's tags for the workflow path, not
-  its action releases.
+- **Reusable-workflow calls, for the *currency* lookup only** — a `uses:` whose
+  path points at a workflow file, i.e. ends in `.yml` or `.yaml`
+  (`owner/repo/.github/workflows/build.yml@ref`). There the `ref` selects a
+  *version of that workflow file* at a git ref, not an action release: the repo
+  may publish no releases at all, and a release major can point at a revision
+  that lacks the file. Pinning such a ref to the repo's latest release major can
+  make the workflow unresolvable or silently run the wrong revision. Never put
+  one through step 2's lookup; if it needs currency, validate it against that
+  repo's tags for the workflow path.
+
+  **The immutability rule still applies to them.** A called workflow runs with
+  whatever the caller passes it — `secrets: inherit`, named secrets, a
+  write-scoped `permissions:` — and a mutable tag on the call selects which code
+  receives them. That is the same exposure as a tagged action, through a
+  different syntax, so a privileged caller pins the full commit SHA of the ref
+  it currently resolves to, with the tag in a trailing comment. Resolve that SHA
+  from the workflow path's own history, never from a release major. The
+  exclusion above is about *which lookup* is valid, not about whether the ref may
+  move.
 - Anything the profile's `## Exemptions` names.
 
 ### 2. Look up the current latest for each `owner/repo`
