@@ -59,7 +59,12 @@ Known instances, none of which contains a `uses:` line:
 - the **event changes** — `pull_request` to `pull_request_target` runs the job
   in the base repository's context, where its secrets resolve and its token can
   be write-scoped, without any expression or permission changing;
-- the job moves to a **self-hosted runner** (see step 3: the host is the asset).
+- the job moves to a **self-hosted runner** (see step 3: the host is the asset);
+- the job **adds a local call** — `uses: ./some-action`, or a call to a local
+  reusable workflow. Nothing about the job's privilege changed and the callee's
+  file did not change either, but the callee's references now execute under that
+  privilege for the first time. The collection step cannot see them on its own:
+  it matches `owner/repo@ref`, and a local call is neither.
 
 Treat that list as instances, not as the definition. If a change grants reach by
 some route not listed, it still triggers the sweep — the enumeration has been
@@ -76,7 +81,17 @@ composites you descended into.
 
 Out of scope — do **not** rewrite these refs:
 
-- **Local** (`uses: ./path`) and **Docker** (`uses: docker://…`) references.
+- **Local** (`uses: ./path`) references, for the *currency* lookup — there is no
+  release major to resolve. Their contents are still swept above, and step 3's
+  caller-privilege rule decides how the references inside them pin.
+- **Docker** (`uses: docker://registry/image:tag`) references, for the *currency*
+  lookup only. **Immutability still applies**, for exactly the reason it does to
+  the reusable-workflow calls below: an image tag is mutable, repointing it runs
+  attacker-chosen code with whatever the job holds, and C7 requires a pin for any
+  third-party code in a job worth attacking. Pin the digest —
+  `docker://registry/image@sha256:…` — with the tag in a trailing comment. What
+  is excluded here is the release-major lookup, never the requirement that the
+  ref cannot move.
 - **Reusable-workflow calls, for the *currency* lookup only** — a `uses:` whose
   path points at a workflow file, i.e. ends in `.yml` or `.yaml`
   (`owner/repo/.github/workflows/build.yml@ref`). There the `ref` selects a
@@ -128,15 +143,26 @@ step 2's lookup returns today, not a value copied from memory. Confirm the
 current major yourself rather than pasting the tag above; that is the whole
 point of step 2.)
 
-- **A job worth attacking gets the SHA, not the tag.** Two ways a job qualifies,
-  and the second is easy to miss. It **holds something**: a secret, or a
-  write-scoped token. Or it **runs somewhere that matters**: a self-hosted
-  runner, where repointing a tag executes attacker-chosen code on a machine
-  someone owns — read-only permissions and no secrets change nothing about
-  that. `security-review`'s `ci-workflows` module is explicit that such code can
-  leave files and processes behind for later jobs (C9.4) and that the host
-  commonly reaches other infrastructure (C9.2), so "no token" does not make a
-  self-hosted job unprivileged; the host *is* the asset.
+- **A job worth attacking gets the SHA, not the tag.** Decide by asking what an
+  attacker gets if a reference in this job is repointed, rather than by matching
+  a list. Four answers so far, and this enumeration has already been widened
+  twice, so treat a fifth as likelier than the question being wrong:
+
+  - **a credential** — a secret, or a write-scoped token;
+  - **a host** — a self-hosted runner, where the code runs on a machine someone
+    owns whatever token the job carries. `security-review`'s `ci-workflows`
+    module is explicit that such code leaves files and processes behind for
+    later jobs (C9.4) and that the host commonly reaches other infrastructure
+    (C9.2). The host *is* the asset;
+  - **private data the job can read** — a private checkout, a fetched dataset. A
+    hosted job with no secret and a read-only token still hands over everything
+    it cloned;
+  - **an output something downstream trusts** — an artifact a later workflow
+    publishes or deploys, an image pushed to a registry, a release asset.
+    Substituting it reaches users through a path nobody reviews again.
+
+  Only a job answering "nothing" to all four — public inputs, no credential,
+  hosted runner, output nothing trusts — is safe on a moving tag.
 
   Look up the latest major as above, then pin the full 40-character SHA
   of that major's current release with the version in a trailing comment —
