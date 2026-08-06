@@ -36,9 +36,12 @@ severity comes from what the token can do — see C6.
 The checkout action leaves a credential behind for the same reason. It persists
 the token into the repository's git config by default, where every later step —
 and every dependency those steps execute — can read it, and from which it has
-repeatedly escaped inside uploaded artifacts. Set `persist-credentials: false`
-unless the job genuinely pushes. On a self-hosted runner this compounds with
-C9.4: the leftover outlives the job.
+repeatedly escaped inside uploaded artifacts. Set `persist-credentials: false`,
+including on a job that pushes: "it needs to push" is not an exception, because
+the credential sits in git config from checkout until the push, covering every
+install and build step in between — the exact window this rule is about. Give
+the push step its own credential instead, scoped to that step (C1). On a
+self-hosted runner this compounds with C9.4: the leftover outlives the job.
 
 ## C2. Workflow permissions are least-privilege
 
