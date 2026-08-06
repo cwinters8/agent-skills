@@ -84,20 +84,23 @@ those becomes.
    "fix" it back to the tag. If they agree, the ref is current *and* you have
    checked it rather than assumed it.
 
-4. **Pin the full 40-character SHA; abbreviate only if your npm makes you.**
+4. **Pin the full 40-character SHA; abbreviate only if your runner makes you.**
    The full object id is unambiguous forever. An abbreviated SHA is a *prefix*
    that git resolves only while it stays unique in the repository, so a pin that
    works today can become ambiguous as the history grows — a slow failure in the
    one field whose job is to never move.
 
-   Some npm versions cannot fetch a full-length SHA in a git spec: on 10.9.7 it
-   fails before anything is downloaded, with *"GitFetcher requires an Arborist
-   constructor to pack a tarball"*, and the seven-character abbreviation
-   resolves fine. Later npm releases take the full SHA. So try the full SHA
-   first; if it fails that way, prefer upgrading npm, and use the abbreviation
-   as the workaround when you can't — recording in the consumer's rules source
-   that it is a workaround and what it was for, so it is revisited rather than
-   copied forward as a convention.
+   **Some package runners reject a full-length SHA in a git spec**, failing
+   before anything is fetched while the abbreviated form resolves normally. The
+   tell is a failure that never reaches the network and complains about the
+   runner's own internals rather than about the ref — which reads like a bad
+   pin and is not one. So try the full object id first. If it fails that way,
+   prefer upgrading or changing the runner; use the abbreviation only when you
+   cannot, and record in the consumer's rules source that it is a workaround,
+   for which runner and version, and what the failure was. That belongs there
+   and not here: it is a fact about one project's toolchain, it expires when
+   that toolchain moves, and written here it would send every other consumer
+   after a tool they may not even use.
 
 ## Phase 2 — Survey the repo before writing a word of the profile
 
