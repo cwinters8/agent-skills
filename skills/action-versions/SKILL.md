@@ -1,10 +1,13 @@
 ---
 name: action-versions
 description: >
-  Verify every GitHub Action reference is pinned to its latest major version
-  before writing or committing a workflow. Run whenever a change adds or edits
-  a `uses: owner/repo@ref` line — a `.github/workflows/` file, a composite or
-  reusable action, or any YAML that references a GitHub Action. Use when asked
+  Verify every GitHub Action reference is pinned correctly — the current latest
+  major, and a commit SHA where the workflow is privileged — before writing or
+  committing a workflow. Run whenever a change adds or edits a
+  `uses: owner/repo@ref` line, and also whenever a change gives a workflow a
+  secret or widens its `permissions:`, since that can make existing references
+  need a SHA without touching them. Covers `.github/workflows/` files, composite
+  and reusable actions, and any YAML referencing a GitHub Action. Use when asked
   to "add a workflow", "set up CI", "update actions", or "check action
   versions", and as part of any workflow-touching diff so stale majors never
   reach review.
@@ -36,6 +39,14 @@ Run this on the diff you are about to commit, not the whole tree.
 Find each `uses: owner/repo@ref` line the change adds or modifies, including
 `owner/repo/subdir@ref` forms that point at a composite action in a
 subdirectory — the action's repo is still `owner/repo`. Dedupe by `owner/repo`.
+
+**One diff shape needs a wider net.** If the change adds a secret reference or
+widens `permissions:` in a workflow, that workflow may have just become
+privileged while its `uses:` lines went untouched — so every existing reference
+in it now needs the SHA that step 3 requires, and none of them appear in the
+diff. When you see that shape, collect *every* `uses:` in the affected workflow,
+not only the changed ones, and say in your report that you swept the file rather
+than the diff.
 
 Out of scope — do **not** rewrite these refs:
 

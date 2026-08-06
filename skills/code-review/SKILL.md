@@ -211,7 +211,9 @@ Do not report these — they are the bulk of what a naive pass produces:
 - Missing tests, general security posture, or documentation gaps, unless the
   rules source requires them specifically. Security belongs elsewhere: hand off
   to the `security-review` skill, which reasons from the project's actual trust
-  boundary rather than from the diff alone.
+  boundary rather than from the diff alone. If that skill isn't vendored here,
+  say in the report that the security pass did not run, rather than letting a
+  clean code review imply one happened.
 - Pre-existing issues on lines the diff didn't touch.
 - Issues explicitly silenced in the code.
 - Intentional behavior changes that are the point of the PR.

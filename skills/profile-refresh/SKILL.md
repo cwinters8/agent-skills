@@ -57,10 +57,17 @@ verified it, couldn't, or skipped it.
 because it fails quietly: a command that no longer exists, or a script since
 renamed, means the pre-push gate executes nothing and reports a pass. A gate
 silently running zero checks is worse than a project that honestly says `none`.
-Distinguish the two failures. *Command not found* is drift — fix the profile.
-*Command runs and fails* is not profile drift; the repo is broken, and that is a
-finding for the maintainer, never a reason to edit the failing check out of the
-profile. Look for checks the project has **gained** too — a new script in the
+Three outcomes, and only one of them is drift. *The script or command no longer
+exists in the repo* — a renamed package script, a deleted file — is drift; fix
+the profile, citing what replaced it. *Command not found because the tool isn't
+installed here* is an environment gap, not drift: a package manager or SDK
+missing from this host says nothing about whether the gate is correct in CI or
+on a configured machine, and deleting the entry would remove a working check on
+the strength of your own missing dependency. Report it as unrun. *The command
+runs and fails* means the repo is broken — a finding for the maintainer, never a
+reason to edit the failing check out of the profile. Before touching an entry
+that would not run, confirm in the repository that the script or command is
+actually gone. Look for checks the project has **gained** too — a new script in the
 manifest, a new CI job, a linter added since. An unlisted check is a gate nobody
 runs before a push.
 

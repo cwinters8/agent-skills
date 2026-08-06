@@ -223,6 +223,15 @@ that the authorization finding rests on reading definitions only.
    reachability rather than by dev/prod: an advisory in a package that never
    executes during install, build, or test is not a release blocker; anything
    that runs in CI or ships in the bundle is.
+
+   `## Dependencies` names which manifests are authoritative, which ecosystems
+   are in play, and what is deliberately pinned. **Without it**, discover
+   manifests and lockfiles by scanning, audit what you find, and say two things
+   in the report: which ecosystems you audited *by name*, and that a deliberate
+   pin was indistinguishable from a forgotten one — an old version looks the
+   same either way, so nothing here can call a pin stale. The failure this
+   guards against is a scan that finds one manifest at the repo root, reports
+   clean, and never sees the provider lockfile or the base image.
 2. **Workflow permissions are least-privilege**, and **never**
    `pull_request_target` with a checkout of the PR head — that combination runs
    fork-authored code with write-scoped secrets. See
