@@ -66,8 +66,14 @@ just landed on the branch.
 ```sh
 base=origin/main   # the branch this work merges into
 git diff "$(git merge-base HEAD "$base")"...HEAD   # committed work
-git diff HEAD                                      # uncommitted edits
+git diff HEAD                                      # uncommitted edits to tracked files
+git ls-files --others --exclude-standard           # new files, still untracked
 ```
+
+The third command is not optional. `git diff HEAD` reports nothing for a file
+that has never been added, so a run before the first commit sees neither a new
+canonical file nor a new doc that restates one — and both are in the push that
+follows. Read the untracked files as wholly added content.
 
 Scope to the whole branch diff against the base, **never to the round of
 changes you just made**. A fact corrected in an earlier commit appears on
@@ -90,8 +96,16 @@ construction. Pull the old strings out of the diff's `-` lines explicitly:
 git diff "$(git merge-base HEAD "$base")"...HEAD | grep '^-'
 ```
 
-Search the rules source, the profile, and the project's docs tree for each old
-term. Renames, changed defaults, and moved paths are where this pays.
+Search the rules source, the profile, the project's docs tree **and the source
+tree** for each old term. Renames, changed defaults, and moved paths are where
+this pays.
+
+The source tree belongs in that list because of the three-way shape above: the
+second copy of a changed default is a header comment or docstring sitting beside
+the declaration, not in any docs directory. Searching only the docs tree leaves
+the code-adjacent explanation stale while the check reports done — and that copy
+is the one the next reader of the code believes. Exclude generated output,
+vendored dependencies and lockfiles, which restate nothing and drown the signal.
 
 ### 3. Walk the derived-docs table
 

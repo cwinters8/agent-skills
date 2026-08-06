@@ -60,10 +60,18 @@ For every advisory, answer three questions before assigning it any weight:
    package — a flaw in a code path nothing here calls is weaker than the score
    suggests, and saying so is part of the job.
 
-Anything that runs in CI or reaches users is a blocker. An advisory in a package
-that never executes during install, build or test and never ships is not — note
-it, don't block on it, and say why it was downgraded. Findings you cannot rank
-because the answer is unknown get reported as unknown, never as clean.
+A blocker needs **two** yeses, not one: the package runs in CI or reaches users
+*and* the vulnerable path is reachable from how this project uses it. Question 3
+is not a tiebreaker — a package that executes in CI through an entry point the
+advisory does not touch is not a blocker, and calling it one because question 1
+said yes makes question 3 decorative and every routine refresh a fight.
+
+Downgrade in either direction and say which question did it: an advisory in a
+package that never executes during install, build or test and never ships, or
+one whose vulnerable path this project never calls. Note it, don't block on it,
+and record the reasoning so the next refresh does not re-litigate it. Findings
+you cannot rank — including "I could not tell whether we call that path" — get
+reported as unknown, never as clean.
 
 ## Procedure
 

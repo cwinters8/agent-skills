@@ -303,6 +303,34 @@ console.log(
   `agent-skills: ${lock.skills.length} skills at ${pkg.version}` +
     (changed ? ` — ${changed} file${changed === 1 ? '' : 's'} updated` : ' — already current'),
 );
+
+// A vendored skill that hands off to a sibling degrades quietly when that
+// sibling isn't listed: the step is skipped and only the run's own report says
+// so. That is worst on an upgrade, where a skill's work moves into a NEW skill
+// — coverage the repo already had disappears, with nothing in the sync diff to
+// show for it. Report it here, where the skills array is in front of the person
+// who can change it. Advisory only: wanting a subset is legitimate.
+const missingSiblings = new Map();
+for (const skill of lock.skills) {
+  const file = join(skillsDir, skill, 'SKILL.md');
+  if (!existsSync(file)) continue;
+  const body = readFileSync(file, 'utf8');
+  for (const other of available()) {
+    if (other === skill || lock.skills.includes(other)) continue;
+    // Backticked name only — prose like "review the changes" must not match.
+    if (!body.includes(`\`${other}\``)) continue;
+    if (!missingSiblings.has(other)) missingSiblings.set(other, []);
+    missingSiblings.get(other).push(skill);
+  }
+}
+if (missingSiblings.size) {
+  console.log('');
+  console.log('agent-skills: vendored skills hand off to skills this repo does not list:');
+  for (const [other, byWhom] of [...missingSiblings].sort()) {
+    console.log(`  ${other} — referenced by ${byWhom.sort().join(', ')}`);
+  }
+  console.log('  Those steps will be skipped. Add them to .claude/skills.json if you want them.');
+}
 // The skills were written above before this check, deliberately: on a first
 // adoption the profile is still the untouched template, and the adopter needs
 // the vendored `skills-adopt` on disk to be told how to fill it in. So this exit
