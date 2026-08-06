@@ -134,8 +134,9 @@ TODO
 ## Stack
 
 <!-- REQUIRED IF YOU VENDOR security-review. Which reference modules apply:
-     postgres-rls, ci-workflows, mobile-release. List only what you actually
-     use — naming one you don't produces checks that cannot pass. -->
+     postgres-rls, ci-workflows, mobile-release, infra-provisioning. List only
+     what you actually use — naming one you don't produces checks that cannot
+     pass. -->
 
 TODO
 

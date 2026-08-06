@@ -173,7 +173,9 @@ CI often runs a script that commits generated content. Two properties matter:
 ## C9. Self-hosted runners are part of the trust boundary
 
 A hosted runner is a fresh VM the platform throws away. A self-hosted runner is a
-machine someone owns, and every rule below follows from that difference.
+machine someone owns, and every rule below follows from that difference. When
+the project also provisions that machine, read
+`references/infra-provisioning.md` alongside this.
 
 **C9.1 Only private repositories may target the runner.** A fork PR on a
 **public** repo can run code on a self-hosted runner — GitHub's own words:

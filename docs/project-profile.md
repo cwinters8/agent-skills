@@ -228,6 +228,7 @@ Which reference modules apply, from `skills/security-review/references/`:
 | `postgres-rls` | Postgres with row-level security, including Supabase / PostgREST |
 | `ci-workflows` | GitHub Actions |
 | `mobile-release` | shipping to the App Store or Play |
+| `infra-provisioning` | provisioning or configuring servers as code — shell run as root, configuration management, infrastructure-as-code, cloud firewalls, infrastructure secrets |
 
 List only what the project actually uses. Each module is depth about a stack, not
 about your project; naming one you don't use produces checks that cannot pass.
