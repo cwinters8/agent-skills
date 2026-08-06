@@ -113,12 +113,22 @@ are very different levels of assurance.
 A pin is a promise that the bytes fetched next time are the bytes reviewed this
 time. Two rules keep it true:
 
-- **A pinned artifact fetched by URL gets its checksum verified by downloading
-  the artifact and hashing it.** Never by copying the value printed on a release
-  page. The page and the artifact are different trust surfaces reached by
-  different paths; a checksum read off a page and written into the repo proves
-  only that the page could be read, and it will still "verify" for anyone who is
-  served a substituted artifact. Hash what you actually got, then compare.
+- **A pinned artifact fetched by URL needs two different things, and a hash is
+  only one of them.** Hashing what you downloaded pins **reproducibility**: every
+  later fetch is compared against the bytes reviewed this time, and a substitution
+  after today fails loudly. It establishes no **authenticity** — if the artifact
+  you fetched was already substituted, you have permanently pinned the attacker's
+  hash, and every future verification passes. That is trust-on-first-use, and
+  SLSA names it as such precisely because it is the weaker option.
+
+  So: verify the first fetch against something the vendor **signed** — a
+  signature over the checksum file, a Sigstore/cosign signature, a SLSA
+  provenance attestation — and record the hash for reproducibility afterwards.
+  Where the vendor publishes only a checksum on a web page, fetching that page
+  over TLS and hashing the artifact yourself are two reads of the same trust
+  root, so say in the report that the pin is TOFU rather than implying it was
+  verified. Naming which of the two you got is the whole point; "we checksummed
+  it" hides the difference.
 - **For a package manager, the lockfile is the pin.** A range in a manifest is a
   statement of intent — two installs a week apart resolve differently and both
   satisfy it. A change that edits a range and leaves the lockfile alone has

@@ -45,9 +45,8 @@ lets this review rank findings by consequence instead of by category.
 
 Load the `references/` modules `## Stack` names **before** working the groups.
 Most add depth to one group, but a module can also change how a group should be
-*read* — `infra-provisioning` is the case that exists today, and a reviewer who
-reaches it only from inside group 1 has already worked the others on the wrong
-definitions.
+*read*, and a reviewer who meets it only from inside the group that happens to
+cite it has already worked the others on the wrong definitions.
 
 **Without a profile, this skill cannot do its job.** Run the `secrets` and
 `supply-chain` groups over the diff, report every other group as *not
@@ -118,10 +117,6 @@ else in this group serves that question.
 When `## Stack` names `postgres-rls`, read `references/postgres-rls.md` — it
 carries the RLS-specific rules, the live audit queries, and the two-account
 probe procedure, including the ways a probe passes while proving nothing.
-
-When `## Stack` names `infra-provisioning`, that module's translation of this
-group applies: `authorization` on a machine is which accounts exist, the sudo
-policy, and what identity each service runs as.
 
 Whether you may probe at all is `## Probe policy`. Reading policy definitions is
 weaker evidence than testing them; when probing is forbidden, say in the report

@@ -29,14 +29,27 @@ jobs:
 ```
 
 A job-level `env:` hands the value to dependency installation and every install
-script it runs. Auditing those dependencies (C4) reduces the odds; it does not
+script it runs. Auditing those dependencies (C5) reduces the odds; it does not
 remove the exposure. This is a real finding, not a style preference, and its
-severity comes from what the token can do — see C5.
+severity comes from what the token can do — see C6.
+
+The checkout action leaves a credential behind for the same reason. It persists
+the token into the repository's git config by default, where every later step —
+and every dependency those steps execute — can read it, and from which it has
+repeatedly escaped inside uploaded artifacts. Set `persist-credentials: false`
+unless the job genuinely pushes. On a self-hosted runner this compounds with
+C9.4: the leftover outlives the job.
 
 ## C2. Workflow permissions are least-privilege
 
-Each workflow declares the narrowest `permissions:` block that works. The default
-is usually wider than the job needs.
+Each workflow declares the narrowest `permissions:` block that works — ideally a
+top-level `permissions: {}` and then the specific grants each job needs.
+
+Read the **organization's** Workflow permissions setting, not only the workflow
+file. Since February 2023 new repositories default to a read-only `GITHUB_TOKEN`,
+but org-owned repositories inherit the org setting, and long-lived orgs are
+frequently still read/write. Inheriting a good default is also not the same as
+declaring one: an explicit block survives the org setting being widened later.
 
 `permissions:` is a GitHub Actions concept. Other CI systems that borrow the
 `uses:`/`steps:` shape have no such block — don't ask for one there or flag its
@@ -50,7 +63,7 @@ on: pull_request_target
 jobs:
   build:
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@<sha>                       # see C7
         with:
           ref: ${{ github.event.pull_request.head.sha }}   # fork-authored code
       - run: npm ci                                        # …with write-scoped secrets
@@ -58,14 +71,45 @@ jobs:
 
 `pull_request_target` runs with the base repository's secrets and a write-scoped
 token. Checking out the PR head then executes fork-authored code in that context.
-If a workflow needs both untrusted code and secrets, split it: run the untrusted
-half on `pull_request` with no secrets, and have a separate trusted job consume
-its artifacts.
+If a workflow needs both untrusted code and secrets, split it along the documented
+seam: run the untrusted half on `pull_request` with no secrets and have it upload
+an artifact, then have a separate **`workflow_run`** job — which does run
+privileged — download it.
+
+That split relocates the trust boundary rather than removing it, so the
+privileged half must treat what it downloads as untrusted **data**: never execute
+it, and unzip it with the path-traversal care C8 describes. A `workflow_run` job
+that runs a script out of the artifact has reintroduced the same bug one hop
+later.
 
 Flag any `pull_request_target` workflow that checks out, builds, or runs anything
-from the PR head.
+from the PR head. Flag it at higher severity when the job also names a
+self-hosted runner: `pull_request_target` runs regardless of the fork-approval
+setting, so that combination is unapproved fork code on owned hardware (C9.1).
 
-## C4. Dependencies are audited across the whole tree
+## C4. Untrusted text interpolated into `run:` is code execution
+
+```yaml
+# wrong — the title is attacker-controlled and lands inside the shell command
+- run: echo "Reviewing ${{ github.event.pull_request.title }}"
+
+# right — through the environment, quoted, never expanded by the shell
+- run: echo "Reviewing $TITLE"
+  env:
+    TITLE: ${{ github.event.pull_request.title }}
+```
+
+`${{ }}` is substituted into the script **before** the shell sees it, so any
+attacker-controlled field — a PR title or body, a branch name, an issue comment,
+a commit message, an author name — becomes shell syntax running as the runner.
+This is the most common Actions vulnerability class there is, and on a
+self-hosted runner it is code execution on a machine someone owns.
+
+Bind the value to an intermediate environment variable and reference it as a
+quoted shell variable. The same care applies to `${{ }}` inside an `actions/github-script`
+body, where the substitution lands in JavaScript instead.
+
+## C5. Dependencies are audited across the whole tree
 
 Audit including development dependencies, not production-only. A dev dependency
 executes during install, build, and typecheck — in CI, with tokens present.
@@ -76,7 +120,7 @@ package that never runs during install, build, or test (a types-only package wit
 no scripts) is not a release blocker; anything that executes in CI or ships in
 the runtime bundle is.
 
-## C5. Publish tokens are the highest-value secret
+## C6. Publish tokens are the highest-value secret
 
 A token that can push code to already-installed clients — an over-the-air update
 token, a package registry publish token, a deploy key — reaches users with no
@@ -86,11 +130,32 @@ Confirm it lives only in secret storage, is never echoed into logs (including
 debug output and error dumps), and that any channel or branch repointing done for
 testing is deliberate and reverted afterwards.
 
-## C6. Action pinning
+## C7. Action pinning — two properties, not one
 
-Defer to the `action-versions` skill. Don't duplicate its rules here.
+**Currency** — is the major current? Defer to the `action-versions` skill; don't
+duplicate its rules here.
 
-## C7. Scripts that write into the repo
+**Immutability** — can the ref change under you? A tag can, and this is not
+theoretical. In March 2025 every tag of a widely-used action from `v1` through
+`v45.0.7` was retroactively repointed at a commit that dumped CI secrets into
+public workflow logs; roughly 23,000 repositories referenced it, and `v45` was a
+perfectly current major at the time. GitHub's position: pinning to a full-length
+commit SHA "is currently the only way to use an action as an immutable release."
+
+So a current major is not a pinned action. Require a full 40-character SHA with
+the version in a trailing comment — `uses: owner/repo@a1b2c3… # v4.2.1` — for any
+third-party action in a workflow that holds a secret or a write-scoped token.
+First-party actions from the platform vendor are lower risk, not exempt. Where
+the organization can enforce rather than review it, the allowed-actions policy
+supports requiring a SHA, and a workflow using an unpinned action fails outright.
+Publisher-side immutable releases exist now too, but they are opt-in per
+publisher, so they do not make a tag reference safe in general.
+
+The two properties compose and neither substitutes for the other: a SHA pin rots
+without a currency process, which is what `action-versions` and an update bot are
+for.
+
+## C8. Scripts that write into the repo
 
 CI often runs a script that commits generated content. Two properties matter:
 
@@ -105,42 +170,89 @@ CI often runs a script that commits generated content. Two properties matter:
 - It fails loud rather than writing something partial. A half-written generated
   file that still parses is worse than a failed job.
 
-## C8. Self-hosted runners are part of the trust boundary
+## C9. Self-hosted runners are part of the trust boundary
 
 A hosted runner is a fresh VM the platform throws away. A self-hosted runner is a
-machine someone owns, and every rule below follows from that difference. When the
-project also provisions that machine, read
-`references/infra-provisioning.md` alongside this.
+machine someone owns, and every rule below follows from that difference.
 
-**Only private repositories may target the runner.** A fork PR on a **public**
-repo can run arbitrary code on a self-hosted runner — GitHub's own documented
-behavior, not an edge case. If that runner holds a key with privileged access to
-other infrastructure, the runner is a lateral-movement path into it: a fork PR
-becomes root on the machine that key reaches. State this as a rule to verify, not
-an assumption. Read which repositories the runner is registered to and confirm
-each is private, and record the constraint where the visibility decision gets
-made — a repo flipped to public later removes the control silently, with no diff
+**C9.1 Only private repositories may target the runner.** A fork PR on a
+**public** repo can run code on a self-hosted runner — GitHub's own words:
+"forks of your public repository can potentially run dangerous code on your
+self-hosted runner machine by creating a pull request that executes the code in a
+workflow." If the runner holds a key with privileged access to other
+infrastructure, the runner is a lateral-movement path into it.
+
+**The approval gate is not that control.** GitHub's default — *Require approval
+for first-time contributors* — exempts anyone who has ever had a commit or PR
+merged. It is per-contributor and permanent, not per-PR, so a merged typo fix
+buys standing access; that is the documented opening move of the attacks that
+took PyTorch and GitHub's own `actions/runner-images`. And `pull_request_target`
+skips it outright: workflows it triggers "will always run, regardless of approval
+settings." A `pull_request_target` job with `runs-on: self-hosted` is therefore
+unapproved fork execution on owned hardware — the intersection of C3 and this
+rule, and worse than either alone.
+
+Verify in this order: read which repositories the runner is registered to and
+confirm each is private; for an org runner group, confirm **Allow public
+repositories** is off (it defaults off, and an enterprise-shared group can pin
+it) and consider restricting **Workflow access** to named workflows; read the
+repo's fork-approval setting and treat anything looser than *all external
+contributors* as a finding on a runner that reaches other infrastructure. A
+repo-scoped runner on a personal account has no group policy, so there the
+constraint is convention only — say so rather than implying a setting enforces
+it. A repo flipped to public later removes the control silently, with no diff
 anywhere.
 
-**A runner reaching other infrastructure uses a dedicated, individually revocable
-credential.** One `authorized_keys` line that can be deleted to lock CI out —
-never a shared operator key, which cannot be revoked without locking the operator
-out too. Generate the pair for CI alone and confirm the private half lives only
-on the runner, at a mode only the runner's service account can read.
+**C9.2 A runner reaching other infrastructure uses a dedicated, individually
+revocable credential.** One `authorized_keys` line that can be deleted to lock CI
+out — never a shared operator key, which cannot be revoked without locking the
+operator out too. Generate the pair for CI alone and confirm the private half
+lives only on the runner, at a mode only the runner's service account can read.
 
-**Inbound exposure is a finding.** Self-hosted runners are outbound-only by
-design: the agent long-polls for work and nothing ever connects in. Any open
-inbound port beyond maintenance access is attack surface the runner does not need
-— check the firewall in front of it, not only the machine's own config.
+That is the floor, not the ceiling. A static key on a persistent runner is a
+credential an attacker who reaches the runner simply keeps. Where the target is a
+cloud provider, OIDC federation removes the stored credential outright — GitHub's
+guidance is that it "will let you stop storing these credentials as long-lived
+secrets." Where the target is a plain host, a short-lived certificate from an SSH
+CA is the equivalent. Where neither is practical — one box, no identity provider
+— the dedicated key is acceptable *and* is a standing finding to revisit. Say
+which case the project is in instead of leaving it implied.
 
-**Runners persist state between jobs.** Unlike an ephemeral hosted runner, the
-working directory, caches, installed tools and anything a job leaves on disk
-survive into the next job, possibly from a different workflow. Treat "a
-compromised job can leave something behind for the next one" as the default
-rather than the exotic case.
+**C9.3 Inbound exposure is a finding, and outbound is not unlimited.**
+Self-hosted runners are outbound-only by design: the agent long-polls for work
+over HTTPS and nothing ever connects in. Any open inbound port beyond maintenance
+access is attack surface the runner does not need — check the firewall in front
+of it, not only the machine's own config. Outbound-only is not
+outbound-unrestricted, though: GitHub publishes the domain allowlist a runner
+actually needs, and a runner that can reach the whole internet exfiltrates
+whatever it collects. An egress allowlist is the matching control.
 
-**Gate a privileged apply/deploy workflow to manual dispatch.** When a workflow
-reconfigures infrastructure unattended and a bad change can leave the target
-unreachable, `workflow_dispatch` — with a dry-run input defaulting to true — is
-the right trigger. An automatic `push` trigger on that workflow means discovering
-the breakage from a merge; add one only once the change path is trusted.
+**C9.4 A default-configured runner persists state between jobs — register it
+ephemeral instead.** The working directory, caches, installed tools and anything
+a job leaves on disk survive into the next job, possibly from a different
+workflow. **Cleanup steps are not the fix**: an attacker who owns a job owns the
+cleanup, and the published technique for surviving it (setting
+`RUNNER_TRACKING_ID=0` so the runner stops reaping child processes) is a one-line
+workflow change.
+
+The fix is at registration. `--ephemeral` makes GitHub de-register the runner
+after a single job; just-in-time runners minted through the REST API do the same
+and additionally keep a long-lived registration token off the disk; Actions
+Runner Controller gives ephemerality by default on Kubernetes. A persistent
+runner that reaches other infrastructure is a finding on its own.
+
+**C9.5 A privileged apply/deploy workflow is gated by an environment, not by its
+trigger.** `workflow_dispatch` is an intentionality control, not an authorization
+one: triggering it needs write access — the same access that could merge to the
+branch a `push` trigger fires on. It adds no reviewer, and it does not withhold
+the secret.
+
+Put the privileged job in an environment with **required reviewers** and
+**prevent self-review** enabled. A job referencing an environment cannot access
+that environment's secrets until every protection rule passes, so an unapproved
+run never reaches the credential — which is the property `workflow_dispatch`
+lacks entirely. Add branch or tag deployment restrictions so only the release ref
+can deploy, and prefer OIDC over a stored deploy secret (C9.2). Manual dispatch
+on top of that is still useful, and a `dry_run` input defaulting to true is sound
+hygiene for a workflow whose failure mode is an unreachable target — but that is
+operational practice, not the security control.
