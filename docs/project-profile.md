@@ -32,7 +32,7 @@ complete profile worth reading before you write your own.
 Run the validator after editing:
 
 ```sh
-npx -y github:cwinters8/agent-skills#main check-profile
+npx -y github:cwinters8/agent-skills#<verified-ref> check-profile
 ```
 
 `sync` runs the same validation, so a normal sync catches profile problems too.
@@ -85,8 +85,13 @@ Read by `dependency-refresh`, `pr-preflight`, `review-sweep`.
 The commands that must pass before a push, one per line, most important first.
 Write `none` if the project has none — that is a real answer and skills handle it.
 
-*Missing:* `pr-preflight` reports that it ran no mechanical gate, which is a
-finding in itself.
+*Missing:* all three readers degrade, differently. `pr-preflight` reports that it
+ran no mechanical gate, which is a finding in itself. `review-sweep` pushes a
+review fix without the project's gate behind it and has to say so in the PR
+thread. And `dependency-refresh` loses what tells it whether a bump actually
+works: it runs whatever checks it can discover and reports that those were not
+the project's stated gate. `none` is a real answer here and all three handle it;
+an absent section is the one they cannot.
 
 ### `## Derived docs` — optional
 

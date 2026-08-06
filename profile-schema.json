@@ -22,7 +22,7 @@
       "required": true,
       "readBy": ["dependency-refresh", "pr-preflight", "review-sweep"],
       "supplies": "The commands that must pass before a push, one per line, most important first. Write 'none' if the project has no automated checks.",
-      "fallback": "pr-preflight reports that it ran no mechanical gate, which is a finding in itself."
+      "fallback": "pr-preflight reports that it ran no mechanical gate, which is a finding in itself. review-sweep pushes a review fix without the project gate and must say so in the PR thread. dependency-refresh runs whatever checks it can discover to decide whether a bump actually works, and reports that those were not the project's stated gate."
     },
     {
       "heading": "Derived docs",
