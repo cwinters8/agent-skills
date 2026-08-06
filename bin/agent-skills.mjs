@@ -295,6 +295,13 @@ for (const skill of lock.skills) {
     continue;
   }
 
+  // Does the package ship, or the lock record, any file beneath this path?
+  // Only meaningful for a directory: it is what separates our own emptied
+  // directory from one a consumer created.
+  const shipsFilesUnder = (dirKey) =>
+    Object.keys(nextFiles).some((k) => k.startsWith(`${dirKey}/`)) ||
+    Object.keys(lock.files ?? {}).some((k) => k.startsWith(`${dirKey}/`));
+
   // The write step rms the whole directory, so anything this package does not
   // ship and the lock does not know about would be destroyed as collateral —
   // it never appears in the per-file loop above, because that iterates the
@@ -314,6 +321,16 @@ for (const skill of lock.skills) {
       // the link with a regular file, silently, which is the whole failure.
       if (isSymlink(join(to, rel)) && !force) {
         problems.push(`${key}: a symlink, not a file this tool vendored — refusing to replace it`);
+        continue;
+      }
+      // walkAll yields a directory only when it holds nothing at all, and an
+      // empty directory that this package ships files *into* is not local
+      // content — it is our own directory with its files deleted. The two look
+      // identical by name, since nextFiles holds the files and never the
+      // directory. Refusing here would block the restore of the very files the
+      // loop above just reported missing, turning a recoverable state into a
+      // sync that cannot proceed without --force.
+      if (shipsFilesUnder(key)) {
         continue;
       }
       if (key in nextFiles || lock.files?.[key] !== undefined) continue;

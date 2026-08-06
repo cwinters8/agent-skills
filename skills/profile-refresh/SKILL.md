@@ -17,9 +17,11 @@ headings present, no unknown heading, no leftover placeholder marker. It never
 asks whether a single statement in the file is still *true* of the repo. That is
 the whole gap, and the profile is the one file that degrades silently — a stale
 one reads exactly like a current one, so every skill downstream keeps reporting
-confidently from bad input. A `## Mechanical checks` entry naming a command that
-no longer exists doesn't announce itself; it just means the pre-push gate ran
-nothing and said it passed.
+confidently from bad input. The clearest case is a check the project has
+**gained** — a new script, a new lint job — that this file never gained with it.
+Nothing runs it before a push and nothing anywhere reports that it should have,
+because the profile is the only place the gate is enumerated. Absence from a
+list is the one defect that cannot announce itself.
 
 ## When to run it
 
@@ -53,10 +55,19 @@ verified it, couldn't, or skipped it.
 
 ### `## Mechanical checks`
 
-**Run every listed command.** This is the most consequential drift in the file,
-because it fails quietly: a command that no longer exists, or a script since
-renamed, means the pre-push gate executes nothing and reports a pass. A gate
-silently running zero checks is worse than a project that honestly says `none`.
+**Run every listed command**, and be precise about which failures are loud,
+because the four outcomes below are told apart by exactly that. A listed command
+that no longer exists does **not** slip through quietly — invoked, it exits
+non-zero (`command not found`, a missing package script), and the pre-push gate
+fails visibly. That is the system working; what it tells you is that the profile
+and the repo disagree, not which one to edit.
+
+The quiet failures are the other two. A check the project **gained** that this
+section never listed is run by nobody and reported by nothing. And a stale entry
+that an agent misreads as an environment gap — "the tool isn't installed here" —
+gets recorded as unrun and waved past, which is the one path by which a real
+deletion does become a silent pass. A gate running fewer checks than it claims is
+worse than a project that honestly says `none`.
 Four outcomes, and only one of them is drift.
 
 *The script or command was **renamed or replaced*** — a package script under a
@@ -188,8 +199,17 @@ be read as permission.
 
 ### `## Local skills`
 
-Confirm each named skill still exists in the repo. A hand-off to a deleted or
-renamed skill means `pr-preflight` names a gate in its report that never ran.
+Both directions, like every other section here. **Named but gone** — confirm
+each skill this section lists still exists in the repo; a hand-off to a deleted
+or renamed skill means `pr-preflight` names a gate in its report that never ran.
+**Present but unlisted** — enumerate the repo's own skill files and subtract the
+set vendored from this package; anything left that the section does not name is
+a gate `pr-preflight` never hands off to. That is the quieter half: the listed
+name at least fails visibly when the hand-off misses, while a local skill added
+after the profile was written simply never runs, and the refresh reports the
+section verified. Propose the addition rather than writing it — what a local
+skill gates is a claim about that skill, not something the file's existence
+proves.
 
 ### `## Threat model`
 
