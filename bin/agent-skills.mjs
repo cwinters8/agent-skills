@@ -121,6 +121,13 @@ if (command === 'init') {
     wrote.push('.claude/skills.json');
   }
 
+  // Warn where the adopter can still act on it: a directory already sitting
+  // under .claude/skills/ with a name this package also ships is almost
+  // certainly a locally authored skill, and listing that name means the next
+  // sync tries to vendor over it. sync refuses, but saying so here is cheaper
+  // than a failed sync the adopter has to interpret.
+  const collisions = skills.filter((s2) => existsSync(join(skillsDir, s2)));
+
   if (existsSync(profilePath)) kept.push('.claude/project-profile.md');
   else {
     copyFileSync(join(packageRoot, 'templates', 'project-profile.md'), profilePath);
@@ -129,6 +136,13 @@ if (command === 'init') {
 
   for (const f of wrote) console.log(`agent-skills: wrote ${f}`);
   for (const f of kept) console.log(`agent-skills: kept existing ${f}`);
+  if (collisions.length) {
+    console.log('');
+    console.log('agent-skills: these names already exist under .claude/skills/ and are listed:');
+    for (const c of collisions) console.log(`  ${c}`);
+    console.log('  If those are your own skills, rename them or drop the name from');
+    console.log('  .claude/skills.json — sync will refuse to overwrite them either way.');
+  }
   console.log('');
   console.log('Next: fill in .claude/project-profile.md — every TODO must be replaced.');
   console.log('Then: agent-skills sync    (validates the profile and vendors the skills)');
@@ -218,14 +232,33 @@ for (const skill of lock.skills) {
       continue;
     }
 
-    // A local file matching neither the package nor the lock was hand-edited.
-    // Overwriting it silently would discard work; refusing without --force is
-    // the only way the edit gets noticed.
-    if (localHash !== null && lockedHash !== null && localHash !== lockedHash && !force) {
-      problems.push(`${key}: edited locally — fix it upstream and re-sync, or pass --force to discard`);
+    // A local file differing from the package was either hand-edited after a
+    // sync (the lock knows it) or was never ours to begin with (the lock does
+    // not). Both must refuse; the second is the dangerous one, because a repo
+    // that hand-wrote its own skill under a name this package also ships has no
+    // lock entry at all, and treating "no entry" as "out of date" hands it
+    // straight to the overwrite below.
+    if (localHash !== null && localHash !== lockedHash && !force) {
+      problems.push(
+        lockedHash === null
+          ? `${key}: present but not vendored by this tool — refusing to overwrite`
+          : `${key}: edited locally — fix it upstream and re-sync, or pass --force to discard`,
+      );
       continue;
     }
     problems.push(localHash === null ? `${key}: missing` : `${key}: out of date`);
+  }
+
+  // The write step rms the whole directory, so a file this package does not
+  // ship and the lock does not know about would be destroyed as collateral —
+  // it never appears in the per-file loop above, because that iterates the
+  // package's files. Enumerate the target instead.
+  if (existsSync(to)) {
+    for (const rel of walk(to)) {
+      const key = `${skill}/${rel}`;
+      if (key in nextFiles || lock.files?.[key] !== undefined) continue;
+      if (!force) problems.push(`${key}: not shipped by this package and not in the lock — refusing to delete`);
+    }
   }
 }
 
@@ -245,7 +278,9 @@ if (existsSync(schemaPath)) {
   for (const line of result.lines) (result.ok ? process.stdout : process.stderr).write(`${line}\n`);
 }
 
-const hasEdits = problems.some((p) => p.includes('edited locally'));
+const hasEdits = problems.some(
+  (p) => p.includes('edited locally') || p.includes('refusing to overwrite') || p.includes('refusing to delete'),
+);
 const staleVersion = lock.version !== pkg.version;
 
 if (check) {
@@ -264,7 +299,7 @@ if (check) {
 
 if (hasEdits) {
   for (const p of problems) console.error(`  - ${p}`);
-  die('refusing to overwrite locally-edited vendored files — nothing was written');
+  die('refusing to overwrite or delete files this tool did not vendor — nothing was written');
 }
 
 // Past this point nothing can refuse: write the whole plan.
