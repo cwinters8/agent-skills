@@ -93,9 +93,14 @@ too — `code-review` builds permalinks from it, so a wrong `owner/repo` puts a
 
 ### `## Rules source`
 
-Confirm the named file still exists and is still the authority: not a stub, not
-a pointer to somewhere that has since become canonical. A project that split
-its rules across a second file leaves this section naming the smaller half.
+Confirm each named file still exists and that the authority still sits where
+this section says. **A pointer is not drift.** The schema asks for the rules
+file *and any file that merely points at it*, because those entry points are
+what an agent hits first and they need checking too — flag one only when its
+target is gone or it now redirects somewhere else, never for being a pointer.
+What is drift: the authority moved and this section still names the old file,
+or a project split its rules across a second file and this names only the
+smaller half.
 
 ### `## Derived docs`
 
@@ -114,8 +119,14 @@ becomes a claim no later PR retracts.
 
 Two directions, and the second is the dangerous one.
 
-- **Dead rows** — expand each path glob against the tree; a row matching no file
-  is a check that can never fire.
+- **Rows matching nothing** — expand each path glob against the tree. A row
+  matching no file may be dead, or may be **deliberately ahead of the tree**: a
+  profile can route `.github/workflows/**` before the first workflow exists,
+  precisely so the change that creates one arrives already in scope. Deleting
+  that removes the groups from the first addition, silently, and the addition is
+  the moment they mattered most. So this is judgment, not a provable fix —
+  report it, and remove a row only with evidence the surface was retired rather
+  than not yet built.
 - **Unmatched paths** — enumerate the tree and find directories matching *no*
   row that plausibly belong to a group: a new server or API directory
   (`authorization`), a new workflow or build-script location (`supply-chain`),
@@ -179,8 +190,9 @@ on an agent's inference is the worst artifact this skill could produce.
 Sort every drift into one of two buckets before touching the file.
 
 **Provable → fix it.** A command that **does not exist**, a path that does not
-exist, a named skill absent from the repo, a glob matching nothing, a changed
-visibility. The evidence is mechanical and reproducible: correct the profile,
+exist, a named skill absent from the repo, a changed visibility. Note that a
+trust-boundary glob matching nothing is **not** in this bucket — it may be
+guarding a surface not yet built, so it goes to judgment below. The evidence is mechanical and reproducible: correct the profile,
 and say what the evidence was.
 
 A command that exists and **exits non-zero** is not in this bucket, however
