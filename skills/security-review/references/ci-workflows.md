@@ -231,19 +231,32 @@ outbound-unrestricted, though: GitHub publishes the domain allowlist a runner
 actually needs, and a runner that can reach the whole internet exfiltrates
 whatever it collects. An egress allowlist is the matching control.
 
-**C9.4 A default-configured runner persists state between jobs — register it
-ephemeral instead.** The working directory, caches, installed tools and anything
-a job leaves on disk survive into the next job, possibly from a different
-workflow. **Cleanup steps are not the fix**: an attacker who owns a job owns the
-cleanup, and the published technique for surviving it (setting
-`RUNNER_TRACKING_ID=0` so the runner stops reaping child processes) is a one-line
-workflow change.
+**C9.4 A default-configured runner persists state between jobs — one job, one
+host, then destroy the host.** The working directory, caches, installed tools
+and anything a job leaves on disk survive into the next job, possibly from a
+different workflow. **Cleanup steps are not the fix**: an attacker who owns a
+job owns the cleanup, and the published technique for surviving it (setting
+`RUNNER_TRACKING_ID=0` so the runner stops reaping child processes) is a
+one-line workflow change.
 
-The fix is at registration. `--ephemeral` makes GitHub de-register the runner
-after a single job; just-in-time runners minted through the REST API do the same
-and additionally keep a long-lived registration token off the disk; Actions
-Runner Controller gives ephemerality by default on Kubernetes. A persistent
-runner that reaches other infrastructure is a finding on its own.
+Isolation takes two things, and only one of them is a flag. `--ephemeral` makes
+GitHub de-register the runner after a single job, and just-in-time runners
+minted through the REST API do the same while keeping a long-lived registration
+token off the disk — but **de-registering a runner erases nothing**. The
+registration is a lifecycle for the *agent*, not for the machine, so an
+autoscaler that re-registers the same VM, the same container, or even the same
+working directory hands the next job every file, cache and background process
+the last one left. That is the whole of what this rule is trying to prevent, and
+it survives the flag intact.
+
+So require the second half explicitly: the host is a fresh VM or container per
+job, discarded after de-registration and never re-registered. Actions Runner
+Controller gets this right by construction — a new pod per job — which is why it
+is the easy recommendation on Kubernetes. Elsewhere, read the autoscaler or the
+supervisor that restarts the runner and confirm it *replaces* the host rather
+than restarting the agent on it. A persistent runner that reaches other
+infrastructure is a finding on its own; a nominally ephemeral runner on a
+recycled host is the same finding wearing a flag.
 
 **C9.5 A privileged apply/deploy workflow is gated by an environment, not by its
 trigger.** `workflow_dispatch` is an intentionality control, not an authorization

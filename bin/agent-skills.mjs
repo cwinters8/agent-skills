@@ -310,6 +310,22 @@ console.log(
 // — coverage the repo already had disappears, with nothing in the sync diff to
 // show for it. Report it here, where the skills array is in front of the person
 // who can change it. Advisory only: wanting a subset is legitimate.
+// A backticked name alone is NOT a handoff. Skills name each other to draw
+// boundaries ("`code-review` does not chase documentation gaps"), to cite a
+// shared rule, and to say what they are not — flagging those would recommend
+// skills a consumer has no use for and teach them to ignore the one warning
+// that matters. Match the verbs a handoff is actually written with; AGENTS.md
+// documents these as the phrasing to use, so the check is a convention rather
+// than a guess at intent.
+// \s+ rather than a literal space: these files wrap at 80 columns, so the verb
+// and the name land on different lines often enough that a space-only pattern
+// misses real handoffs — it did, for two of them, before this was widened.
+const HANDOFF = (name) =>
+  new RegExp(
+    `(run|runs|invoke|invokes|hands? off to|defers? to)(\\s+the)?\\s+\`${name}\``,
+    'i',
+  );
+
 const missingSiblings = new Map();
 for (const skill of lock.skills) {
   const file = join(skillsDir, skill, 'SKILL.md');
@@ -317,17 +333,16 @@ for (const skill of lock.skills) {
   const body = readFileSync(file, 'utf8');
   for (const other of available()) {
     if (other === skill || lock.skills.includes(other)) continue;
-    // Backticked name only — prose like "review the changes" must not match.
-    if (!body.includes(`\`${other}\``)) continue;
+    if (!HANDOFF(other).test(body)) continue;
     if (!missingSiblings.has(other)) missingSiblings.set(other, []);
     missingSiblings.get(other).push(skill);
   }
 }
 if (missingSiblings.size) {
   console.log('');
-  console.log('agent-skills: vendored skills hand off to skills this repo does not list:');
+  console.log('agent-skills: vendored skills hand work to skills this repo does not list:');
   for (const [other, byWhom] of [...missingSiblings].sort()) {
-    console.log(`  ${other} — referenced by ${byWhom.sort().join(', ')}`);
+    console.log(`  ${other} — ${byWhom.sort().join(', ')} hands off to it`);
   }
   console.log('  Those steps will be skipped. Add them to .claude/skills.json if you want them.');
 }

@@ -128,6 +128,16 @@ section over renaming an existing one.
 - **Name other skills by name, and tolerate their absence.** A consumer may
   vendor only some of these. A referenced skill that isn't present means skip
   that step and say so, never guess at what it would have done.
+- **Write a hand-off with a hand-off verb.** `sync` reports when a vendored
+  skill hands work to a skill the consumer didn't list, which is how a partial
+  installation finds out it is missing a step instead of discovering it in a
+  degraded report months later. It detects that from the phrasing: **run**,
+  **invoke**, **hand off to** or **defer to**, followed by the backticked skill
+  name. A backticked name on its own is deliberately not enough — skills name
+  each other to draw boundaries and cite shared rules far more often than they
+  delegate, and flagging those would recommend skills the consumer has no use
+  for and train them to ignore the warning that matters. So if a step genuinely
+  delegates, use one of those verbs; if it merely mentions, don't.
 - **Keep the reasoning.** These skills are long because they encode *why* a check
   exists — which false positive it avoids, which failure it caught before.
   Compressing a rule to its conclusion is how it gets ignored or misapplied.
