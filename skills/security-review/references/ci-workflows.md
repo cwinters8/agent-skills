@@ -133,7 +133,11 @@ testing is deliberate and reverted afterwards.
 ## C7. Action pinning — two properties, not one
 
 **Currency** — is the major current? Defer to the `action-versions` skill; don't
-duplicate its rules here.
+duplicate its rules here. That skill carries the matching half of this rule: it
+pins the SHA rather than the tag when the workflow holds a secret or a
+write-scoped token, so a reference satisfying it also satisfies this one. If it
+is not vendored here, look the current major up yourself and apply the pin below
+to it.
 
 **Immutability** — can the ref change under you? A tag can, and this is not
 theoretical. In March 2025 every tag of a widely-used action from `v1` through

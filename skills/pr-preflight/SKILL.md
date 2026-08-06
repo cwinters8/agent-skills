@@ -83,8 +83,15 @@ Review the diff yourself against the profile:
   here: a second copy drifts, and the clause it drops is the one that mattered.
   Reconcile what it reports **in the same PR** — a contradicted doc is a failing
   check, not a follow-up — and carry anything it says it skipped into the PR
-  description. If it isn't vendored here, skip that step and say so rather than
-  substituting a guess at what it would have done.
+  description. If it isn't vendored here, this step is **degraded, not skipped**
+  — an earlier version of this skill carried the docs check inline, so a repo
+  that upgrades without adding `docs-currency` to `.claude/skills.json` loses
+  coverage it already had, silently and with nothing in the diff to show for it.
+  Add the skill and re-sync. Until that lands, run the irreducible minimum —
+  grep the rules source, the profile and the vendored skills for the terms the
+  diff touches *and for the wording it deleted* — and say in the PR description
+  that the full check did not run. Don't guess at the rest of what that skill
+  would have done.
 
 ### 4. Verify behavior when feasible
 

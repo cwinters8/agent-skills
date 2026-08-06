@@ -171,10 +171,16 @@ on an agent's inference is the worst artifact this skill could produce.
 
 Sort every drift into one of two buckets before touching the file.
 
-**Provable → fix it.** A command that errors, a path that does not exist, a
-named skill absent from the repo, a glob matching nothing, a changed visibility.
-The evidence is mechanical and reproducible: correct the profile, and say what
-the evidence was.
+**Provable → fix it.** A command that **does not exist**, a path that does not
+exist, a named skill absent from the repo, a glob matching nothing, a changed
+visibility. The evidence is mechanical and reproducible: correct the profile,
+and say what the evidence was.
+
+A command that exists and **exits non-zero** is not in this bucket, however
+mechanical the evidence looks. That is the repo being broken, not the profile
+being wrong, and it goes to the maintainer untouched — editing a failing gate
+out of `## Mechanical checks` is how a refresh run during a real test failure
+silently weakens every later preflight.
 
 **Judgment → report it.** Is this still the threat model? Should this new
 directory be `authorization` or `client-data`? Has this carve-out's reason

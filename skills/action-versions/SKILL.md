@@ -81,11 +81,22 @@ step 2's lookup returns today, not a value copied from memory. Confirm the
 current major yourself rather than pasting the tag above; that is the whole
 point of step 2.)
 
-- Match what the rest of the workflow already does. If sibling steps pin full
-  commit SHAs (the hardening practice for third-party actions —
-  `uses: owner/repo@<40-char-sha> # v7.0.1`), pin the SHA of the latest
-  release's tag and comment the version. Otherwise the moving major tag is the
-  right default.
+- **A workflow holding a secret or a write-scoped token gets the SHA, not the
+  tag.** Look up the latest major as above, then pin the full 40-character SHA
+  of that major's current release with the version in a trailing comment —
+  `uses: owner/repo@<40-char-sha> # v7.0.1`. A moving major is a mutable ref: in
+  March 2025 every tag of a widely-used action from `v1` through `v45.0.7` was
+  retroactively repointed at a commit that dumped CI secrets into public logs,
+  and a current major was no protection at all. This condition is not a
+  preference — it is the same one `security-review`'s `ci-workflows` module
+  states in C7, and the two skills must not prescribe opposite fixes for one
+  line.
+- **Otherwise match what the rest of the workflow already does.** If sibling
+  steps pin SHAs, pin a SHA. If not, the moving major tag is the right default
+  for a workflow with nothing worth stealing in its environment.
+- The two properties are separate and both are yours: the SHA is *which bytes*,
+  the lookup is *which version*. A SHA pinned once and never revisited rots, so
+  bumping a SHA-pinned reference still means looking the major up again.
 - Bump every stale reference, not just the one a reviewer happened to flag.
 
 ### 4. Only stay behind deliberately
