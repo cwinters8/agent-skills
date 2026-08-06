@@ -30,7 +30,7 @@ import {
   statSync,
   writeFileSync,
 } from 'node:fs';
-import { dirname, join, relative, resolve } from 'node:path';
+import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -71,6 +71,16 @@ const bannerText = `<!-- vendored from ${pkg.name}@${pkg.version} — edit upstr
 const BANNER = /^<!-- vendored from .*? -->\n/m;
 const canonical = (buffer) => sha256(Buffer.from(buffer.toString('utf8').replace(BANNER, '')));
 
+// A relative path with forward slashes on every platform. `relative()` is
+// platform-specific, so on Windows it yields backslashes — and these strings
+// become lock keys and get compared against keys built with a literal `/`. That
+// breaks two things at once: a descendant test like `key.startsWith(dir + '/')`
+// silently never matches, and a lock written on one platform reads as total
+// drift on another. Normalizing here means no comparison downstream has to know
+// about separators. `join()` accepts forward slashes on Windows, so the paths
+// still resolve.
+const relKey = (base, full) => relative(base, full).split(sep).join('/');
+
 // Every regular file in a skill directory, relative to it, sorted for a stable
 // lock. Symlinks are skipped: they would hash as nothing and copy verbatim,
 // putting a link to an arbitrary path inside .claude/skills/.
@@ -80,7 +90,7 @@ const walk = (dir, base = dir) => {
     const full = join(dir, entry.name);
     if (entry.isSymbolicLink()) continue;
     if (entry.isDirectory()) out.push(...walk(full, base));
-    else if (entry.isFile()) out.push(relative(base, full));
+    else if (entry.isFile()) out.push(relKey(base, full));
   }
   return out.sort();
 };
@@ -104,7 +114,7 @@ const walkAll = (dir, base = dir) => {
   const out = [];
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const full = join(dir, entry.name);
-    const rel = relative(base, full);
+    const rel = relKey(base, full);
     // Dirent types come from lstat, so a link to a directory lands here and not
     // in the branch below — which is what keeps the walk from descending it.
     if (entry.isSymbolicLink()) out.push({ rel, kind: 'symlink' });
@@ -164,11 +174,15 @@ const requireWritableDir = (path, label) => {
   }
 };
 
-// `list` is exempt: it reads the package and never touches the repo.
-if (command !== 'list') {
-  requireWritableDir(join(repoRoot, '.claude'), '.claude');
-  requireWritableDir(skillsDir, '.claude/skills');
-}
+// Guard each directory only for the commands that actually go through it.
+// `list` reads the package and never touches the repo. `check-profile` reads
+// one file under `.claude` and never the skills tree — refusing it because of
+// the shape of a directory it does not open would fail a valid profile for a
+// reason unrelated to the profile, which is the opposite of what a validator is
+// for. Scope a guard to what it protects, or it becomes a second thing that can
+// be wrong.
+if (command !== 'list') requireWritableDir(join(repoRoot, '.claude'), '.claude');
+if (command === 'init' || command === 'sync') requireWritableDir(skillsDir, '.claude/skills');
 
 if (command === 'list') {
   console.log(`@cwinters8/agent-skills ${pkg.version} ships:`);

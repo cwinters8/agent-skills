@@ -152,12 +152,12 @@ Two directions, and the second is the dangerous one.
 
 - **Rows matching nothing** — expand each path glob against the tree. A row
   matching no file may be dead, or may be **deliberately ahead of the tree**: a
-  profile can route `.github/workflows/**` before the first workflow exists,
-  precisely so the change that creates one arrives already in scope. Deleting
-  that removes the groups from the first addition, silently, and the addition is
-  the moment they mattered most. So this is judgment, not a provable fix —
-  report it, and remove a row only with evidence the surface was retired rather
-  than not yet built.
+  profile can route the directory its CI definitions will live in before the
+  first one exists, precisely so the change that creates one arrives already in
+  scope. Deleting that removes the groups from the first addition, silently, and
+  the addition is the moment they mattered most. So this is judgment, not a
+  provable fix — report it, and remove a row only with evidence the surface was
+  retired rather than not yet built.
 - **Unmatched paths** — enumerate the tree and find directories matching *no*
   row that plausibly belong to a group: a new server or API directory
   (`authorization`), a new workflow or build-script location (`supply-chain`),
