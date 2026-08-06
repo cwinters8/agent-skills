@@ -216,9 +216,19 @@ project-specific correction belongs in the profile; a general one is a change
 upstream plus a re-sync.
 
 If `pr-preflight` is vendored here, hand off to `pr-preflight` to ship the
-adoption. If it is not,
-run the checks by hand and say in the PR description that the gate did not run,
-rather than implying it did.
+adoption.
+
+If it is not, **say in the PR description that the gate did not run, and stop
+there** — do not run some of it by hand. "The checks" is not a defined set once
+that skill is absent: preflight sequences the mechanical checks, a self review,
+the project's review focus, the security gate and docs currency, and an adopter
+picking a subset produces a PR that is gated in a way nobody can characterise.
+That matters more here than almost anywhere, because this diff *is* the repo's
+new review configuration — the profile it adds is what every later review will
+be told about the project, so a half-gated adoption sets the terms for
+everything gated afterwards. Name the missing skill, run the project's own
+`## Mechanical checks` because those are the project's and not preflight's, and
+leave the rest for the maintainer to decide.
 
 ## Maintenance
 
