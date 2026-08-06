@@ -9,10 +9,9 @@ description: >
   added `environment:` that activates environment-scoped secrets — since any of
   those can make existing references need a SHA without touching them. Covers
   `.github/workflows/` files, composite and reusable actions, and any YAML
-  referencing a GitHub Action. Use when asked
-  to "add a workflow", "set up CI", "update actions", or "check action
-  versions", and as part of any workflow-touching diff so stale majors never
-  reach review.
+  referencing a GitHub Action. Use when asked to "add a workflow", "set up CI",
+  "update actions", or "check action versions", and as part of any
+  workflow-touching diff so stale majors never reach review.
 ---
 
 # Action versions
@@ -124,6 +123,17 @@ point of step 2.)
   preference — it is the same one `security-review`'s `ci-workflows` module
   states in C7, and the two skills must not prescribe opposite fixes for one
   line.
+- **A composite action inherits its callers' privilege, so pin its references
+  by default.** A composite's steps run inside the calling job, with whatever
+  that job holds. So a third-party `uses:` inside `action.yml` executes with the
+  caller's secrets and token — while the composite file itself contains no
+  secret expression and no `permissions:` block, and therefore looks unprivileged
+  to the test above. Decide by the callers, not the file: if any workflow
+  reaching it through `uses: ./path` is privileged, the reference needs the SHA.
+  When you cannot enumerate every caller — a composite published for other repos
+  to consume, or simply more callers than you checked — pin the SHA anyway. The
+  cost of an unnecessary SHA is a bump you had to make regardless; the cost of a
+  missed one is the caller's credentials.
 - **Otherwise match what the rest of the workflow already does.** If sibling
   steps pin SHAs, pin a SHA. If not, the moving major tag is the right default
   for a workflow with nothing worth stealing in its environment.
