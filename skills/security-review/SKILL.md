@@ -220,9 +220,13 @@ that the authorization finding rests on reading definitions only.
 1. **Dependencies.** Audit the full tree, not production-only. A development
    dependency still executes during install, build, and typecheck in CI — the
    place where privileged tokens are in the environment. Judge findings by
-   reachability rather than by dev/prod: an advisory in a package that never
-   executes during install, build, or test is not a release blocker; anything
-   that runs in CI or ships in the bundle is.
+   reachability rather than by dev/prod, and reachability is two questions, not
+   one: does the package execute during install, build or test (or reach users),
+   **and** is the vulnerable path reachable from how this project uses it? A
+   blocker needs both. A package that runs in CI through an entry point the
+   advisory never touches is not one — say which question downgraded it. An
+   advisory you cannot rank on either question is reported as unknown, never as
+   clean.
 
    `## Dependencies` names which manifests are authoritative, which ecosystems
    are in play, and what is deliberately pinned. **Without it**, discover

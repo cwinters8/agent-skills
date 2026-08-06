@@ -85,10 +85,27 @@ it, and unzip it with the path-traversal care C8 describes. A `workflow_run` job
 that runs a script out of the artifact has reintroduced the same bug one hop
 later.
 
-Flag any `pull_request_target` workflow that checks out, builds, or runs anything
-from the PR head. Flag it at higher severity when the job also names a
-self-hosted runner: `pull_request_target` runs regardless of the fork-approval
-setting, so that combination is unapproved fork code on owned hardware (C9.1).
+Flag any `pull_request_target` workflow that checks out, builds, or runs
+anything from the PR head — then rank it on the privilege the job *actually*
+holds, the same way C9.1 ranks runner reachability.
+
+Read the effective privilege before assigning a consequence: the job's
+`permissions:` after any narrowing, whether any secret is wired into it, and
+whether checkout persisted a credential (C1). A job that reduces `permissions:`
+to read-only or `{}`, references no secret, and runs on a hosted runner is not
+executing fork code with write-scoped credentials, and calling it a repository
+compromise is a false finding that costs the rule its credibility.
+
+It stays a finding at lower severity, because the narrowing is not a control
+anyone enforces: adding one `secrets:` line or widening `permissions:` re-arms
+the whole thing, in a diff that touches no checkout step and reads like ordinary
+CI work. That is the same one-line reversion `action-versions` now treats as a
+trigger to re-sweep. Say what privilege you found and rank on it — never assume
+the write-scoped case, and never treat today's narrowing as a guarantee.
+
+Rank it **highest** when the job also names a self-hosted runner:
+`pull_request_target` runs regardless of the fork-approval setting, so that
+combination is unapproved fork code on owned hardware (C9.1).
 
 ## C4. Untrusted text interpolated into `run:` is code execution
 
@@ -118,10 +135,13 @@ Audit including development dependencies, not production-only. A dev dependency
 executes during install, build, and typecheck — in CI, with tokens present.
 Omitting dev advisories hides exactly the supply-chain path that matters most.
 
-Judge findings by **reachability**, not by the dev/prod flag: an advisory in a
-package that never runs during install, build, or test (a types-only package with
-no scripts) is not a release blocker; anything that executes in CI or ships in
-the runtime bundle is.
+Judge findings by **reachability**, not by the dev/prod flag — and reachability
+is two questions. Does the package execute during install, build or test, or
+ship in the runtime bundle? *And* is the vulnerable path reachable from how this
+project uses it? A blocker needs both yeses. A types-only package with no
+scripts fails the first; a package that runs in CI through an entry point the
+advisory never touches fails the second. Say which question downgraded a
+finding, and report as unknown anything you could not answer.
 
 ## C6. Publish tokens are the highest-value secret
 

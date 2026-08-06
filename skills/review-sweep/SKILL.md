@@ -153,10 +153,12 @@ For feedback worth addressing:
   the PR was authored by a human, or the fix is large, design-changing, or
   you're not fully confident in it. Name it `<pr-branch>-review-fixes`.
 - Before pushing, run `## Mechanical checks` **and** run the `pr-preflight`
-  skill's project
-  checks (review focus, secrets, security, docs currency, derived docs) — a
-  review fix is a change like any other and can invalidate a doc or leak a
-  secret just as easily. If the fix touches anything `## Review focus` names,
+  skill's project checks (review focus, secrets, security, docs currency,
+  derived docs) — a review fix is a change like any other and can invalidate a
+  doc or leak a secret just as easily. If `pr-preflight` isn't vendored here,
+  run `## Mechanical checks` alone, say in the PR thread which project checks
+  did not run, and don't reconstruct them from memory: a sweep that pushes
+  without disclosing the gap reads exactly like one that cleared it. If the fix touches anything `## Review focus` names,
   re-read the rules source on that topic first. Run the two docs checks over the
   **whole branch diff against the base**, not over the fix you just made: by
   round three, a fact corrected in round one sits on neither side of the current
