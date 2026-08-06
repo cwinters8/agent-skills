@@ -136,6 +136,23 @@ const available = () =>
     .map((e) => e.name)
     .sort();
 
+// The directory every write below goes through. Guarding the children is not
+// enough: if `.claude` is itself a symlink, mkdirSync follows it and succeeds,
+// every child path then resolves inside the link's target, and each per-file
+// check sees an ordinary absent path and writes. The result is `init`
+// scaffolding into another location — or `sync` deleting and rewriting a skills
+// tree there — while both report the in-repo names they were asked about. A
+// guard one level below the thing being followed cannot see the following.
+//
+// `list` is exempt: it reads the package and never touches the repo.
+if (command !== 'list' && isSymlink(join(repoRoot, '.claude'))) {
+  die(
+    '.claude is a symlink — refusing to read or write through it, because every path ' +
+      'below it would resolve somewhere this command cannot honestly report. ' +
+      'Replace it with a real directory.',
+  );
+}
+
 if (command === 'list') {
   console.log(`@cwinters8/agent-skills ${pkg.version} ships:`);
   for (const name of available()) console.log(`  ${name}`);
