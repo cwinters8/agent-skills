@@ -119,6 +119,16 @@ Two consequences when editing:
 consumer's `## Stack` names the module. That is where content too specific for a
 `SKILL.md`, but still true of a whole ecosystem rather than one project, belongs.
 
+**A module and the group that cites it are one rule in two files.** `SKILL.md`
+names a check and points at the module for depth; the module decides severity
+and edge cases. So changing what a module concludes means re-reading the
+citing group in the same commit, and the reverse — otherwise an agent working
+the group reports the consequence the module has already rejected, and both
+files look individually correct. When the two would disagree, the group states
+the *shape* and defers the *ranking*, rather than keeping a summary that has to
+be maintained twice. Say in the group what to report when the module is not
+loaded, since a consumer whose `## Stack` omits it still runs the group.
+
 ## Adding or changing a section of the profile
 
 The heading list lives once, in `profile-schema.json`. Changing it means

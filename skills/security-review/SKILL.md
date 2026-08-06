@@ -236,10 +236,16 @@ that the authorization finding rests on reading definitions only.
    same either way, so nothing here can call a pin stale. The failure this
    guards against is a scan that finds one manifest at the repo root, reports
    clean, and never sees the provider lockfile or the base image.
-2. **Workflow permissions are least-privilege**, and **never**
-   `pull_request_target` with a checkout of the PR head — that combination runs
-   fork-authored code with write-scoped secrets. See
-   `references/ci-workflows.md`.
+2. **Workflow permissions are least-privilege**, and `pull_request_target` with
+   a checkout of the PR head is always worth flagging — it is the shape that
+   runs fork-authored code inside the base repository's context. What that
+   *costs* depends on the privilege the job actually holds, so the ranking
+   belongs to `references/ci-workflows.md` → C3 and is not summarized here: a
+   job that narrows `permissions:`, wires in no secret and runs hosted is a
+   lower-severity finding than one holding a write-scoped token, and calling
+   both a repository compromise is a false finding. If `## Stack` does not name
+   `ci-workflows`, report the shape, say the privilege grading was not
+   available, and do not assume the write-scoped case.
 3. **Code-generating and data-writing scripts.** A script that writes into the
    repo must write data, never executable content, and must fail loud rather
    than emit something partial. Trace untrusted values into every path join,
