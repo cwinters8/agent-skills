@@ -265,8 +265,17 @@ that the authorization finding rests on reading definitions only.
    its directory with `../`, and when that value travels in a data file the whole
    attack arrives as a data-only diff. Constrain such values at both ends —
    reject the shape on the way in, and verify containment before writing.
-6. **Action pinning** — defer to the `action-versions` skill; don't duplicate it
-   here.
+6. **Action pinning** — two properties that degrade differently, so say which
+   one you ran. *Currency* (is the major current?) belongs to the
+   `action-versions` skill; defer to it and don't duplicate it here. If it isn't
+   vendored, report currency as unchecked rather than reconstructing the lookup:
+   `ci-workflows` → C7 says why a bare latest-major check can prescribe a worse
+   fix than the staleness it replaces. *Immutability* (can the ref move?) is the
+   shape to look for here — third-party code a privileged job runs needs a ref
+   that cannot be repointed, whatever `uses:` syntax names it. The ranking and
+   the platform detail belong to `ci-workflows` → C7; if `## Stack` does not name
+   it, report the movable refs, say the grading was not available, and do not
+   assume the worst case.
 7. **Release and update channel integrity.** A token that can publish code to
    already-installed clients — an over-the-air update token, a package registry
    token, a deploy key — is usually the highest-value secret a project holds,

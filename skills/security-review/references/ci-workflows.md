@@ -155,12 +155,26 @@ testing is deliberate and reverted afterwards.
 
 ## C7. Action pinning — two properties, not one
 
-**Currency** — is the major current? Defer to the `action-versions` skill; don't
-duplicate its rules here. That skill carries the matching half of this rule: it
-pins the SHA rather than the tag when the workflow holds a secret or a
-write-scoped token, so a reference satisfying it also satisfies this one. If it
-is not vendored here, look the current major up yourself and apply the pin below
-to it.
+**Currency** — is the major current? That is the `action-versions` skill's
+question, and its rules are deliberately not restated here. That skill carries
+the matching half of this rule, asking the same "worth attacking" question
+against the same four assets, so a reference satisfying it also satisfies this
+one.
+
+If it is **not vendored here, skip currency and say so.** Do not reconstruct the
+lookup: a bare latest-major check is not a smaller version of that skill, it is
+a different and wronger one. It misses the project's `## Exemptions`, and it
+misses the cases where a release major is not merely unnecessary but the wrong
+answer — a reusable-workflow call, whose ref selects a revision of a workflow
+file and which a release major can point at a revision lacking that file
+entirely, and a container reference, which has no release major at all. A bump
+prescribed from that lookup can break a workflow the authoritative skill would
+have left alone, which is worse than the staleness it was trying to fix. Report
+currency as unchecked, name the skill that checks it, and move on.
+
+**Immutability below is unaffected either way.** It is this module's own
+analysis, it needs no version lookup, and it runs whether or not that skill is
+present.
 
 **Immutability** — can the ref change under you? A tag can, and this is not
 theoretical. In March 2025 every tag of a widely-used action from `v1` through
@@ -282,9 +296,29 @@ merged. It is per-contributor and permanent, not per-PR, so a merged typo fix
 buys standing access; that is the documented opening move of the attacks that
 took PyTorch and GitHub's own `actions/runner-images`. And `pull_request_target`
 skips it outright: workflows it triggers "will always run, regardless of approval
-settings." A `pull_request_target` job with `runs-on: self-hosted` is therefore
-unapproved fork execution on owned hardware — the intersection of C3 and this
-rule, and worse than either alone.
+settings."
+
+What that removes is the **gate**, which is not the same as establishing fork
+code execution — and conflating the two produces a false finding at the highest
+severity. A `pull_request_target` job runs the *base branch's* workflow file and
+checks out the base ref by default, so one that consumes nothing fork-controlled
+executes no fork-authored code however privileged its runner. Apply the same
+test as the paragraph above: is there a path from fork-controlled content to the
+runner — an explicit checkout of the PR ref or `head.sha`, an artifact or cache
+from a fork-triggered run, a PR-controlled value interpolated into a script?
+
+- **With such a path**, on `runs-on: self-hosted`: unapproved fork execution on
+  owned hardware, the intersection of C3 and this rule, worse than either alone.
+- **Without one**: still a finding, because the control that would have caught
+  the change is gone — a single added checkout line converts it, in a PR that
+  reads like a CI tweak, with no approval step anywhere in the way. Rank it as
+  the missing gate it is, not as execution that is not happening.
+
+The distinction is worth the words because `pull_request_target` on a private
+runner with no fork checkout is a deliberate and often correct design. Reporting
+it as critical fork execution is a false positive on exactly the configuration
+most likely to have been thought through, and it spends the reader's trust in
+every other finding in the report.
 
 Verify in this order: read which repositories the runner is registered to and
 confirm each is private; for an org runner group, confirm **Allow public
