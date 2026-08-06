@@ -13,7 +13,7 @@
   costs you.
 
   Validate with:
-    npx -y github:cwinters8/agent-skills#v1 check-profile
+    npx -y github:cwinters8/agent-skills#main check-profile
 -->
 
 ## Rules source

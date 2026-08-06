@@ -45,6 +45,15 @@ that a one-liner and detects drift.
 The consumer writes no tooling code. It owns two files — `.claude/skills.json`
 and `.claude/project-profile.md` — and runs one command.
 
+**Which ref to invoke.** The ref in the npx spec is the only content pin, so it
+decides which skills you get. The commands below say `#main`, which is what
+ships everything this README describes. **`v1` is not that ref** — it still
+points at package 1.0.0, which predates `init`, `skills-adopt`, and several
+other skills in the table above, so the bootstrap below exits with a usage error
+against it. Pin something immutable once you have adopted: a tag when one ships
+what you need, or a commit SHA meanwhile. `skills-adopt` phase 1 verifies
+whichever ref you land on, and records it where a later bump can find it.
+
 **Hand it to an agent.** Filling in the profile is the whole job, and it is
 research: the answers have to come from the repo, not from a template. Paste
 this into a session at the root of the repo you are adopting into.
@@ -52,9 +61,9 @@ this into a session at the root of the repo you are adopting into.
 > Adopt the shared Claude Code skills from `cwinters8/agent-skills` into this
 > repository.
 >
-> 1. Run `npx -y github:cwinters8/agent-skills#v1 init` to scaffold
+> 1. Run `npx -y github:cwinters8/agent-skills#main init` to scaffold
 >    `.claude/skills.json` and a blank `.claude/project-profile.md`.
-> 2. Run `npx -y github:cwinters8/agent-skills#v1 sync`. It vendors the skills
+> 2. Run `npx -y github:cwinters8/agent-skills#main sync`. It vendors the skills
 >    and then exits non-zero because the profile is still the template — that is
 >    expected, and it is what puts `.claude/skills/skills-adopt/SKILL.md` on
 >    disk.
@@ -66,6 +75,11 @@ That is the whole bootstrap, and it settles the obvious objection: the skill
 explaining adoption is vendored *by* step 2, before it is needed in step 3.
 `sync` writes the skills before it validates the profile, deliberately, so a
 first run always leaves the guidance on disk even though it fails.
+
+`#main` is right for the bootstrap specifically: nothing durable comes out of it
+— two scaffolded files you are about to rewrite — and the pin that *is* durable
+gets chosen and verified in `skills-adopt` phase 1, with the whole current
+feature set on disk to choose from.
 
 **Or do it by hand.** `init` is a convenience, not a requirement.
 
@@ -84,21 +98,21 @@ first run always leaves the guidance on disk even though it fails.
 3. Run the sync and commit both the vendored skills and the updated lock:
 
    ```sh
-   npx -y github:cwinters8/agent-skills#v1 sync
+   npx -y github:cwinters8/agent-skills#main sync
    ```
 
    In a Node repo, wrap it as a script so the invocation lives in one place:
 
    ```json
    "scripts": {
-     "skills:sync": "npx -y github:cwinters8/agent-skills#v1 sync"
+     "skills:sync": "npx -y github:cwinters8/agent-skills#main sync"
    }
    ```
 
 4. Validate the profile any time you edit it:
 
    ```sh
-   npx -y github:cwinters8/agent-skills#v1 check-profile
+   npx -y github:cwinters8/agent-skills#main check-profile
    ```
 
 **Confirm the ref ships what these docs describe.** The ref in your invocation is
