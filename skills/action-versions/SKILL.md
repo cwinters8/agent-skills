@@ -168,11 +168,23 @@ Do not guess. Resolve the real latest release:
   read the major from that tag. This works for any public action and does not
   depend on the session's repo scope.
 - If the action publishes no releases, WebFetch
-  `https://github.com/<owner>/<repo>/tags` and take the highest semver tag.
+  `https://github.com/<owner>/<repo>/tags` and take the highest **stable**
+  semver tag.
 - **Alternative — GitHub MCP** `get_latest_release` (fall back to `list_tags`)
   when the tooling permits querying the action's repo. Note that a session's
   GitHub access may be scoped to the working repo only, in which case
   out-of-scope action repos are denied — use WebFetch then.
+
+**Discard prereleases on either tag-listing path.** A tag carrying a
+prerelease identifier — `v8.0.0-beta.1`, `-rc.2`, `-alpha` — outranks every
+stable `v7.x` under semver ordering, so "highest semver tag" hands back the
+unreleased next major and step 4 then reads a *stable* reference as out of date.
+That is the one failure mode worse than staleness here: this skill exists to
+bump references, so a wrong answer gets acted on rather than merely reported,
+and it moves a workflow onto a major the publisher has not shipped. The
+`releases/latest` path above is already safe — GitHub excludes prereleases from
+it — which is exactly why the fallbacks need saying separately; only take a
+prerelease if the project has said it wants one.
 
 ### 3. Pin to the latest major
 
