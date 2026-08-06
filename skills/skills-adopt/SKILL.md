@@ -46,20 +46,39 @@ those becomes.
 2. **Get the template and the schema reference from that same ref.** The package
    ships `templates/` and `docs/`, so read them wherever the pinned package
    resolves — the cache `list` just populated, a checkout at that ref, or the
-   ref's file view. Never reconstruct the template from memory or copy it from
-   another ref: the section list you fill in has to be the one the validator
-   behind your ref accepts.
+   ref's file view. Never reconstruct the template from memory: the section list
+   you fill in has to be the one the validator behind your ref accepts. Read the
+   default branch's copies too, but only to compare in step 3 — what you fill in
+   is the ref's.
 
-3. **Confirm those two agree.** This is the check that earns its place. A
-   released tag can lag the branch its docs are written from: the docs and
-   template on the newer branch describe a profile section the tag's validator
-   has never heard of, so a consumer following the README to the letter produces
-   a profile the README's own validator rejects. The template is not
-   self-validating — only running the tag's validator against a profile
-   containing that section reveals it, which is why the confirming
-   `check-profile` lands in phase 4, once the lock exists. If they disagree,
-   **the tag is stale: pin a commit instead**, and say in the consumer's rules
-   source which commit and why, so the next person does not "fix" it back.
+3. **Compare the ref against the instructions you are following, not against
+   itself.** This is the check that earns its place, and it only works if the
+   comparison reaches outside the ref. A released tag that lags its branch is
+   perfectly *self*-consistent: its template, its docs and its validator all
+   ship together and all agree, so reading the three from the pinned ref and
+   finding no contradiction proves only that the tag was cut coherently. Phase
+   4's `check-profile` runs that same tag's validator against that same tag's
+   template and passes. The adoption then quietly omits skills and profile
+   sections that exist, while reporting the ref as verified.
+
+   The point outside the ref is the adoption instructions themselves — the
+   README and `docs/project-profile.md` on the project's **default branch**,
+   which is what sent you here and what describes the current feature set. Two
+   comparisons, both cheap:
+
+   - `npx -y github:cwinters8/agent-skills#<ref> list` against the skill table
+     in the current README. A skill named there and absent from `list` means the
+     ref is behind.
+   - The ref's `templates/project-profile.md` against the one on the default
+     branch. A section heading present in the newer template and unknown to the
+     ref's validator is the same lag, seen from the profile side — and it is the
+     one that fails loudly later, because the validator rejects the heading the
+     instructions told you to write.
+
+   If either disagrees, **the tag is stale: pin a commit instead**, and say in
+   the consumer's rules source which commit and why, so the next person does not
+   "fix" it back to the tag. If they agree, the ref is current *and* you have
+   checked it rather than assumed it.
 
 4. **Use a seven-character abbreviated SHA, not the full 40.** A full-length SHA
    in an npm git spec trips a `GitFetcher` bug on npm 10.9.7 — *"GitFetcher

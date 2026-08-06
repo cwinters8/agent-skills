@@ -45,7 +45,6 @@ Read `.claude/project-profile.md` first. Three sections matter here:
 - `## Derived docs` — a table mapping each file that is canonical for some fact
   to the files that restate it. This is the only input that reaches docs written
   for a *person* rather than for an agent.
-- `## Repo` — used only to describe where a doc lives when reporting.
 
 The profile itself is also in scope: it states facts about the project and goes
 stale the same way.
@@ -93,8 +92,14 @@ added terms finds the corrected sentence and misses every stale copy by
 construction. Pull the old strings out of the diff's `-` lines explicitly:
 
 ```sh
-git diff "$(git merge-base HEAD "$base")"...HEAD | grep '^-'
+git diff "$(git merge-base HEAD "$base")"...HEAD | grep '^-'   # committed
+git diff HEAD | grep '^-'                                      # not yet committed
 ```
+
+Both, for the same reason step 1 needs both. A rename made in the working tree
+and not yet committed has its old wording only on the removed side of
+`git diff HEAD`; extracting old strings from the committed range alone means a
+pre-commit run never searches for the very term it just replaced.
 
 Search the rules source, the profile, the project's docs tree **and the source
 tree** for each old term. Renames, changed defaults, and moved paths are where

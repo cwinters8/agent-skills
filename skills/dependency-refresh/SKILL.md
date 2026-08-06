@@ -129,9 +129,12 @@ time. Two rules keep it true:
   hash, and every future verification passes. That is trust-on-first-use, and
   SLSA names it as such precisely because it is the weaker option.
 
-  So: verify the first fetch against something the vendor **signed** — a
-  signature over the checksum file, a Sigstore/cosign signature, a SLSA
+  So: verify the first fetch against something the publisher **signed**, using
+  whatever this ecosystem actually provides — a detached signature over the
+  checksum file, a signing key the package manager already trusts, a build
   provenance attestation — and record the hash for reproducibility afterwards.
+  Which of those exists is an ecosystem fact to look up, not a tool to assume;
+  name the one you used in the report.
   Where the vendor publishes only a checksum on a web page, fetching that page
   over TLS and hashing the artifact yourself are two reads of the same trust
   root, so say in the report that the pin is TOFU rather than implying it was
