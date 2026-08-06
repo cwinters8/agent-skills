@@ -64,9 +64,10 @@ just landed on the branch.
 
 ```sh
 # Resolve the branch this work merges into — never assume it.
-#   open PR:  its base, which is authoritative
-#   no PR:    git rev-parse --abbrev-ref origin/HEAD   (repo's default branch)
-base=origin/<resolved>
+#   open PR:  its base, as origin/<that branch> — authoritative
+#   no PR:    the line below; --abbrev-ref already yields a full remote ref
+#             such as origin/main, so do not prefix it again
+base=$(git rev-parse --abbrev-ref origin/HEAD)
 
 git diff "$(git merge-base HEAD "$base")"...HEAD   # committed work
 git diff HEAD                                      # uncommitted edits to tracked files

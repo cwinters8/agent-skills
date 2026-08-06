@@ -75,12 +75,15 @@ Review the diff yourself against the profile:
 - **Local gates** — run anything `## Local skills` names for the paths this diff
   touches, using that skill's own trigger list as authoritative.
 - **GitHub Action versions** — run the `action-versions` skill if the diff adds
-  or edits any `uses: owner/repo@ref` reference, **or** if it gives a workflow
-  access to a secret: a new secret expression, a widened `permissions:`, or an
-  added `environment:` that activates environment-scoped secrets. That second
-  trigger matters because a workflow can become privileged without any `uses:`
-  line changing, and its existing references then need a commit SHA rather than
-  a moving major. Apply any carve-out in `## Exemptions`.
+  or edits any `uses: owner/repo@ref` reference, **or** if it increases what a
+  workflow job can reach or changes where its steps run: a new secret
+  expression, a widened `permissions:`, an added `environment:`, a changed
+  event, a move to a self-hosted runner. That second trigger matters because a
+  job can become worth attacking without any `uses:` line changing, and its
+  existing references then need a commit SHA rather than a moving major. The
+  skill states the principle and keeps the current list of instances — read it
+  there rather than treating this summary as complete. Apply any carve-out in
+  `## Exemptions`.
 - **Docs currency** — run the `docs-currency` skill on the whole branch diff. It
   reads the profile sections it needs itself, and its rules are not restated
   here: a second copy drifts, and the clause it drops is the one that mattered.

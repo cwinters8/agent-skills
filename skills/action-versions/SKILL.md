@@ -4,10 +4,11 @@ description: >
   Verify every GitHub Action reference is pinned correctly — the current latest
   major, and a commit SHA where the workflow is privileged — before writing or
   committing a workflow. Run whenever a change adds or edits a
-  `uses: owner/repo@ref` line, and also whenever a change gives a workflow
-  access to a secret — a new secret expression, a widened `permissions:`, or an
-  added `environment:` that activates environment-scoped secrets — since any of
-  those can make existing references need a SHA without touching them. Covers
+  `uses: owner/repo@ref` line, and also whenever a change increases what a
+  workflow job can reach or changes where its steps run — a secret expression, a
+  widened `permissions:`, an added `environment:`, a changed event, a move to a
+  self-hosted runner — since any of those can make existing references need a
+  SHA without touching them. Covers
   `.github/workflows/` files, composite and reusable actions, and any YAML
   referencing a GitHub Action. Use when asked to "add a workflow", "set up CI",
   "update actions", or "check action versions", and as part of any
@@ -41,23 +42,37 @@ Find each `uses: owner/repo@ref` line the change adds or modifies, including
 `owner/repo/subdir@ref` forms that point at a composite action in a
 subdirectory — the action's repo is still `owner/repo`. Dedupe by `owner/repo`.
 
-**One diff shape needs a wider net.** A workflow can become privileged while
-its `uses:` lines go untouched, so every existing reference in it now needs the
-SHA that step 3 requires and none of them appear in the diff. Three ways that
-happens:
+**A diff can arm existing references without touching them.** The rule: *any
+change that increases what a job can reach, or changes where its steps run,
+re-opens every reference that job executes* — including references the diff
+never mentions, and including ones in other files. When that happens, sweep
+rather than read the diff.
+
+Known instances, none of which contains a `uses:` line:
 
 - a new secret expression appears in the job;
 - `permissions:` is widened;
-- an **`environment:`** is added. This one hides best: environment-scoped
-  secrets are unavailable to a job that names no environment, so a job can
-  already reference `secrets.DEPLOY_KEY` and resolve it to nothing. Adding
-  `environment: production` makes that reference real without adding a secret
-  expression or touching `permissions:` — the privilege arrives in a one-word
-  diff.
+- an **`environment:`** is added — environment-scoped secrets are unavailable to
+  a job naming no environment, so a job can already reference
+  `secrets.DEPLOY_KEY` and resolve it to nothing. `environment: production`
+  makes that reference real in a one-word diff;
+- the **event changes** — `pull_request` to `pull_request_target` runs the job
+  in the base repository's context, where its secrets resolve and its token can
+  be write-scoped, without any expression or permission changing;
+- the job moves to a **self-hosted runner** (see step 3: the host is the asset).
 
-On any of the three, collect *every* `uses:` in the affected workflow, not only
-the changed ones, and say in your report that you swept the file rather than the
-diff.
+Treat that list as instances, not as the definition. If a change grants reach by
+some route not listed, it still triggers the sweep — the enumeration has been
+extended three times, and the next path is likelier to be missing from it than
+the principle is to be wrong.
+
+**Sweep transitively.** Collect every `uses:` in the affected workflow, and then
+follow each `uses: ./path` into the local composite it names and collect that
+file's references too, recursively. A composite's steps run in the calling job,
+so the privilege the diff just granted reaches straight through — and `./path`
+is out of scope for *rewriting* (below) while the third-party tags inside it are
+squarely in scope. Say in your report that you swept the workflow and which
+composites you descended into.
 
 Out of scope — do **not** rewrite these refs:
 
@@ -113,8 +128,17 @@ step 2's lookup returns today, not a value copied from memory. Confirm the
 current major yourself rather than pasting the tag above; that is the whole
 point of step 2.)
 
-- **A workflow holding a secret or a write-scoped token gets the SHA, not the
-  tag.** Look up the latest major as above, then pin the full 40-character SHA
+- **A job worth attacking gets the SHA, not the tag.** Two ways a job qualifies,
+  and the second is easy to miss. It **holds something**: a secret, or a
+  write-scoped token. Or it **runs somewhere that matters**: a self-hosted
+  runner, where repointing a tag executes attacker-chosen code on a machine
+  someone owns — read-only permissions and no secrets change nothing about
+  that. `security-review`'s `ci-workflows` module is explicit that such code can
+  leave files and processes behind for later jobs (C9.4) and that the host
+  commonly reaches other infrastructure (C9.2), so "no token" does not make a
+  self-hosted job unprivileged; the host *is* the asset.
+
+  Look up the latest major as above, then pin the full 40-character SHA
   of that major's current release with the version in a trailing comment —
   `uses: owner/repo@<40-char-sha> # v7.0.1`. A moving major is a mutable ref: in
   March 2025 every tag of a widely-used action from `v1` through `v45.0.7` was
