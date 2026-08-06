@@ -63,11 +63,22 @@ just landed on the branch.
 ### 1. Scope to the whole branch diff, never to the last round of edits
 
 ```sh
-base=origin/main   # the branch this work merges into
+# Resolve the branch this work merges into — never assume it.
+#   open PR:  its base, which is authoritative
+#   no PR:    git rev-parse --abbrev-ref origin/HEAD   (repo's default branch)
+base=origin/<resolved>
+
 git diff "$(git merge-base HEAD "$base")"...HEAD   # committed work
 git diff HEAD                                      # uncommitted edits to tracked files
 git ls-files --others --exclude-standard           # new files, still untracked
 ```
+
+The default branch is not always the answer and is not always named the same
+thing. On a **stacked** branch the target is the branch below it, and diffing
+against the default instead sweeps in the parent's commits — so this check
+re-examines facts the parent already reconciled and reports their restatements
+as though this change broke them. Getting `base` wrong doesn't fail loudly; it
+silently changes which facts are in scope.
 
 The third command is not optional. `git diff HEAD` reports nothing for a file
 that has never been added, so a run before the first commit sees neither a new
