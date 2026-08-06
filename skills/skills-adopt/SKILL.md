@@ -80,10 +80,20 @@ those becomes.
    "fix" it back to the tag. If they agree, the ref is current *and* you have
    checked it rather than assumed it.
 
-4. **Use a seven-character abbreviated SHA, not the full 40.** A full-length SHA
-   in an npm git spec trips a `GitFetcher` bug on npm 10.9.7 — *"GitFetcher
-   requires an Arborist constructor to pack a tarball"* — and the invocation
-   fails before anything is fetched. The abbreviation resolves fine.
+4. **Pin the full 40-character SHA; abbreviate only if your npm makes you.**
+   The full object id is unambiguous forever. An abbreviated SHA is a *prefix*
+   that git resolves only while it stays unique in the repository, so a pin that
+   works today can become ambiguous as the history grows — a slow failure in the
+   one field whose job is to never move.
+
+   Some npm versions cannot fetch a full-length SHA in a git spec: on 10.9.7 it
+   fails before anything is downloaded, with *"GitFetcher requires an Arborist
+   constructor to pack a tarball"*, and the seven-character abbreviation
+   resolves fine. Later npm releases take the full SHA. So try the full SHA
+   first; if it fails that way, prefer upgrading npm, and use the abbreviation
+   as the workaround when you can't — recording in the consumer's rules source
+   that it is a workaround and what it was for, so it is revisited rather than
+   copied forward as a convention.
 
 ## Phase 2 — Survey the repo before writing a word of the profile
 
@@ -194,7 +204,8 @@ overwrites it and the change is invisible to every other consumer. A
 project-specific correction belongs in the profile; a general one is a change
 upstream plus a re-sync.
 
-If `pr-preflight` is vendored here, ship the adoption through it. If it is not,
+If `pr-preflight` is vendored here, hand off to `pr-preflight` to ship the
+adoption. If it is not,
 run the checks by hand and say in the PR description that the gate did not run,
 rather than implying it did.
 
@@ -202,7 +213,8 @@ rather than implying it did.
 
 Both modes below rely on phase 1's verification, so run it again rather than
 trusting the ref already recorded. Keeping the profile *true* as the repo
-changes is a different job: if `profile-refresh` is vendored here, that is the
+changes is a different job: if `profile-refresh` is vendored here, defer to
+`profile-refresh` for it; that is the
 skill for it; if it is not, re-derive the affected sections per phase 2 and say
 which ones you checked.
 
