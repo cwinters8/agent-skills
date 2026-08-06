@@ -42,7 +42,7 @@ present, use them — some sessions have no `gh` CLI and block direct
 plus any uncommitted changes:
 
 ```sh
-base=origin/main   # the branch this work merges into
+base=<resolved>    # the branch this work merges into — see below, never assume
 git diff "$(git merge-base HEAD "$base")"...HEAD   # committed work
 git diff HEAD                                      # uncommitted edits to tracked files
 git ls-files --others --exclude-standard           # untracked files — read each in full
@@ -61,9 +61,15 @@ commits those files — including scratch files that were never meant for the
 PR. (Verified: `git add -N . && git commit -a` swept an unrelated scratch file
 into the commit.) The review must not mutate the index it is reviewing.
 
-Confirm what `base` should be rather than assuming `origin/main`: a stacked
-branch targets the branch below it, and diffing against the default branch there
-pulls in the parent PR's commits and reviews them as if they were new. Report
+Resolve `base` rather than assuming a default-branch name. A stacked branch
+targets the branch below it, and diffing against the default there pulls in the
+parent PR's commits and reviews them as if they were new. Try in order and
+verify each: an open PR's base, as `origin/<that branch>`; then
+`git rev-parse --verify --quiet refs/remotes/origin/HEAD`, which is optional and
+absent in a repo whose remote was added by hand — the shorter
+`rev-parse --abbrev-ref origin/HEAD` exits 128 there rather than falling back;
+then `git remote set-head origin --auto` if you have network; otherwise ask.
+Getting this wrong does not fail loudly, it silently changes what you reviewed. Report
 findings in the session; do not post to GitHub in this mode.
 
 **PR (`<number>` argument).** Review an open PR. Read it with
