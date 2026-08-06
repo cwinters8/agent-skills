@@ -128,17 +128,22 @@ that go a year without being looked at.
 The reasons for a pin are the part that cannot be recovered by scanning. A
 version held two majors back looks the same in the tree whether it is protecting
 a migration you don't want yet or was simply forgotten, so say which. This
-section also informs `security-review`'s supply-chain group, which ranks
-dependency findings by whether the package executes in CI or reaches users.
+section also feeds `security-review`'s supply-chain group, telling it which
+ecosystems are authoritative so its audit covers the whole tree rather than
+whatever a scan happened to find.
 
 *Missing:* two skills lose input here, not one. `dependency-refresh` discovers
 manifests by scanning, cannot tell a deliberate pin from a stale one, and says
 so — reporting every pin it could not classify rather than bumping it. And
-`security-review`'s supply-chain group loses what it ranks by: which packages
-execute in CI or reach users, and whether a pin is held deliberately or was
-forgotten. Omitting this section is close to free for a single-manifest project
-with no security review; it is not free for one that vendors `security-review`,
-which is the case the one-skill wording used to hide.
+`security-review`'s supply-chain group falls back to scanning: it audits what it
+finds and must report which ecosystems it covered *by name*, because the failure
+it guards against is a scan that sees one manifest at the repo root and never the
+provider lockfile or the base image. It also cannot tell a deliberate pin from a
+forgotten one. What it does **not** lose is reachability — that comes from
+tracing how this repo uses a package, under `ci-workflows` → C5, not from this
+section. Omitting it costs authoritative ecosystem coverage and pin intent, which
+is cheap for a single-manifest project and not cheap for one vendoring
+`security-review`.
 
 ### `## Review focus` — optional
 

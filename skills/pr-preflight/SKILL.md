@@ -118,8 +118,16 @@ Review the diff yourself against the profile:
   and the vendored skills for the terms the diff touches *and for the wording it
   deleted*. That is a mechanical action, not a summary of what `docs-currency`
   decides, which is why it cannot drift as that skill evolves — and it is why
-  nothing may be added to it here. Say in the PR description that the full check
-  did not run. Don't guess at the rest of what that skill would have done.
+  nothing may be added to it here.
+
+  **Report the delta in fixed terms, so "partially covered" has a definition.**
+  A degraded step that leaves a reader guessing which part ran is its own
+  failure. Say exactly this: the grep above ran over the rules source, the
+  profile and the vendored skills; **not** run were the `## Derived docs` table,
+  the code-adjacent copies outside any docs tree, and the fixed-point re-walk
+  that catches a dependent invalidated by the fix itself. That list is the
+  omission, it is stable, and it is short enough to carry in a PR description.
+  Don't guess at anything beyond it.
 
   This paragraph is deletable, and should be deleted once no supported consumer
   predates the split.

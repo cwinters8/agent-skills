@@ -243,6 +243,16 @@ point of step 2.)
   Only a job answering "nothing" to all four — public inputs, no credential,
   hosted runner, output nothing trusts — is safe on a moving tag.
 
+  **`security-review`'s `ci-workflows` module → C7 is canonical for this
+  predicate; the copy above is the follower.** It lives in both places for one
+  reason: this skill has to decide how to pin when `security-review` is not
+  vendored at all, and a skill that cannot answer its own central question
+  without a sibling is not usable alone. So C7 is the file to change when the
+  list learns a fifth asset, and this one follows in the same commit. If
+  `security-review` *is* vendored here, read C7 and let it decide — and if the
+  two ever disagree, that divergence is the finding, not something to
+  split the difference on.
+
   Look up the latest major as above, then pin the full 40-character SHA
   of that major's current release with the version in a trailing comment —
   `uses: owner/repo@<40-char-sha> # v7.0.1`. A moving major is a mutable ref: in

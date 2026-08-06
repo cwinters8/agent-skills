@@ -50,9 +50,17 @@ decides which skills you get. The commands below say `#main`, which is what
 ships everything this README describes. **`v1` is not that ref** — it still
 points at package 1.0.0, which predates `init`, `skills-adopt`, and several
 other skills in the table above, so the bootstrap below exits with a usage error
-against it. Pin something immutable once you have adopted: a tag when one ships
-what you need, or a commit SHA meanwhile. `skills-adopt` phase 1 verifies
-whichever ref you land on, and records it where a later bump can find it.
+against it.
+
+Once you have adopted, pin the **full 40-character commit SHA** — not a tag. A
+tag is a movable pointer, and this repo's own `ci-workflows` module exists partly
+because of what happens when one moves: in March 2025 every tag of a widely-used
+action was retroactively repointed at code that dumped CI secrets. The same
+mechanism applies here — a repointed tag would vendor different skills into your
+repo on the next routine sync, with nothing in your diff to show for it. A tag is
+fine for *finding* the version you want; the object id is what you pin.
+`skills-adopt` phase 1 resolves and verifies it, and records it where a later
+bump can find it.
 
 **Hand it to an agent.** Filling in the profile is the whole job, and it is
 research: the answers have to come from the repo, not from a template. Paste
@@ -100,10 +108,10 @@ feature set on disk to choose from.
    README hands you an older schema than the template you just copied — and the
    validator then rejects a section the template told you to write.
    `agent-skills list` plus a `check-profile` against the freshly-copied
-   template surfaces the disagreement in one run. When a tag has drifted, pin a
-   commit instead and record why in your rules source. Everything below uses
-   that verified ref; `#main` appears only in the bootstrap above, which is the
-   one place you have no verified ref yet.
+   template surfaces the disagreement in one run. Pin the commit SHA it resolves
+   to — per the rule above, a tag is not a pin — and record why in your rules
+   source. Everything below uses that verified ref; `#main` appears only in the
+   bootstrap, the one place you have no verified ref yet.
 
 4. Run the sync and commit both the vendored skills and the updated lock:
 

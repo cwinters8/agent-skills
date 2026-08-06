@@ -36,7 +36,7 @@
       "required": false,
       "readBy": ["dependency-refresh", "security-review"],
       "supplies": "Which manifests and lockfiles are authoritative, which ecosystems are in play, what is deliberately pinned and why, and the project's update policy.",
-      "fallback": "dependency-refresh discovers manifests by scanning, cannot tell a deliberate pin from a stale one, and reports every pin it could not classify. security-review reads it too: without it the supply-chain group cannot rank a dependency finding by whether the package executes in CI or reaches users, and it cannot tell a pin held deliberately from one forgotten."
+      "fallback": "dependency-refresh discovers manifests by scanning, cannot tell a deliberate pin from a stale one, and reports every pin it could not classify. security-review reads it too: without it the supply-chain group falls back to scanning, must name which ecosystems it audited, and cannot tell a pin held deliberately from one forgotten. Reachability is unaffected \u2014 that comes from tracing repository usage under ci-workflows C5, not from this section."
     },
     {
       "heading": "Review focus",
