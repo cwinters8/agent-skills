@@ -38,10 +38,27 @@ invocations, because a skill explaining how to vendor this package cannot avoid
 naming it. That is the package identifying itself, not a consumer's fact leaking
 in. Any *other* `cwinters8` hit is a real leak.
 
-The rule that a module may name a *stack* does not let it name a *vendor's
-product*. A module describing an ecosystem writes "a commercial VPN client with a
-kill switch" or "a provider whose firewalls default-deny outbound", because the
-rule generalizes to every consumer on that stack and the product name does not.
+The test for naming a product inside a module is **whose stack it belongs to**,
+not whether it is a product.
+
+A module may freely name the ecosystem it is scoped to, including that
+ecosystem's own products — a GitHub Actions module names `GITHUB_TOKEN`,
+`actions/checkout` and GitHub's runner controller, because a reader of that
+module is by definition on GitHub Actions and those are not choices they could
+have made differently. That is the whole point of a scoped module.
+
+What it may not do is import a product from *one consumer's* particular stack
+into a rule that generalizes past it. A commercial VPN client, a specific proxy
+daemon, one cloud provider's instance product: write "a commercial VPN client
+with a kill switch" or "a provider whose firewalls default-deny outbound",
+because the rule holds for every consumer on that stack and the product name
+narrows it to one.
+
+When a named product is genuinely the easiest path for part of the ecosystem —
+one platform's runner controller, say — state the control generically first and
+name the product as an example that satisfies it, with the generic path spelled
+out for everyone else. The rule is what the reviewer checks; the product is a
+shortcut for the readers it fits.
 
 ## Session behavior
 

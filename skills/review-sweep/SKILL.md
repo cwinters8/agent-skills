@@ -152,7 +152,8 @@ For feedback worth addressing:
 - **Exception — use a side branch + draft PR targeting the PR's branch** when
   the PR was authored by a human, or the fix is large, design-changing, or
   you're not fully confident in it. Name it `<pr-branch>-review-fixes`.
-- Before pushing, run `## Mechanical checks` **and** `pr-preflight`'s project
+- Before pushing, run `## Mechanical checks` **and** run the `pr-preflight`
+  skill's project
   checks (review focus, secrets, security, docs currency, derived docs) — a
   review fix is a change like any other and can invalidate a doc or leak a
   secret just as easily. If the fix touches anything `## Review focus` names,

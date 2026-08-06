@@ -122,7 +122,7 @@ Two checks that recur across projects:
   written by a script. A hand-edit is a defect regardless of how correct the
   content looks.
 - **Action pinning.** A new or edited `uses: owner/repo@ref` should be on the
-  action's current latest major — see the `action-versions` skill. If that skill
+  action's current latest major — defer to the `action-versions` skill. If that skill
   isn't vendored here, note that the reference went unchecked.
 
 ### 4. Score confidence
@@ -209,8 +209,8 @@ Do not report these — they are the bulk of what a naive pass produces:
 - Everything listed under the profile's `## Not findings`. Those are settled
   decisions; raising one re-opens an argument the project already had.
 - Missing tests, general security posture, or documentation gaps, unless the
-  rules source requires them specifically. Security belongs to the
-  `security-review` skill, which reasons from the project's actual trust
+  rules source requires them specifically. Security belongs elsewhere: hand off
+  to the `security-review` skill, which reasons from the project's actual trust
   boundary rather than from the diff alone.
 - Pre-existing issues on lines the diff didn't touch.
 - Issues explicitly silenced in the code.

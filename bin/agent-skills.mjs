@@ -317,20 +317,20 @@ console.log(
 // that matters. Match the verbs a handoff is actually written with; AGENTS.md
 // documents these as the phrasing to use, so the check is a convention rather
 // than a guess at intent.
-// \s+ rather than a literal space: these files wrap at 80 columns, so the verb
-// and the name land on different lines often enough that a space-only pattern
-// misses real handoffs — it did, for two of them, before this was widened.
+// Collapse whitespace before matching. These files wrap at 80 columns, so a
+// hand-off phrase splits across lines wherever it happens to fall — between the
+// verb and the name, and inside a multi-word verb ("hand off / to"). Every
+// literal space in the pattern was a missed hand-off until this normalized
+// first; two separate rounds of that bug is enough to stop writing spaces.
+const flatten = (s) => s.replace(/\s+/g, ' ');
 const HANDOFF = (name) =>
-  new RegExp(
-    `(run|runs|invoke|invokes|hands? off to|defers? to)(\\s+the)?\\s+\`${name}\``,
-    'i',
-  );
+  new RegExp(`(run|runs|invoke|invokes|hands? off to|defers? to)( the)? \`${name}\``, 'i');
 
 const missingSiblings = new Map();
 for (const skill of lock.skills) {
   const file = join(skillsDir, skill, 'SKILL.md');
   if (!existsSync(file)) continue;
-  const body = readFileSync(file, 'utf8');
+  const body = flatten(readFileSync(file, 'utf8'));
   for (const other of available()) {
     if (other === skill || lock.skills.includes(other)) continue;
     if (!HANDOFF(other).test(body)) continue;
