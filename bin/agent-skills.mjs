@@ -136,7 +136,13 @@ if (command === 'list') {
 // would fail validation on it. Write, then let the adopter fill it in.
 if (command === 'init') {
   const requested = argv.filter((a) => !a.startsWith('--') && a !== 'init');
-  const skills = requested.length ? requested : available();
+  // Dedupe: a repeated name is a typo, not a request for two copies, and it
+  // does lasting damage if it reaches the file. Every later stage keys on the
+  // name, so a duplicate makes the banner pass insert the banner twice into one
+  // file, canonical() strips only the first, and the skill then reads as
+  // locally edited on every subsequent sync — a repo that refuses to sync and
+  // cannot be repaired with --force, which recreates the same double banner.
+  const skills = [...new Set(requested.length ? requested : available())];
   const unknown = skills.filter((s) => !available().includes(s));
   if (unknown.length) {
     die(`unknown skill${unknown.length === 1 ? '' : 's'} ${unknown.join(', ')} — available: ${available().join(', ')}`);
@@ -199,6 +205,16 @@ if (!existsSync(lockPath)) {
 const lock = JSON.parse(readFileSync(lockPath, 'utf8'));
 if (!Array.isArray(lock.skills) || lock.skills.length === 0) {
   die('.claude/skills.json needs a non-empty "skills" array');
+}
+// Dedupe here as well as in `init`, because this file is hand-written at least
+// as often as it is scaffolded — the README tells adopters to write it — and a
+// duplicate name is unrecoverable once synced: the banner pass keys on the name
+// and would stamp one file twice, after which canonical() strips only the first
+// banner and the skill reads as locally edited forever. Normalizing on read
+// makes that true of every path into the file, not just the one command.
+if (new Set(lock.skills).size !== lock.skills.length) {
+  console.error('agent-skills: ignoring duplicate names in "skills"');
+  lock.skills = [...new Set(lock.skills)];
 }
 
 // A ref here would be a second content pin competing with the npx spec, and the
@@ -290,9 +306,28 @@ for (const skill of lock.skills) {
   // directory absent. Both read as "nothing here to protect" while the write
   // step's recursive rm replaces the link. lstat, because every other check on
   // this path follows links and that is exactly what hides this one.
-  if (isSymlink(to) && !force) {
-    problems.push(`${skill}: the skill directory is a symlink, not something this tool vendored — refusing to replace it`);
-    continue;
+  // Classify the target once, without following links, and let everything below
+  // assume a real directory. Three things can sit at this path and only one of
+  // them can be walked: a directory, a symlink, or a plain file. existsSync
+  // answers none of that — it says yes to all three and follows links besides.
+  const targetIsSymlink = isSymlink(to);
+  const targetIsDir = !targetIsSymlink && existsSync(to) && statSync(to).isDirectory();
+  const targetExists = targetIsSymlink || existsSync(to);
+
+  if (targetExists && !targetIsDir) {
+    // Refuse, but only refuse — do not `continue` under --force. The write
+    // step's recursive rm handles either shape, and skipping it there left the
+    // one path --force could not repair: a plain file here used to reach
+    // walkAll, where readdirSync throws ENOTDIR, so the run died on an internal
+    // stack trace instead of producing this refusal, with or without the flag.
+    if (!force) {
+      problems.push(
+        targetIsSymlink
+          ? `${skill}: the skill directory is a symlink, not something this tool vendored — refusing to replace it`
+          : `${skill}: exists as a file, not a directory this tool vendored — refusing to replace it`,
+      );
+      continue;
+    }
   }
 
   // Does the package ship, or the lock record, any file beneath this path?
@@ -308,7 +343,7 @@ for (const skill of lock.skills) {
   // package's files. Enumerate the target instead, with walkAll rather than
   // walk: a locally authored symlink or an empty directory is invisible to the
   // copier by design and would otherwise pass this guard and then be removed.
-  if (existsSync(to)) {
+  if (targetIsDir) {
     for (const rel of walkAll(to)) {
       const key = `${skill}/${rel}`;
       // Type before pathname. This tool only ever writes regular files, so a
