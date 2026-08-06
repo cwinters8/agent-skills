@@ -51,17 +51,29 @@ here and never reach the digest rule that governs it. Filtering at collection
 time is also what forces every new `uses:` syntax to be re-litigated one finding
 at a time; matching the keyword covers the next one for free.
 
-`owner/repo/subdir@ref` forms point at a composite action in a subdirectory —
-the action's repo is still `owner/repo`, so those dedupe together.
+**Dedupe by whatever the pin is applied to, and collapse two references only
+once you know one answer serves both.** The key is not the same for every form:
 
-**Dedupe by whatever the pin is applied to, which is not the same key for every
-form.** Actions dedupe by `owner/repo`: one repo has one latest major, so two
-references to it get the same answer. Registry references do **not** dedupe by
-image — `docker://runtime:20` and `docker://runtime:22` are the same image at
-two tags that resolve to two different digests, and collapsing them either
-leaves one still on a mutable tag or writes the other's digest over it and
-silently changes the version the job runs. Key those on the full reference,
-tag included, and resolve each digest separately.
+- **Actions** usually dedupe by `owner/repo`, because a repo normally has one
+  release stream and so one latest major. `owner/repo/subdir@ref` names a
+  composite action in a subdirectory of that same repo, and where the repo tags
+  as a whole those sub-actions do move together. **But some monorepos tag per
+  path**, publishing their sub-actions on independent version lines — and there
+  the single `releases/latest` lookup returns one stream's answer, which
+  collapsing by `owner/repo` then applies to every sub-action under it. That
+  either names a ref that does not exist for the one you rewrote or bumps it to
+  a version that was never its own. So keep the subdirectory in the identity
+  until you have seen that the repo versions its actions together; dropping it
+  is the optimization, not the default.
+- **Registry references** never dedupe by image. `docker://runtime:20` and
+  `docker://runtime:22` are one image at two tags resolving to two different
+  digests, and collapsing them either leaves one still on a mutable tag or
+  writes the other's digest over it and silently changes the version the job
+  runs. Key those on the full reference, tag included, and resolve each digest
+  separately.
+
+The shape of the mistake is the same in both: a key coarser than the thing being
+resolved, which reads as tidy and hands one reference's answer to another.
 
 **A diff can arm existing references without touching them.** The rule: *any
 change that increases what a job can reach, or changes where its steps run,

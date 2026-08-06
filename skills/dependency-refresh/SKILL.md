@@ -88,11 +88,12 @@ Do not assume an ecosystem. Scan for manifests and lockfiles — then **identify
 the package manager from what actually installs, not from which lockfiles
 exist.** A lockfile's presence proves some manager wrote it once; it does not
 prove that manager still runs. Read the install path: the CI or build workflow,
-the container image, a `Makefile` or task runner, the setup script a contributor
-follows, and any package-manager declaration the manifest carries — a
-`packageManager` field, a toolchain or version file. Those select the manager.
-The lockfile only records a result, and is evidence about resolution once you
-know which one is live.
+the container image, a task runner or build file, the setup script a contributor
+follows, and any package-manager or toolchain declaration the manifest itself
+carries — most ecosystems have one, whether a field in the manifest, a separate
+version file, or a pinned tool in the image. Those select the manager. The
+lockfile only records a result, and becomes evidence about resolution once you
+know which manager is live.
 
 This decides whether the run does anything at all. A repo mid-migration, or one
 that switched managers and never deleted the old file, carries two lockfiles;
