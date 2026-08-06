@@ -139,9 +139,15 @@ Two checks that recur across projects:
 - **Generated files.** Anything `## Review focus` marks as generated is
   written by a script. A hand-edit is a defect regardless of how correct the
   content looks.
-- **Action pinning.** A new or edited `uses: owner/repo@ref` should be on the
-  action's current latest major — defer to the `action-versions` skill. If that skill
-  isn't vendored here, note that the reference went unchecked.
+- **Action pinning.** Defer to the `action-versions` skill, and **read its
+  trigger list there rather than matching one here.** That list is wider than a
+  new or edited `uses: owner/repo@ref`: it covers any `uses:` line whatever
+  follows it, diffs that change only a job's reach or where it runs, and diffs
+  that make another job's output trusted. A copy of it in this file would go
+  stale against that skill and silently narrow what a standalone review checks —
+  and standalone is exactly when nothing else is watching, since `pr-preflight`
+  is not in the loop to run the skill on its own trigger. If `action-versions`
+  isn't vendored here, say the references went unchecked.
 
 ### 4. Score confidence
 
