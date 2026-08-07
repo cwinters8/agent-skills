@@ -32,13 +32,23 @@ complete profile worth reading before you write your own.
 Run the validator after editing:
 
 ```sh
-npx -y github:cwinters8/agent-skills#v1 check-profile
+npx -y github:cwinters8/agent-skills#<verified-ref> check-profile
 ```
 
 `sync` runs the same validation, so a normal sync catches profile problems too.
 Which sections are required depends on the skills your `.claude/skills.json`
 lists — a repo that doesn't vendor `security-review` is not asked for a threat
 model.
+
+**What the validator does not do is check whether anything here is true.** It
+verifies that required headings exist, that no heading is unknown, and that no
+placeholder survives. Every statement inside a section is prose it cannot test,
+which is why a profile goes stale silently: a wrong one reads exactly like a
+current one, and every skill downstream reports confidently from it. Two skills
+exist for that. `skills-adopt` writes a profile from the repo in the first place,
+and `profile-refresh` re-derives an existing one against the repo as it is now.
+Both act on the profile as a whole, so they do not appear in the per-section
+*Read by* lines below.
 
 ## Sections
 
@@ -47,7 +57,7 @@ Required sections must always be present. Sections marked *required with
 
 ### `## Rules source` — required
 
-Read by `code-review`, `pr-preflight`, `review-sweep`.
+Read by `code-review`, `docs-currency`, `pr-preflight`, `review-sweep`.
 
 The file holding this project's rules for agents, and any file that merely points
 at it. Skills read this file to judge whether a change violates a stated rule, and
@@ -70,17 +80,22 @@ delta — that is only sound when the plausible reactors are known.
 
 ### `## Mechanical checks` — required
 
-Read by `pr-preflight`, `review-sweep`.
+Read by `dependency-refresh`, `pr-preflight`, `review-sweep`.
 
 The commands that must pass before a push, one per line, most important first.
 Write `none` if the project has none — that is a real answer and skills handle it.
 
-*Missing:* `pr-preflight` reports that it ran no mechanical gate, which is a
-finding in itself.
+*Missing:* all three readers degrade, differently. `pr-preflight` reports that it
+ran no mechanical gate, which is a finding in itself. `review-sweep` pushes a
+review fix without the project's gate behind it and has to say so in the PR
+thread. And `dependency-refresh` loses what tells it whether a bump actually
+works: it runs whatever checks it can discover and reports that those were not
+the project's stated gate. `none` is a real answer here and all three handle it;
+an absent section is the one they cannot.
 
 ### `## Derived docs` — optional
 
-Read by `pr-preflight`.
+Read by `docs-currency`, `pr-preflight`.
 
 A table of canonical file to the files that restate what it says. Docs currency
 otherwise covers only the rules source, the profile, and the vendored skills —
@@ -98,6 +113,37 @@ signed submission becomes an external claim that no later PR retracts.
 
 *Missing:* docs currency checks the rules source, the profile and the vendored
 skills only, and a human-facing doc quoting a changed fact goes stale silently.
+
+### `## Dependencies` — optional
+
+Read by `dependency-refresh`, `security-review`.
+
+Which manifests and lockfiles are authoritative, which ecosystems are in play,
+what is deliberately pinned and why, and the project's update policy. Most repos
+have more than one ecosystem — an application manifest, an infrastructure
+provider lockfile, a tool pinned as a downloaded archive, container base images,
+system packages a setup script installs — and the ones nobody lists are the ones
+that go a year without being looked at.
+
+The reasons for a pin are the part that cannot be recovered by scanning. A
+version held two majors back looks the same in the tree whether it is protecting
+a migration you don't want yet or was simply forgotten, so say which. This
+section also feeds `security-review`'s supply-chain group, telling it which
+ecosystems are authoritative so its audit covers the whole tree rather than
+whatever a scan happened to find.
+
+*Missing:* two skills lose input here, not one. `dependency-refresh` discovers
+manifests by scanning, cannot tell a deliberate pin from a stale one, and says
+so — reporting every pin it could not classify rather than bumping it. And
+`security-review`'s supply-chain group falls back to scanning: it audits what it
+finds and must report which ecosystems it covered *by name*, because the failure
+it guards against is a scan that sees one manifest at the repo root and never the
+provider lockfile or the base image. It also cannot tell a deliberate pin from a
+forgotten one. What it does **not** lose is reachability — that comes from
+tracing how this repo uses a package, under `ci-workflows` → C5, not from this
+section. Omitting it costs authoritative ecosystem coverage and pin intent, which
+is cheap for a single-manifest project and not cheap for one vendoring
+`security-review`.
 
 ### `## Review focus` — optional
 

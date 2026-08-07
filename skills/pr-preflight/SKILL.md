@@ -22,7 +22,7 @@ profile supplies what each step actually does:
 | Step | Reads |
 | --- | --- |
 | 1. Mechanical checks | `## Mechanical checks` |
-| 3. Project checks | `## Review focus`, `## Secrets policy`, `## Exemptions`, `## Trust boundary`, `## Local skills`, `## Derived docs` |
+| 3. Project checks | `## Review focus`, `## Secrets policy`, `## Exemptions`, `## Trust boundary`, `## Local skills` |
 | 5. Ship | `## Ship`, `## Rules source` |
 
 If the profile is missing, run the generic gate — typecheck/test commands you
@@ -74,41 +74,63 @@ Review the diff yourself against the profile:
   moment, not a deferral.
 - **Local gates** — run anything `## Local skills` names for the paths this diff
   touches, using that skill's own trigger list as authoritative.
-- **GitHub Action versions** — if the diff adds or edits any
-  `uses: owner/repo@ref` reference, run the `action-versions` skill: look up each
-  action's current latest major and pin to it rather than a tag remembered from
-  training. Apply any carve-out in `## Exemptions`.
-- **Docs and skills currency** — the file named by `## Rules source`, the
-  profile itself, and the skills in `.claude/skills/` all state facts about this
-  project: file layout, commands, invariants, whether tests and CI exist. If the
-  diff changes a fact they state, update them **in the same PR** — grep those
-  files for the names and terms the diff touches, **and for the wording the diff
-  deleted**. A stale copy holds the *old* phrasing, which survives only on the
-  removed side of the diff, so grepping the added terms finds the corrected
-  sentence and misses every stale copy by construction. Scope this to the whole
-  branch diff against the base, never to the round of changes you just made: a
-  fact corrected in an earlier commit appears on neither side of a later fix's
-  diff, so a per-round grep stops being able to see it exactly when the stale
-  copies have had the longest to go unnoticed. Stale guidance misleads every
-  future agent session, so treat a contradicted doc like a failing check.
-  Remember that vendored skills are edited upstream, not here: a needed change
-  to one is a PR against the skills repo plus a re-sync, and the profile is
-  where a project-specific correction usually belongs instead.
-- **Derived docs** — `## Derived docs` maps each file that is canonical for some
-  fact to the files that restate it. If the branch diff touches a canonical
-  file, walk its dependents and reconcile them in the same PR. Nothing else in
-  this gate covers that direction: the bullet above asks whether a change
-  invalidated the docs that instruct an *agent*, and says nothing about one doc
-  invalidating a second doc that quotes it. **Editing a doc is itself a fact
-  change.** A docs-only diff is in scope here precisely because it is the shape
-  that arrives with every other gate correctly stood down — `code-review` does
-  not chase documentation gaps, and a docs-only diff is usually outside the
-  security gate's trust boundary. Rank a dependent first when a reader acts on
-  it somewhere you cannot revise: a checklist step followed into a store
-  submission, a form, or a published page turns a stale sentence into an
-  external claim that no later PR retracts. If the profile has no
-  `## Derived docs`, say in the PR description that doc-to-doc consistency was
-  not checked, rather than assuming no doc quotes another.
+- **GitHub Action versions** — run the `action-versions` skill whenever the diff
+  touches **any CI definition at all**: a file under `.github/workflows/`, an
+  `action.yml` or `action.yaml`, or any other YAML this project treats as CI
+  (`## Exemptions` names those, if it names any). That is the whole routing
+  rule. Do not decide here whether the change is the *kind* that needs the
+  skill.
+
+  This gate is deliberately wider than the skill's own triggers, because a
+  narrower one cannot be kept correct. Its trigger list has grown four times
+  during this repo's life — container references, local calls, a job whose reach
+  changed without any reference changing, a job whose output something
+  downstream started trusting — and each time, a copy of the list living here
+  would have gone on matching the old conditions and quietly declining to invoke
+  the skill for the new ones. **A routing test that is a stale copy of the
+  callee's triggers fails closed on exactly the cases most recently understood
+  to matter**, and it fails silently, because nothing reports a skill that was
+  never asked to run.
+
+  So the file-path test is the point: it needs no maintenance, it cannot narrow
+  as the skill widens, and its worst case is one cheap invocation that reports
+  nothing to do. **The skill owns the question of whether there is work** — read
+  its trigger list there, in the skill, and let it answer. Apply any carve-out in
+  `## Exemptions`.
+- **Docs currency** — run the `docs-currency` skill on the whole branch diff. It
+  reads the profile sections it needs itself, and its rules are not restated
+  here: a second copy drifts, and the clause it drops is the one that mattered.
+  Reconcile what it reports **in the same PR** — a contradicted doc is a failing
+  check, not a follow-up — and carry anything it says it skipped into the PR
+  description.
+
+  If it isn't vendored here, this step is **degraded, not skipped**, and that is
+  a deliberate exception to the rule that a missing skill means skip and say so.
+  The exception exists for one reason and does not generalize: this skill
+  *carried the docs check inline* until `docs-currency` was split out of it, so
+  a repo that upgrades without adding the name to `.claude/skills.json` loses
+  coverage it already had — silently, with nothing in the diff to show for it.
+  Skipping cleanly is the right default everywhere else; here it would hand a
+  regression to the consumers least likely to notice.
+
+  Bound it accordingly. Add the skill and re-sync — that is the fix. Until it
+  lands, run only the irreducible minimum: grep the rules source, the profile
+  and the vendored skills for the terms the diff touches *and for the wording it
+  deleted*. That is a mechanical action, not a summary of what `docs-currency`
+  decides, which is why it cannot drift as that skill evolves — and it is why
+  nothing may be added to it here.
+
+  **Report the delta in fixed terms, so "partially covered" has a definition.**
+  A degraded step that leaves a reader guessing which part ran is its own
+  failure. Say exactly this: the grep above ran over the rules source, the
+  profile and the vendored skills; **not** run were the `## Derived docs` table,
+  the code-adjacent copies outside any docs tree, and the fixed-point re-walk
+  that catches a dependent invalidated by the fix itself. That list is the
+  omission, it is stable, and it is short enough to carry in a PR description.
+  Don't guess at anything beyond it.
+
+  This paragraph is deletable, and should be deleted once no supported consumer
+  predates the split.
 
 ### 4. Verify behavior when feasible
 
@@ -135,8 +157,9 @@ this repo; a harness without it should substitute reasoning through the flow.
   If a project wants a periodic backstop, that is a scheduled routine the
   project configures once — not something a session arms for itself.
 
-After the PR is open, incoming reviewer feedback is handled by the
-`review-sweep` skill — either live in this session via the subscription, or by a
-scheduled sweep. `review-sweep` is also what marks a draft ready for review once
-it reaches the ready-to-merge bar, so the maintainer's only remaining action is
-the merge.
+After the PR is open, hand off to the `review-sweep` skill for incoming
+reviewer feedback — either live in this session via the subscription, or by a
+scheduled sweep. That skill is also what marks a draft ready for review once it
+reaches the ready-to-merge bar, so the maintainer's only remaining action is the
+merge. If it isn't vendored here, say so when you report the PR: the draft stays
+a draft, and nothing triages the feedback this step just subscribed you to.

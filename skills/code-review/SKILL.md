@@ -42,7 +42,7 @@ present, use them — some sessions have no `gh` CLI and block direct
 plus any uncommitted changes:
 
 ```sh
-base=origin/main   # the branch this work merges into
+base=<resolved>    # the branch this work merges into — see below, never assume
 git diff "$(git merge-base HEAD "$base")"...HEAD   # committed work
 git diff HEAD                                      # uncommitted edits to tracked files
 git ls-files --others --exclude-standard           # untracked files — read each in full
@@ -61,9 +61,32 @@ commits those files — including scratch files that were never meant for the
 PR. (Verified: `git add -N . && git commit -a` swept an unrelated scratch file
 into the commit.) The review must not mutate the index it is reviewing.
 
-Confirm what `base` should be rather than assuming `origin/main`: a stacked
-branch targets the branch below it, and diffing against the default branch there
-pulls in the parent PR's commits and reviews them as if they were new. Report
+Resolve `base` rather than assuming a default-branch name.
+
+**Only PR metadata establishes it.** An open PR's base is authoritative — but it
+names a branch *in the PR's base repository*, which is not always the remote
+called `origin`. On a fork checkout `origin` is the fork and the PR targets
+`upstream`, so `origin/<base>` is some other branch: stale, unrelated, or
+missing. Match the base repository to the local remote whose URL is that repo
+and use `<that remote>/<base>`; if no remote points at it, fetch the base ref
+and diff against the SHA you fetched. With no PR, nothing you can run tells you
+the answer: the default branch is a *guess* that happens to be right for
+unstacked work and is silently wrong for a stacked branch, which targets the
+branch below it. Diffing against the default there pulls in the parent's commits
+and reports their defects as introduced here. Nothing about that fails loudly;
+it just changes what you reviewed.
+
+So with no PR, **ask which branch this merges into.** Offer the default as the
+likely answer rather than adopting it — `git symbolic-ref -q --short
+refs/remotes/origin/HEAD`, which prints a name such as `origin/main`. Use
+`symbolic-ref` and not `rev-parse --verify`: the latter resolves the ref and
+prints its object ID, which answers whether a default exists but not which
+branch it is, and a SHA is not something the user can confirm. Keep `-q`,
+because this ref is optional — absent in a repo whose remote was added by hand,
+where both `rev-parse --abbrev-ref origin/HEAD` and a bare `symbolic-ref` exit
+128 rather than falling back, while `-q` exits 1 and prints nothing. Populate it
+with `git remote set-head origin --auto` if you have network. Adopt it without
+confirmation only when you can see the branch is not stacked. Report
 findings in the session; do not post to GitHub in this mode.
 
 **PR (`<number>` argument).** Review an open PR. Read it with
@@ -121,9 +144,15 @@ Two checks that recur across projects:
 - **Generated files.** Anything `## Review focus` marks as generated is
   written by a script. A hand-edit is a defect regardless of how correct the
   content looks.
-- **Action pinning.** A new or edited `uses: owner/repo@ref` should be on the
-  action's current latest major — see the `action-versions` skill. If that skill
-  isn't vendored here, note that the reference went unchecked.
+- **Action pinning.** Defer to the `action-versions` skill, and **read its
+  trigger list there rather than matching one here.** That list is wider than a
+  new or edited `uses: owner/repo@ref`: it covers any `uses:` line whatever
+  follows it, diffs that change only a job's reach or where it runs, and diffs
+  that make another job's output trusted. A copy of it in this file would go
+  stale against that skill and silently narrow what a standalone review checks —
+  and standalone is exactly when nothing else is watching, since `pr-preflight`
+  is not in the loop to run the skill on its own trigger. If `action-versions`
+  isn't vendored here, say the references went unchecked.
 
 ### 4. Score confidence
 
@@ -209,9 +238,11 @@ Do not report these — they are the bulk of what a naive pass produces:
 - Everything listed under the profile's `## Not findings`. Those are settled
   decisions; raising one re-opens an argument the project already had.
 - Missing tests, general security posture, or documentation gaps, unless the
-  rules source requires them specifically. Security belongs to the
-  `security-review` skill, which reasons from the project's actual trust
-  boundary rather than from the diff alone.
+  rules source requires them specifically. Security belongs elsewhere: hand off
+  to the `security-review` skill, which reasons from the project's actual trust
+  boundary rather than from the diff alone. If that skill isn't vendored here,
+  say in the report that the security pass did not run, rather than letting a
+  clean code review imply one happened.
 - Pre-existing issues on lines the diff didn't touch.
 - Issues explicitly silenced in the code.
 - Intentional behavior changes that are the point of the PR.

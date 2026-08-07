@@ -1,0 +1,274 @@
+---
+name: skills-adopt
+description: >
+  Vendor these shared skills into a repo that does not have them yet, and
+  maintain the vendoring afterwards: survey the repo, write the project profile
+  from what is already true of it, verify the pinned ref ships what its docs
+  describe, run the sync, and record every place the ref landed. Use when asked
+  to "adopt the skills", "set up agent-skills in this repo", "vendor the
+  skills", "add a skill", or "bump the skills ref".
+---
+
+# Adopting the skills
+
+After this, every review, preflight and sweep in the consumer repo is driven by
+the profile written here. Two failure modes account for most bad adoptions, and
+both produce something that *looks* finished:
+
+- **A profile of plausible filler.** Seventeen headings invite an agent to write
+  a sentence under each from what a repo of this shape usually does. Every skill
+  downstream then acts on invented facts, and reports as configured.
+- **A ref that lags the instructions that sent you here.** Everything travels
+  inside the package, so a stale tag is perfectly *self*-consistent: its
+  template, its docs and its validator all ship together and all agree, and
+  Phase 4's `check-profile` runs that tag's validator against that tag's
+  template and passes. Nothing fails. What you get instead is an adoption
+  silently missing the skills and the profile sections released since — absent,
+  not broken, and therefore invisible to every check inside the ref. Phase 1
+  compares against the default branch for exactly this reason.
+
+Work the phases in order and commit nothing until the done bar at the end is
+met: the adoption is one reviewable diff. This needs the repo, its history, and
+network access to run the package's CLI. **If the CLI cannot be reached, stop
+and say so** rather than pinning a ref you could not verify and writing a
+profile you cannot validate — a half-adopted repo whose sync never ran is worse
+than an unadopted one, because the vendored skills look present. No rules
+source, no CI or no PR history blocks nothing; phases 2 and 3 say what each of
+those becomes.
+
+## Phase 1 — Choose a ref and prove it is the right one
+
+1. **Pick a candidate ref** — whatever the package's own README tells consumers
+   to invoke — and **ask the package what that ref actually ships.** This needs
+   no config in the consumer repo, which is why it comes first; it prints the
+   package version behind the ref and the skill names available under it:
+
+   ```sh
+   npx -y github:cwinters8/agent-skills#<ref> list
+   ```
+
+2. **Get the template and the schema reference from that same ref.** The package
+   ships `templates/` and `docs/`, so read them wherever the pinned package
+   resolves — the cache `list` just populated, a checkout at that ref, or the
+   ref's file view. Never reconstruct the template from memory: the section list
+   you fill in has to be the one the validator behind your ref accepts. Read the
+   default branch's copies too, but only to compare in step 3 — what you fill in
+   is the ref's.
+
+3. **Compare the ref against the instructions you are following, not against
+   itself.** This is the check that earns its place, and it only works if the
+   comparison reaches outside the ref. A released tag that lags its branch is
+   perfectly *self*-consistent: its template, its docs and its validator all
+   ship together and all agree, so reading the three from the pinned ref and
+   finding no contradiction proves only that the tag was cut coherently. Phase
+   4's `check-profile` runs that same tag's validator against that same tag's
+   template and passes. The adoption then quietly omits skills and profile
+   sections that exist, while reporting the ref as verified.
+
+   The point outside the ref is the adoption instructions themselves — the
+   README and `docs/project-profile.md` on the project's **default branch**,
+   which is what sent you here and what describes the current feature set. Two
+   comparisons, both cheap:
+
+   - `npx -y github:cwinters8/agent-skills#<ref> list` against the skill table
+     in the current README. A skill named there and absent from `list` means the
+     ref is behind.
+   - The ref's `templates/project-profile.md` against the one on the default
+     branch. A section heading present in the newer template and unknown to the
+     ref's validator is the same lag, seen from the profile side — and it is the
+     one that fails loudly later, because the validator rejects the heading the
+     instructions told you to write.
+
+   If either disagrees, **the tag is stale: pin a commit instead**, and say in
+   the consumer's rules source which commit and why, so the next person does not
+   "fix" it back to the tag. If they agree, the ref is current *and* you have
+   checked it rather than assumed it.
+
+4. **Pin the full 40-character SHA; abbreviate only if your runner makes you.**
+   The full object id is unambiguous forever. An abbreviated SHA is a *prefix*
+   that git resolves only while it stays unique in the repository, so a pin that
+   works today can become ambiguous as the history grows — a slow failure in the
+   one field whose job is to never move.
+
+   **Some package runners reject a full-length SHA in a git spec**, failing
+   before anything is fetched while the abbreviated form resolves normally. The
+   tell is a failure that never reaches the network and complains about the
+   runner's own internals rather than about the ref — which reads like a bad
+   pin and is not one. So try the full object id first. If it fails that way,
+   prefer upgrading or changing the runner; use the abbreviation only when you
+   cannot, and record in the consumer's rules source that it is a workaround,
+   for which runner and version, and what the failure was. That belongs there
+   and not here: it is a fact about one project's toolchain, it expires when
+   that toolchain moves, and written here it would send every other consumer
+   after a tool they may not even use.
+
+## Phase 2 — Survey the repo before writing a word of the profile
+
+The profile states facts a skill can act on. Derive every answer; guess none.
+
+5. **Read what the repo already tells you.** The git log (what changes actually
+   land, and how they are described), the existing docs, the scripts and config
+   an operator runs, the CI definition if there is one, and the open *and
+   merged* PRs. Merged review rounds are the richest source: a convention that
+   survived review is a real convention, and an objection that got declined is a
+   `## Not findings` entry with its reason already written.
+
+6. **Fill each section from that survey, and leave out what you could not
+   derive.** `docs/project-profile.md` behind your pinned ref gives, per
+   section, what it supplies and exactly what its absence costs — read it there
+   rather than from a list restated here, because a second copy drifts and the
+   row it drops is the one that mattered. An omitted optional section makes a
+   skill announce it ran without that input; a section of vague filler makes the
+   same skill act confidently on nothing. Prefer the omission. `none`, where a
+   section invites it, is not the same as omitting: it says you looked.
+
+7. **Let the vendored set decide what is required.** Sections marked required
+   with a skill are demanded only when `.claude/skills.json` lists that skill —
+   a repo that does not vendor `security-review` is never asked for a threat
+   model. Choose the skills first, then write only the sections you owe.
+
+## Phase 3 — The rules source, which is usually the blocker
+
+8. **If there is no rules source, write one.** `## Rules source` is required and
+   many repos have no agent-facing rules file at all; the fallback is that
+   skills guess at a conventional filename and admit they guessed, which is a
+   weak foundation for every review that follows. Write it as a record, not a
+   wish list: the conventions visible in the code, the invariants the scripts
+   depend on, the decisions argued out in merged review rounds and now settled.
+
+9. **Do not invent a rule to fill a heading.** The skills treat the rules source
+   as authoritative — `code-review` judges diffs against it, `pr-preflight`
+   treats a diff contradicting it as a failing check. A fabricated convention
+   therefore does not sit harmlessly in a file; it becomes a finding raised
+   against every future PR that does the sensible thing instead. Leave a
+   genuinely unsettled convention out and let a human settle it later. Point at
+   the file from the profile rather than restating it: a rule copied into the
+   profile is a second copy that will disagree with the first, and the skills
+   will believe whichever they read.
+
+## Phase 4 — Wire it up, in this order
+
+10. **Write `.claude/skills.json` before running anything.** It must exist
+    first: the CLI refuses to run without it and prints a starter naming the
+    skills that version ships. It carries only a `skills` array — no ref,
+    source, or commit field. The tool hard-fails on those rather than ignoring
+    them, because a second pin can silently disagree with the npx spec, and
+    bumping the ignored one looks exactly like an upstream with no changes.
+
+    `init` writes that file and a blank profile for you, and never overwrites
+    either — so if you are reading this skill because a bootstrap sync put it on
+    disk, both already exist and this step is done:
+
+    ```sh
+    npx -y github:cwinters8/agent-skills#<ref> init [skill...]
+    ```
+
+    It scaffolds only. The survey in phase 2 is still the work, and a profile
+    left as the template it wrote fails validation exactly as it should.
+
+11. **Validate, then sync**, in that order — the validation is possible only now
+    that the lock exists:
+
+    ```sh
+    npx -y github:cwinters8/agent-skills#<ref> check-profile
+    npx -y github:cwinters8/agent-skills#<ref> sync
+    ```
+
+12. **Treat an "unknown section" complaint as phase 1's mismatch surfacing.** If
+    the rejected heading came straight out of the template you copied, the ref
+    is stale — the profile is not wrong. Go back to step 3.
+
+13. **Know what a failing sync already did before you retry it.** `sync`
+    validates the profile as part of its run, *after* writing the skills. A run
+    ending in "vendored skills are current, but the project profile failed
+    validation" has already written the skills and the lock — the remaining work
+    is the profile, not the sync. Re-running it blind changes nothing and buries
+    the real error.
+
+14. **Add `sync --check` to `## Mechanical checks`.** It is what reports a
+    vendored copy that has fallen behind the ref this repo invokes, or been
+    hand-edited. `pr-preflight` runs that section before every push, which in a
+    repo with no CI is the only place drift gets caught.
+
+15. **Record every location of the ref in `## Derived docs`.** The ref rarely
+    lives in one place, so find its occurrences in *this* repo rather than
+    assuming a set: grep the tree for the invocation and list what you actually
+    find — the rules source, this profile, a package script, CI config, a
+    contributing guide. Record only locations that exist; an invented row sends
+    a future bump looking for a file that never held it. Nothing else knows
+    those copies exist —
+    `## Derived docs` maps a canonical fact to the files restating it, and
+    `pr-preflight` walks that map when the canonical file changes. Without the
+    entry, a future bump updates the invocation someone remembered and leaves
+    the rest pointing at the old version.
+
+## Done
+
+16. Every command in `## Mechanical checks` passes, `sync --check` among them,
+    and `check-profile` is clean with no section left holding template text.
+17. The vendored skills, `.claude/skills.json` (config plus lock), the profile
+    and the rules source land in one diff. Split across commits, a reviewer
+    cannot see that the lock matches the skills.
+
+Never hand-edit a file under the vendored skills directory: the next sync
+overwrites it and the change is invisible to every other consumer. A
+project-specific correction belongs in the profile; a general one is a change
+upstream plus a re-sync.
+
+If `pr-preflight` is vendored here, hand off to `pr-preflight` to ship the
+adoption.
+
+If it is not, **say in the PR description that the gate did not run, and stop
+there** — do not run some of it by hand. "The checks" is not a defined set once
+that skill is absent: preflight sequences the mechanical checks, a self review,
+the project's review focus, the security gate and docs currency, and an adopter
+picking a subset produces a PR that is gated in a way nobody can characterise.
+That matters more here than almost anywhere, because this diff *is* the repo's
+new review configuration — the profile it adds is what every later review will
+be told about the project, so a half-gated adoption sets the terms for
+everything gated afterwards. Name the missing skill, run the project's own
+`## Mechanical checks` because those are the project's and not preflight's, and
+leave the rest for the maintainer to decide.
+
+## Maintenance
+
+Both modes below rely on phase 1's verification, so run it again rather than
+trusting the ref already recorded. Keeping the profile *true* as the repo
+changes is a different job: if `profile-refresh` is vendored here, defer to
+`profile-refresh` for it.
+
+If it is not, **do not approximate it from phase 2.** That skill audits the
+whole profile section by section — every mechanical check actually run, every
+named path grepped, every carve-out re-read as a condition that may have expired
+— and sorts what it finds into what it may fix and what it may only report.
+Re-deriving the sections this particular change happened to touch is a different
+and much smaller thing. Offered as profile maintenance it leaves stale commands,
+dead trust-boundary rows and expired exemptions exactly where they were while
+the run reads as complete, which is the failure mode this skill's own opening
+warns about: something that looks finished. Say the profile was not re-verified,
+name `profile-refresh` as the skill that would do it, and stop there.
+
+### Adding a skill to a repo that already has them
+
+1. Add the name to the `skills` array in `.claude/skills.json`. `list` at the
+   pinned ref prints what is available under that exact ref.
+2. Write any section the new skill makes required — the validator names them for
+   you, `docs/project-profile.md` says what each supplies, and phase 2 still
+   applies: a required section is not a licence to guess.
+3. Run `sync`, then `sync --check`, and commit the new skill directory with the
+   updated lock.
+
+### Bumping the pinned ref
+
+1. Re-run phase 1 against the new ref: `list` it, read the template and docs
+   *from that ref*, confirm the two agree. A bump is when a stale tag bites, and
+   when it is cheapest to catch.
+2. Update the ref in every location `## Derived docs` records — that entry
+   exists for this step. If the map proves incomplete, fix the map in the same
+   change.
+3. Run `sync` and read the diff: an upstream section rename or removal shows up
+   as a profile the new validator rejects, which is profile work, not a sync
+   failure to retry.
+4. Run the full `## Mechanical checks` and commit the vendored diff with the
+   lock. Say in the PR description what moved between versions, since the
+   vendored diff is the only place a consumer ever sees an upstream change.

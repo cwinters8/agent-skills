@@ -40,7 +40,13 @@ lets this review rank findings by consequence instead of by category.
 | `## Secrets policy` | which values are public by design |
 | `## Probe policy` | whether authorization can be tested rather than only read |
 | `## Release targets` | whether the release group applies |
+| `## Dependencies` | which ecosystems exist and what is deliberately pinned, for group 5 |
 | `## Known gaps` | findings already recorded, so they are reported as known rather than as new |
+
+Load the `references/` modules `## Stack` names **before** working the groups.
+Most add depth to one group, but a module can also change how a group should be
+*read*, and a reviewer who meets it only from inside the group that happens to
+cite it has already worked the others on the wrong definitions.
 
 **Without a profile, this skill cannot do its job.** Run the `secrets` and
 `supply-chain` groups over the diff, report every other group as *not
@@ -205,26 +211,74 @@ that the authorization finding rests on reading definitions only.
 
 ## Group 5 — Supply chain and CI
 
-1. **Dependencies.** Audit the full tree, not production-only. A development
-   dependency still executes during install, build, and typecheck in CI — the
-   place where privileged tokens are in the environment. Judge findings by
-   reachability rather than by dev/prod: an advisory in a package that never
-   executes during install, build, or test is not a release blocker; anything
-   that runs in CI or ships in the bundle is.
-2. **Workflow permissions are least-privilege**, and **never**
-   `pull_request_target` with a checkout of the PR head — that combination runs
-   fork-authored code with write-scoped secrets. See
-   `references/ci-workflows.md`.
-3. **Code-generating and data-writing scripts.** A script that writes into the
+1. **Dependencies.** Audit the full tree, not production-only — that is the
+   shape. A development dependency still executes during install, build and
+   typecheck in CI, the place where privileged tokens sit in the environment, so
+   dev/prod is not the axis; **reachability** is. The *ranking* belongs to
+   `ci-workflows` → C5 and is not restated here: which combination of answers
+   makes a finding a blocker, and which downgrades it, is a severity call, and a
+   second copy of it here would drift from the module until the generic group
+   reported a blocker the loaded module had already downgraded. Read it there
+   and say which question decided each finding. If `## Stack` does not name
+   `ci-workflows`, report each advisory with its reachability answers and say
+   the severity grading was unavailable — do not supply a bar of your own. An
+   advisory you cannot answer on is reported as unknown, never as clean.
+
+   `## Dependencies` names which manifests are authoritative, which ecosystems
+   are in play, and what is deliberately pinned. **Without it**, discover
+   manifests and lockfiles by scanning, audit what you find, and say two things
+   in the report: which ecosystems you audited *by name*, and that a deliberate
+   pin was indistinguishable from a forgotten one — an old version looks the
+   same either way, so nothing here can call a pin stale. The failure this
+   guards against is a scan that finds one manifest at the repo root, reports
+   clean, and never sees the provider lockfile or the base image.
+2. **Workflow permissions are least-privilege**, and `pull_request_target` with
+   a checkout of the PR head is always worth flagging — it is the shape that
+   runs fork-authored code inside the base repository's context. What that
+   *costs* depends on the privilege the job actually holds, so the ranking
+   belongs to `references/ci-workflows.md` → C3 and is not summarized here: a
+   job that narrows `permissions:`, wires in no secret and runs hosted is a
+   lower-severity finding than one holding a write-scoped token, and calling
+   both a repository compromise is a false finding. If `## Stack` does not name
+   `ci-workflows`, report the shape, say the privilege grading was not
+   available, and do not assume the write-scoped case.
+3. **Untrusted text interpolated into a command is code execution.** A CI
+   expression substituted into a shell line before the shell parses it turns any
+   attacker-controlled field — a PR title or body, a branch name, a comment, an
+   author name — into shell syntax running as the runner. Bind it to an
+   intermediate environment variable and reference it quoted. `ci-workflows` →
+   C4 carries the platform detail.
+4. **A runner the project owns is part of the trust boundary.** Where CI runs on
+   self-hosted or otherwise persistent infrastructure rather than a disposable
+   host, ask what can reach it, what it can reach, and what survives between
+   jobs — fork-authored code reaching it, credentials it holds for other
+   systems, inbound exposure, and state left behind for the next job.
+   `ci-workflows` → C9 carries the platform detail and the severities.
+5. **Code-generating and data-writing scripts.** A script that writes into the
    repo must write data, never executable content, and must fail loud rather
    than emit something partial. Trace untrusted values into every path join,
    filename, and generated import: a value that reaches a path join can escape
    its directory with `../`, and when that value travels in a data file the whole
    attack arrives as a data-only diff. Constrain such values at both ends —
    reject the shape on the way in, and verify containment before writing.
-4. **Action pinning** — defer to the `action-versions` skill; don't duplicate it
-   here.
-5. **Release and update channel integrity.** A token that can publish code to
+6. **Action pinning** — two properties that degrade differently, so say which
+   one you ran. *Currency* (is the major current?) belongs to the
+   `action-versions` skill; defer to it and don't duplicate it here. If it isn't
+   vendored, report currency as unchecked rather than reconstructing the lookup:
+   `ci-workflows` → C7 says why a bare latest-major check can prescribe a worse
+   fix than the staleness it replaces. *Immutability* (can the ref move?) is the
+   shape to look for here — **any externally maintained code** a privileged job
+   runs needs a ref that cannot be repointed, whatever `uses:` syntax names it.
+   Externally maintained, not third-party: C7 is explicit that actions from the
+   platform vendor are lower risk and **not exempt**, so a shape written as
+   "third-party" lets a privileged job on a mutable platform-owned action pass
+   this group while the loaded module would flag the same line. A generic
+   fallback narrower than the module it defers to is worse than none, because it
+   reports a pass the module never gave. The ranking and
+   the platform detail belong to `ci-workflows` → C7; if `## Stack` does not name
+   it, report the movable refs, say the grading was not available, and do not
+   assume the worst case.
+7. **Release and update channel integrity.** A token that can publish code to
    already-installed clients — an over-the-air update token, a package registry
    token, a deploy key — is usually the highest-value secret a project holds,
    because it reaches users with no review in the way. Confirm it lives only in

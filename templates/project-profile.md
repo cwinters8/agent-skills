@@ -13,7 +13,7 @@
   costs you.
 
   Validate with:
-    npx -y github:cwinters8/agent-skills#v1 check-profile
+    npx -y github:cwinters8/agent-skills#<verified-ref> check-profile
 -->
 
 ## Rules source
@@ -54,6 +54,20 @@ TODO
      submission, a published page. Those rank first: a stale sentence followed
      off-repo becomes a claim no later PR retracts. "none" if no doc restates
      another. -->
+
+TODO
+
+## Dependencies
+
+<!-- Which manifests and lockfiles are authoritative, which ecosystems are in
+     play, what is deliberately pinned and why, and the update policy. List
+     every ecosystem, not just the obvious one: an application manifest, an
+     infrastructure provider lockfile, a tool pinned as a downloaded archive,
+     container base images, system packages a setup script installs.
+
+     The "why" behind a pin is the part scanning cannot recover — a version held
+     back deliberately looks exactly like one that was forgotten. Without it a
+     refresh leaves those pins alone and reports them as unclassified. -->
 
 TODO
 

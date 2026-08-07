@@ -20,17 +20,53 @@ Concretely, a skill must never name:
 The mechanical check before committing:
 
 ```sh
-grep -rniE '\b(sprite|locker|supabase|postgrest|expo|eas|cwinters8)\b' skills/ \
-  --include=SKILL.md
+grep -rniE '\b(sprite|locker|supabase|postgrest|expo|eas|cwinters8|nordvpn|tinyproxy|hostinger|digitalocean|droplet|doppler|opentofu)\b' \
+  skills/ --include=SKILL.md --exclude-dir=skills-adopt
 ```
 
 Word boundaries matter here: an unanchored `locker` matches "blocker" and an
 unanchored `expo` matches "exposure", and a check that cries wolf gets skipped.
-Extend the alternation as new consumers adopt these skills.
+Extend the alternation as new consumers adopt these skills — and only with terms
+that are unambiguously a product or vendor. A generic word a skill has a
+legitimate reason to use (`just`, `ansible`, `tofu`) belongs in review, not in
+this grep: the moment it fires on a correct sentence, the check stops being run.
+
+`skills-adopt` is excluded for that exact reason, and it is the **only**
+exclusion. That skill's subject *is* this package — it tells an agent which
+`npx` invocation to run against which repository — so the owner name appears in
+it correctly and unavoidably, and a check firing five times on every commit is
+one nobody runs by the third. The exclusion is a directory, not a term: the
+alternation stays intact everywhere else, and `skills-adopt` naming any *other*
+vendor is still a defect that this grep no longer catches. Review it there.
 
 Hits inside `skills/security-review/references/` may be legitimate — those
 modules are deliberately stack-specific — but a hit in any `SKILL.md` is a leak
-to fix.
+to fix, with one standing exception: `skills-adopt` names this package's own npx
+invocations, because a skill explaining how to vendor this package cannot avoid
+naming it. That is the package identifying itself, not a consumer's fact leaking
+in. Any *other* `cwinters8` hit is a real leak.
+
+The test for naming a product inside a module is **whose stack it belongs to**,
+not whether it is a product.
+
+A module may freely name the ecosystem it is scoped to, including that
+ecosystem's own products — a GitHub Actions module names `GITHUB_TOKEN`,
+`actions/checkout` and GitHub's runner controller, because a reader of that
+module is by definition on GitHub Actions and those are not choices they could
+have made differently. That is the whole point of a scoped module.
+
+What it may not do is import a product from *one consumer's* particular stack
+into a rule that generalizes past it. A commercial VPN client, a specific proxy
+daemon, one cloud provider's instance product: write "a commercial VPN client
+with a kill switch" or "a provider whose firewalls default-deny outbound",
+because the rule holds for every consumer on that stack and the product name
+narrows it to one.
+
+When a named product is genuinely the easiest path for part of the ecosystem —
+one platform's runner controller, say — state the control generically first and
+name the product as an example that satisfies it, with the generic path spelled
+out for everyone else. The rule is what the reviewer checks; the product is a
+shortcut for the readers it fits.
 
 ## Session behavior
 
@@ -63,7 +99,7 @@ session decides for itself.
 
 ```
 CLAUDE.md                pointer that @-imports AGENTS.md, so the rules load on turn one
-bin/agent-skills.mjs     the CLI consumers run via npx: sync, check-profile, list
+bin/agent-skills.mjs     the CLI consumers run via npx: init, sync, check-profile, list
 package.json             `bin` + `files`; `files` decides what a consumer can actually receive
 profile-schema.json      canonical section list; the validator, template and docs all derive from it
 docs/project-profile.md  the schema reference consumers read
@@ -91,6 +127,16 @@ Two consequences when editing:
 consumer's `## Stack` names the module. That is where content too specific for a
 `SKILL.md`, but still true of a whole ecosystem rather than one project, belongs.
 
+**A module and the group that cites it are one rule in two files.** `SKILL.md`
+names a check and points at the module for depth; the module decides severity
+and edge cases. So changing what a module concludes means re-reading the
+citing group in the same commit, and the reverse — otherwise an agent working
+the group reports the consequence the module has already rejected, and both
+files look individually correct. When the two would disagree, the group states
+the *shape* and defers the *ranking*, rather than keeping a summary that has to
+be maintained twice. Say in the group what to report when the module is not
+loaded, since a consumer whose `## Stack` omits it still runs the group.
+
 ## Adding or changing a section of the profile
 
 The heading list lives once, in `profile-schema.json`. Changing it means
@@ -117,6 +163,16 @@ section over renaming an existing one.
 - **Name other skills by name, and tolerate their absence.** A consumer may
   vendor only some of these. A referenced skill that isn't present means skip
   that step and say so, never guess at what it would have done.
+- **Write a hand-off with a hand-off verb.** `sync` reports when a vendored
+  skill hands work to a skill the consumer didn't list, which is how a partial
+  installation finds out it is missing a step instead of discovering it in a
+  degraded report months later. It detects that from the phrasing: **run**,
+  **invoke**, **hand off to** or **defer to**, followed by the backticked skill
+  name. A backticked name on its own is deliberately not enough — skills name
+  each other to draw boundaries and cite shared rules far more often than they
+  delegate, and flagging those would recommend skills the consumer has no use
+  for and train them to ignore the warning that matters. So if a step genuinely
+  delegates, use one of those verbs; if it merely mentions, don't.
 - **Keep the reasoning.** These skills are long because they encode *why* a check
   exists — which false positive it avoids, which failure it caught before.
   Compressing a rule to its conclusion is how it gets ignored or misapplied.
