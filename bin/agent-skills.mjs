@@ -7,7 +7,7 @@
 //
 // Typically run without installing:
 //
-//   npx -y github:cwinters8/agent-skills#v1 sync
+//   npx -y github:cwinters8/agent-skills#<verified-ref> sync
 //
 // The skills ship inside this package, so the version you invoke IS the version
 // you vendor — there is no second pin. `.claude/skills.json` says which skills a
@@ -600,7 +600,8 @@ if (missingSiblings.size) {
   console.log('');
   console.log('agent-skills: vendored skills hand work to skills this repo does not list:');
   for (const [other, byWhom] of [...missingSiblings].sort()) {
-    console.log(`  ${other} — ${byWhom.sort().join(', ')} hands off to it`);
+    const verb = byWhom.length === 1 ? 'hands' : 'hand';
+    console.log(`  ${other} — ${byWhom.sort().join(', ')} ${verb} off to it`);
   }
   console.log('  Those steps will be skipped. Add them to .claude/skills.json if you want them.');
 }
