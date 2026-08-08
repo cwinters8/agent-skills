@@ -147,10 +147,13 @@ The items below are app-shaped, and on a machine most of them have no subject at
 all — which does not empty the group. Where `## Stack` names
 `infra-provisioning` or `cloud-network`, `auth-session` is how an operator or
 client proves it may connect: SSH keys and the `authorized_keys` lines granting
-them, service credentials, and the reachability fronting them — P10 and P11 of
-`references/infra-provisioning.md` for the ordering that decides whether the
-operator can still reach the box, N1–N5 of `references/cloud-network.md` for the
-provider-side rules, and that first module's table for the whole translation.
+them, service credentials, and the reachability fronting them. Each half comes
+from the module that owns it: P10 and P11 of `references/infra-provisioning.md`
+for the ordering that decides whether the operator can still reach the box,
+which is as much a host-firewall question as a provider one, and N1–N5 of
+`references/cloud-network.md` **only where that module is named**, since those
+rules turn on a provider-managed layer a box behind a host firewall alone does
+not have. The first module's table carries the whole translation.
 With `cloud-network` unnamed, still work reachability from the rules as written,
 but assume no default for egress, for network-level filtering above the
 instance, or for the address family a rule covers: N1, N2 and N5 exist because
@@ -267,9 +270,13 @@ half.
 
 Where `config-as-code` is named for a layer that manages **no** machine — DNS,
 object storage, a SaaS tenant — there is no target to write to, so drop the P
-rules and the written half with them. D3 and D6 still hold: a rendered artifact
-and a run's output exist whatever is being reconciled, and D6 is where a
-credential reaches a job log. Without either module,
+rules and the written half with them. What survives depends on what the layer
+actually produces. D3 applies where it renders a file; a layer that reconciles
+purely by API call renders nothing, and asking after a template there is a
+check that cannot pass. A run's output exists either way, so the concern D6
+names — a credential reaching an operator's terminal or a job log — always has
+a subject, even where the specific suppression mechanism it discusses belongs
+to a tool this project does not use. Without either module,
 still read the group that way on such a repo — the mode and owner of any file
 the change writes a credential into, and any value that reaches a terminal or a
 job log — and say the rule-level detail was not graded.
@@ -355,11 +362,14 @@ the run downloads and executes as root, and P2 of
 `references/infra-provisioning.md` ranks the shape that is usually such a repo's
 largest surface here — a remote installer piped to a root shell, unpinned and
 unverified. P1 is item 5's shape one layer down: a caller-controlled value
-landing in a root script's path, command or config line. Wherever
-`config-as-code` is named — machine or not — D4 names a manifest item 1 will
-otherwise not think to look for, the role and collection requirements file a
-syntax check resolves against; green there covers only the statically
-referenced half, never the dynamically included one.
+landing in a root script's path, command or config line. Where `config-as-code`
+covers configuration management, D4 names a manifest item 1 will otherwise not
+think to look for — the role and collection requirements file a syntax check
+resolves against, where green covers only the statically referenced half and
+never the dynamically included one. Where it covers infrastructure-as-code
+instead, there is no such manifest and D4's subject is the init, validate and
+plan sequence; looking for a requirements file there invents a missing
+dependency.
 Item 4 above and `ci-workflows` → C9 are the same runner asked about from the
 other side; reach the machine rules directly rather than through that hop.
 Without those modules, still ask what the change fetches and executes with
