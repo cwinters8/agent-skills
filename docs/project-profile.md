@@ -243,12 +243,26 @@ Which reference modules apply, from `skills/security-review/references/`:
 | `postgres-rls` | Postgres with row-level security, including Supabase / PostgREST |
 | `ci-workflows` | GitHub Actions |
 | `mobile-release` | shipping to the App Store or Play |
-| `infra-provisioning` | the machine is configured by imperative shell run as root — the shell itself, the ordering that keeps the operator able to reach the box, and the secrets such a run handles |
+| `infra-provisioning` | the product is a configured machine rather than an application — the ordering that keeps the operator able to reach the box, where infrastructure credentials live, and how a machine-scoped finding becomes account-scoped, plus the imperative shell run as root where a project still has one |
 | `cloud-network` | what can reach the machine is decided by a provider-managed layer — cloud firewalls, VPCs and network ACLs, or ingress pinned to particular addresses |
 | `config-as-code` | a declarative layer reconciles the machine or the infrastructure — configuration management, or infrastructure-as-code with a state file |
 
 List only what the project actually uses. Each module is depth about a stack, not
 about your project; naming one you don't use produces checks that cannot pass.
+
+**The three infrastructure modules are one exception, in one direction.** Name
+`infra-provisioning` whenever you name `cloud-network` or `config-as-code`, even
+if no imperative shell survives in the repository. It is the base module of the
+three: it carries the translation of the six check-group names onto a machine,
+which the other two are written against and cite rather than copy, and its rules
+on reachability ordering, credential storage and blast radius apply to any
+infrastructure repository. Naming a declarative layer without it drops that
+translation and leaves the citations pointing at a file nobody loaded. The shell
+rules it also carries are the part that can go unused, and unused is all they
+are — a repository with no shell script has nothing for them to match, which
+costs a reviewer a section they skip rather than a check that cannot pass. The
+implication does not run the other way: a project with a provisioning script and
+no cloud firewall names `infra-provisioning` alone.
 
 *Missing:* no reference module loads and the review stays at the level of the
 generic checks.

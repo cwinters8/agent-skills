@@ -9,13 +9,18 @@ approved it says something other than what the reviewer read in the repository.
 
 ## Reading the six groups
 
-If `## Stack` also names `infra-provisioning`, read that module's *Reading the
-six groups for infrastructure* table first — it is the full translation of
-`SKILL.md`'s group names onto a machine, and it is kept in one place so it
-cannot drift. The two readings this module turns on: what the run **writes to
-disk on the target**, at what mode, and what it **prints** to an operator's
-terminal or a CI job log, is `client-data`; what it **downloads and executes**
-is `supply-chain`.
+A `## Stack` naming this module names `infra-provisioning` too, so read that
+module's *Reading the six groups for infrastructure* table first — it is the
+full translation of `SKILL.md`'s group names onto a machine, kept in one place
+so it cannot drift, and the D-series below is written against it. The two
+readings this module turns on: what the run **writes to disk on the target**, at
+what mode, and what it **prints** to an operator's terminal or a CI job log, is
+`client-data`; what it **downloads and executes** is `supply-chain`.
+
+If that module was not loaded anyway, apply the D-series regardless and say in
+the report which group each finding was filed under and that the translation was
+unavailable — an improvised mapping a reader can see is fine, one they cannot
+distinguish from the canonical one is not.
 
 ## Rules
 
@@ -117,9 +122,14 @@ random salt *and* a quiet run:
    and template the *stored* copy on every later run. Ansible's
    `lookup('password', …)` does this in-band and documents that it "forces
    saving the salt value for idempotence" when asked for a hash.
-3. **Keep it out of the rendered artifact entirely.** Terraform's write-only
-   arguments and ephemeral resources (1.11+) pass a secret to a provider without
-   it reaching the plan or the state file — which settles D5 for that value too.
+3. **Keep it out of the rendered artifact entirely.** Terraform's ephemeral
+   resources (1.10+) fetch a secret for the duration of a single phase without
+   ever writing it down; write-only arguments (1.11+) pass one *into* a managed
+   resource the same way. They shipped a release apart, so check the floor for
+   the mechanism actually in use — and, for a write-only argument, that the
+   provider marks that argument write-only, since the language feature alone
+   does not make one available. Either way the value never reaches the plan or
+   the state file, which settles D5 for it too.
 
 One pattern to recognize and *replace* rather than copy: Ansible's own
 documentation shows a per-host derivation of the form
@@ -187,8 +197,9 @@ several years out of date:
 - **Terraform has no client-side equivalent** and depends on the backend, which
   protects the stored copy and not much else: a local state file, or a plan file
   handed to a CI job as an artifact, is still plaintext.
-- **Best is never putting the value in state at all** — ephemeral resources and
-  write-only arguments (Terraform 1.11+), the same mechanism D3 reaches for.
+- **Best is never putting the value in state at all** — ephemeral resources
+  (Terraform 1.10+) for a secret Terraform fetches, and write-only arguments
+  (1.11+) for one it passes into a resource; the mechanisms D3 reaches for.
 
 **D6. Blanket log suppression is blunt and has a cost.** Marking a task `no_log`
 keeps a rendered credential out of the run's output — necessary — but it also

@@ -1,10 +1,13 @@
 # Infrastructure provisioning
 
 Load this when `## Stack` names `infra-provisioning`. It covers repositories
-whose product is a **configured machine** rather than an application, at the
-layer where that work is imperative shell run as root: the shell itself, the
-ordering that decides whether the operator can still reach the box, and the
-secrets such a run handles.
+whose product is a **configured machine** rather than an application: the
+imperative shell run as root where a project still has one, the ordering that
+decides whether the operator can still reach the box, and where the credentials
+such work handles live. Only the shell section assumes a shell — the group
+translation below, the ordering rules and the secrets rules hold for an
+infrastructure repository of any shape, including one that is entirely
+declarative.
 
 The blast radius is a machine: a wrong branch locks the maintainer out of the
 only host, writes a credential world-readable, or prints one into a CI job log.
@@ -17,6 +20,13 @@ an operator exactly the way `ufw` did. Those layers have modules of their own:
 infrastructure-as-code, `references/cloud-network.md` for cloud firewalls and
 network controls. Name them in `## Stack` alongside this one where the project
 has them; the three modules cross-reference each other by rule.
+
+This one is the base of the three, and the dependency runs one way. Both of the
+others are written against the group translation below and cite it rather than
+copy it, so a `## Stack` naming either of them names this module too — the shell
+section simply finds nothing to match on a repository that has no shell. A
+project with a provisioning script and neither of those layers names this module
+alone.
 
 ## Reading the six groups for infrastructure
 

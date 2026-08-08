@@ -121,14 +121,34 @@ probe procedure, including the ways a probe passes while proving nothing.
 When `## Stack` names `infra-provisioning`, `cloud-network` or `config-as-code`,
 the translation of this group onto a machine applies: `authorization` there is
 which accounts exist, the sudo policy, and what identity each service runs as.
+Its concrete rule is P7 — a sudoers drop-in is staged, validated with its mode
+and ownership already set, and only then installed, because an invalid or
+world-writable one in `/etc/sudoers.d` denies escalation to every account and
+takes with it the privilege needed to repair it.
 `references/infra-provisioning.md` carries the full six-group translation for
-all three, and the other two point at it.
+all three, and the other two point at it. Groups 2 through 5 carry their own
+pointers as well, because that is where most of these modules' content lands.
 
 Whether you may probe at all is `## Probe policy`. Reading policy definitions is
 weaker evidence than testing them; when probing is forbidden, say in the report
 that the authorization finding rests on reading definitions only.
 
 ## Group 2 — Authentication and session handling
+
+The items below are app-shaped, and on a machine most of them have no subject at
+all — which does not empty the group. Where `## Stack` names
+`infra-provisioning` or `cloud-network`, `auth-session` is how an operator or
+client proves it may connect: SSH keys and the `authorized_keys` lines granting
+them, service credentials, and the reachability fronting them — P10 and P11 of
+`references/infra-provisioning.md` for the ordering that decides whether the
+operator can still reach the box, N1–N5 of `references/cloud-network.md` for the
+provider-side rules, and that first module's table for the whole translation.
+With `cloud-network` unnamed, still work reachability from the rules as written,
+but assume no default for egress, for network-level filtering above the
+instance, or for the address family a rule covers: N1, N2 and N5 exist because
+those differ per provider, so a generic answer here invents a control the
+project may not have. With `infra-provisioning` unnamed, `cloud-network` states
+this reading in brief itself.
 
 1. **Credential-bearing callbacks.** Determine whether the auth flow puts real
    credentials in a URL. If it does, the channel carrying that URL matters
@@ -199,6 +219,17 @@ that the authorization finding rests on reading definitions only.
 5. **Anything reaching the client bundle is public**, including over-the-air
    update payloads. Treat every constant shipped to a device as readable.
 
+Where `## Stack` names `infra-provisioning`, P12–P16 of
+`references/infra-provisioning.md` is this group for a machine, and none of it
+is reachable from items 1–5: ranking by blast radius (an account-scoped provider
+token is not rotated by a rebuild), the three places a secret lands on a target,
+where the value lives at rest, short-lived and derived over stored, and the
+metadata endpoint as a credential surface. `config-as-code` → D5 adds the values
+a tool writes on the project's own behalf. Without that module, still report a
+state or plan file as credential material — marking a value `sensitive` changes
+only what is printed, not what is written — and say the tool-specific remedies
+were not graded.
+
 ## Group 4 — Client and data handling
 
 1. **No credentials or PII in logs** on any path that survives into a release
@@ -214,6 +245,14 @@ that the authorization finding rests on reading definitions only.
 4. **Validate at the boundary that enforces at runtime.** Static types vanish at
    runtime; the database constraint or server-side validator is the real one.
    A new synced field needs the same treatment as the ones already there.
+
+Where `## Stack` names `infra-provisioning` or `config-as-code`, `client-data`
+on a machine has no client in it: it is what the run writes to disk on the
+target and what it prints. The written half is P3 — the mode and owner of a file
+the code has just put a credential into — with P8 and `config-as-code` → D3 on
+why an in-place edit leaves an end state no reviewer can see, and why a value
+interpolated into a `sed` expression is code rather than data. The printed half
+is P5 and D6, and item 1 above covers only that half.
 
 ## Group 5 — Supply chain and CI
 
@@ -290,6 +329,17 @@ that the authorization finding rests on reading definitions only.
    because it reaches users with no review in the way. Confirm it lives only in
    secret storage, is never echoed in logs, and that any channel repointing is
    deliberate and reverted after use.
+
+Where `## Stack` names `infra-provisioning`, `supply-chain` on a machine is what
+the run downloads and executes as root, and P2 of
+`references/infra-provisioning.md` ranks the shape that is usually such a repo's
+largest surface here — a remote installer piped to a root shell, unpinned and
+unverified. P1 is item 5's shape one layer down: a caller-controlled value
+landing in a root script's path, command or config line. `config-as-code` → D4
+names a manifest item 1 will otherwise not think to look for, the role or
+collection requirements file whose absence makes a syntax check pass vacuously.
+Item 4 above and `ci-workflows` → C9 are the same runner asked about from the
+other side; reach the machine rules directly rather than through that hop.
 
 ## Group 6 — Release readiness
 
