@@ -236,12 +236,24 @@ is reachable from items 1–5: ranking by blast radius (an account-scoped provid
 token is not rotated by a rebuild), the three places a secret lands on a target,
 where the value lives at rest, short-lived and derived over stored, and the
 metadata endpoint as a credential surface. Wherever `config-as-code` is named —
-machine or not — D5 adds the values a tool writes on the project's own behalf,
-and on a repository that provisions no machine it is usually the group's whole
-content, since the provider token is what such a layer holds. Without that
-module, still treat a tool-generated state or plan artifact as credential
-material until shown otherwise — such tools routinely persist values a reviewer
-assumed were hidden — and say the tool-specific remedies were not graded.
+machine or not — D5 adds the values a tool writes on the project's own behalf.
+
+D5 is not the whole of this group on a repository that provisions no machine,
+and assuming it is skips that repository's *principal* secret. Its provider
+credential is what the whole layer turns on, and it usually reaches the run
+through CI environment or backend authentication — so it lands in neither a
+state file nor a saved plan, and D5 never sees it. Ask of it what P12, P14 and
+P15 ask: what an account-scoped token reaches that a machine-scoped one does
+not, where the value lives at rest and whether that survives losing any one
+machine, and whether a short-lived federated credential could replace a stored
+one. Those questions do not need a machine — only a provider. Where
+`infra-provisioning` is unnamed, ask them from that shape and say the
+rule-level detail was not graded, rather than citing rules nobody loaded.
+
+Without `config-as-code`, still treat a tool-generated state or plan artifact
+as credential material until shown otherwise — such tools routinely persist
+values a reviewer assumed were hidden — and say the tool-specific remedies were
+not graded.
 
 ## Group 4 — Client and data handling
 
