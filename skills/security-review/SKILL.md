@@ -344,10 +344,14 @@ the run downloads and executes as root, and P2 of
 largest surface here — a remote installer piped to a root shell, unpinned and
 unverified. P1 is item 5's shape one layer down: a caller-controlled value
 landing in a root script's path, command or config line. `config-as-code` → D4
-names a manifest item 1 will otherwise not think to look for, the role or
-collection requirements file whose absence makes a syntax check pass vacuously.
+names a manifest item 1 will otherwise not think to look for, the role and
+collection requirements file a syntax check resolves against — green there
+covers only the statically referenced half, never the dynamically included one.
 Item 4 above and `ci-workflows` → C9 are the same runner asked about from the
 other side; reach the machine rules directly rather than through that hop.
+Without those modules, still ask what the change fetches and executes with
+privilege, and where the pin and the integrity check for it are — and say the
+rule-level detail was not graded.
 
 ## Group 6 — Release readiness
 
