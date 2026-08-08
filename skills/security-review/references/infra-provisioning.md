@@ -1,10 +1,13 @@
 # Infrastructure provisioning
 
 Load this when `## Stack` names `infra-provisioning`. It covers repositories
-whose product is a **configured machine** rather than an application, at the
-layer where that work is imperative shell run as root: the shell itself, the
-ordering that decides whether the operator can still reach the box, and the
-secrets such a run handles.
+whose product is a **configured machine** rather than an application: the
+imperative shell run as root where a project still has one, the ordering that
+decides whether the operator can still reach the box, and where the credentials
+such work handles live. Only the shell section assumes a shell — the group
+translation below, the ordering rules and the secrets rules hold for an
+infrastructure repository of any shape, including one that is entirely
+declarative.
 
 The blast radius is a machine: a wrong branch locks the maintainer out of the
 only host, writes a credential world-readable, or prints one into a CI job log.
@@ -17,6 +20,33 @@ an operator exactly the way `ufw` did. Those layers have modules of their own:
 infrastructure-as-code, `references/cloud-network.md` for cloud firewalls and
 network controls. Name them in `## Stack` alongside this one where the project
 has them; the three modules cross-reference each other by rule.
+
+This one is the base of the three, and the dependency runs one way. Both of the
+others are written against the group translation below and cite it rather than
+copy it, so a `## Stack` naming either of them names this module too — the shell
+section simply finds nothing to match on a repository that has no shell. A
+project with a provisioning script and neither of those layers names this module
+alone.
+
+That implication is bounded by what this module is *about*, and the boundary
+falls in one of the two. What the table below translates the six group names
+onto is **a configured machine**: which accounts exist on the box, what the run
+writes to disk on the target, which sources may reach a port. `cloud-network`
+always has that machine, since what its rules govern is what can reach one.
+`config-as-code` need not: a declarative repository can manage DNS records,
+object storage or a SaaS tenant's configuration and provision nothing that boots.
+Almost all of its D-series still holds there, because those rules are properties
+of the tooling rather than of a target — parser coercion, what a plan does and
+does not verify, state and plan files as credential material, a secret reaching
+a run's output. The translation is the part with nothing to map onto, and
+loading this module for such a repository asks account, disk and reachability
+questions it cannot answer, which is the "checks that cannot pass" failure the
+profile warns about. So a declarative repository that provisions no machine
+names `config-as-code` alone and takes that module's own not-loaded path: apply
+the D-series, file each finding under a group by hand, and say in the report
+that no machine translation applied. Name this module the moment any target *is*
+a machine — one instance, one `authorized_keys` line, one host firewall is
+enough.
 
 ## Reading the six groups for infrastructure
 

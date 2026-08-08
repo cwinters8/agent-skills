@@ -136,7 +136,15 @@ TODO
 <!-- REQUIRED IF YOU VENDOR security-review. Which reference modules apply:
      postgres-rls, ci-workflows, mobile-release, infra-provisioning,
      cloud-network, config-as-code. List only what you actually use — naming one
-     you don't produces checks that cannot pass. -->
+     you don't produces checks that cannot pass.
+
+     One exception, in one direction: name infra-provisioning whenever you name
+     cloud-network, and whenever the layer config-as-code covers manages a
+     configured machine. It is the base module of the three and carries the
+     group translation the other two are written against, even if no imperative
+     shell survives in your repository. An infrastructure-as-code repository
+     that provisions no machine — DNS, object storage, SaaS configuration —
+     names config-as-code alone. -->
 
 TODO
 

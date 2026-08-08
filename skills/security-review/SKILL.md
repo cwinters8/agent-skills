@@ -118,17 +118,48 @@ When `## Stack` names `postgres-rls`, read `references/postgres-rls.md` — it
 carries the RLS-specific rules, the live audit queries, and the two-account
 probe procedure, including the ways a probe passes while proving nothing.
 
-When `## Stack` names `infra-provisioning`, `cloud-network` or `config-as-code`,
-the translation of this group onto a machine applies: `authorization` there is
-which accounts exist, the sudo policy, and what identity each service runs as.
+When `## Stack` names `infra-provisioning` or `cloud-network`, the translation
+of this group onto a machine applies: `authorization` there is which accounts
+exist, the sudo policy, and what identity each service runs as. A `## Stack`
+naming only `config-as-code` may have no machine to translate onto — a
+declarative repository managing DNS, object storage or a SaaS tenant — in which
+case read this group as written and say so.
+Its concrete rule is P7 — a sudoers drop-in is staged, validated with its mode,
+ownership and final filename already set, and only then installed. An invalid
+file in `/etc/sudoers.d` denies escalation to every account and takes with it
+the privilege needed to repair it; a file sudo silently skips or never reads
+leaves the intended grant merely absent instead. P7 says which defect lands
+where. Without that module, still ask it of any privilege-granting file the
+change installs — which accounts it grants, whether it was validated before it
+landed, and whether a defect in it fails loudly or silently — and say the
+rule-level detail was not graded.
 `references/infra-provisioning.md` carries the full six-group translation for
-all three, and the other two point at it.
+all three, and the other two point at it. Groups 2 through 5 carry their own
+pointers as well, because that is where most of these modules' content lands.
 
 Whether you may probe at all is `## Probe policy`. Reading policy definitions is
 weaker evidence than testing them; when probing is forbidden, say in the report
 that the authorization finding rests on reading definitions only.
 
 ## Group 2 — Authentication and session handling
+
+The items below are app-shaped, and on a machine most of them have no subject at
+all — which does not empty the group. Where `## Stack` names
+`infra-provisioning` or `cloud-network`, `auth-session` is how an operator or
+client proves it may connect: SSH keys and the `authorized_keys` lines granting
+them, service credentials, and the reachability fronting them. Each half comes
+from the module that owns it: P10 and P11 of `references/infra-provisioning.md`
+for the ordering that decides whether the operator can still reach the box,
+which is as much a host-firewall question as a provider one, and N1–N5 of
+`references/cloud-network.md` **only where that module is named**, since those
+rules turn on a provider-managed layer a box behind a host firewall alone does
+not have. The first module's table carries the whole translation.
+With `cloud-network` unnamed, still work reachability from the rules as written,
+but assume no default for egress, for network-level filtering above the
+instance, or for the address family a rule covers: N1, N2 and N5 exist because
+those differ per provider, so a generic answer here invents a control the
+project may not have. With `infra-provisioning` unnamed, `cloud-network` states
+this reading in brief itself.
 
 1. **Credential-bearing callbacks.** Determine whether the auth flow puts real
    credentials in a URL. If it does, the channel carrying that URL matters
@@ -199,6 +230,31 @@ that the authorization finding rests on reading definitions only.
 5. **Anything reaching the client bundle is public**, including over-the-air
    update payloads. Treat every constant shipped to a device as readable.
 
+Where `## Stack` names `infra-provisioning`, P12–P16 of
+`references/infra-provisioning.md` is this group for a machine, and none of it
+is reachable from items 1–5: ranking by blast radius (an account-scoped provider
+token is not rotated by a rebuild), the three places a secret lands on a target,
+where the value lives at rest, short-lived and derived over stored, and the
+metadata endpoint as a credential surface. Wherever `config-as-code` is named —
+machine or not — D5 adds the values a tool writes on the project's own behalf.
+
+D5 is not the whole of this group on a repository that provisions no machine,
+and assuming it is skips that repository's *principal* secret. Its provider
+credential is what the whole layer turns on, and it usually reaches the run
+through CI environment or backend authentication — so it lands in neither a
+state file nor a saved plan, and D5 never sees it. Ask of it what P12, P14 and
+P15 ask: what an account-scoped token reaches that a machine-scoped one does
+not, where the value lives at rest and whether that survives losing any one
+machine, and whether a short-lived federated credential could replace a stored
+one. Those questions do not need a machine — only a provider. Where
+`infra-provisioning` is unnamed, ask them from that shape and say the
+rule-level detail was not graded, rather than citing rules nobody loaded.
+
+Without `config-as-code`, still treat a tool-generated state or plan artifact
+as credential material until shown otherwise — such tools routinely persist
+values a reviewer assumed were hidden — and say the tool-specific remedies were
+not graded.
+
 ## Group 4 — Client and data handling
 
 1. **No credentials or PII in logs** on any path that survives into a release
@@ -214,6 +270,28 @@ that the authorization finding rests on reading definitions only.
 4. **Validate at the boundary that enforces at runtime.** Static types vanish at
    runtime; the database constraint or server-side validator is the real one.
    A new synced field needs the same treatment as the ones already there.
+
+Where `## Stack` names `infra-provisioning`, or a `config-as-code` layer that
+manages a machine, `client-data` has no client in it: it is what the run writes
+to disk on the target and what it prints. The written half is P3 — the mode and
+owner of a file the code has just put a credential into — with P8 and
+`config-as-code` → D3 on why an in-place edit leaves an end state no reviewer
+can see, and why a value interpolated into a `sed` expression is code rather
+than data. The printed half is P5 and D6, and item 1 above covers only that
+half.
+
+Where `config-as-code` is named for a layer that manages **no** machine — DNS,
+object storage, a SaaS tenant — there is no target to write to, so drop the P
+rules and the written half with them. What survives depends on what the layer
+actually produces. D3 applies where it renders a file; a layer that reconciles
+purely by API call renders nothing, and asking after a template there is a
+check that cannot pass. A run's output exists either way, so the concern D6
+names — a credential reaching an operator's terminal or a job log — always has
+a subject, even where the specific suppression mechanism it discusses belongs
+to a tool this project does not use. Without either module,
+still read the group that way on such a repo — the mode and owner of any file
+the change writes a credential into, and any value that reaches a terminal or a
+job log — and say the rule-level detail was not graded.
 
 ## Group 5 — Supply chain and CI
 
@@ -290,6 +368,29 @@ that the authorization finding rests on reading definitions only.
    because it reaches users with no review in the way. Confirm it lives only in
    secret storage, is never echoed in logs, and that any channel repointing is
    deliberate and reverted after use.
+
+Where `## Stack` names `infra-provisioning`, `supply-chain` on a machine is what
+the run downloads and executes as root, and P2 of
+`references/infra-provisioning.md` ranks the shape that is usually such a repo's
+largest surface here — a remote installer piped to a root shell, unpinned and
+unverified. P1 is item 5's shape one layer down: a caller-controlled value
+landing in a root script's path, command or config line. Where `config-as-code`
+covers configuration management, D4 names a manifest item 1 will otherwise not
+think to look for: whatever dependency file that system's own check resolves
+against, and how much of the tree the check never reaches. D4 works that case
+through Ansible, where it is the role and collection requirements file and
+green covers only the statically referenced half, never the dynamically
+included one. On another configuration-management system read D4 for that shape
+and establish what its equivalent is before reporting a missing manifest —
+naming Ansible's on a system that has no such thing is the same invented
+finding, one system over. Where `config-as-code` covers infrastructure-as-code
+instead, there is no such manifest at all and D4's subject is the init,
+validate and plan sequence.
+Item 4 above and `ci-workflows` → C9 are the same runner asked about from the
+other side; reach the machine rules directly rather than through that hop.
+Without those modules, still ask what the change fetches and executes with
+privilege, and where the pin and the integrity check for it are — and say the
+rule-level detail was not graded.
 
 ## Group 6 — Release readiness
 

@@ -9,13 +9,25 @@ approved it says something other than what the reviewer read in the repository.
 
 ## Reading the six groups
 
-If `## Stack` also names `infra-provisioning`, read that module's *Reading the
-six groups for infrastructure* table first — it is the full translation of
-`SKILL.md`'s group names onto a machine, and it is kept in one place so it
-cannot drift. The two readings this module turns on: what the run **writes to
-disk on the target**, at what mode, and what it **prints** to an operator's
-terminal or a CI job log, is `client-data`; what it **downloads and executes**
-is `supply-chain`.
+Where the layer this module covers manages a **configured machine**, `## Stack`
+names `infra-provisioning` too, so read that module's *Reading the six groups
+for infrastructure* table first — it is the full translation of `SKILL.md`'s
+group names onto a machine, kept in one place so it cannot drift. The two
+readings it turns on for the D-series: what the run **writes to disk on the
+target**, at what mode, and what it **prints** to an operator's terminal or a CI
+job log, is `client-data`; what it **downloads and executes** is `supply-chain`.
+
+**A declarative repository need not have a machine at all.** One that manages
+only DNS, object storage or a SaaS tenant boots nothing, and for it that table
+translates onto nothing — its groups are about accounts on a box, writes to a
+target's disk, and port reachability. Such a project names this module alone,
+which is the expected path rather than a degradation: apply the D-series, file
+each finding against `SKILL.md`'s own group names, and say no machine
+translation applied. Almost the whole series survives the loss, because what it
+describes is tooling behavior — a parser coercing a bare word, two layers
+disagreeing about a value, what a plan file retains, what a green check did not
+reach. D3's worked example is the exception, since a host account's password
+salt presumes accounts on a box.
 
 ## Rules
 
@@ -117,9 +129,26 @@ random salt *and* a quiet run:
    and template the *stored* copy on every later run. Ansible's
    `lookup('password', …)` does this in-band and documents that it "forces
    saving the salt value for idempotence" when asked for a hash.
-3. **Keep it out of the rendered artifact entirely.** Terraform's write-only
-   arguments and ephemeral resources (1.11+) pass a secret to a provider without
-   it reaching the plan or the state file — which settles D5 for that value too.
+3. **Keep it out of the rendered artifact entirely.** Terraform's ephemeral
+   resources (1.10+) fetch a secret for the duration of a single phase without
+   ever writing it down; write-only arguments (1.11+) pass one *into* a managed
+   resource the same way. They shipped a release apart, so check the floor for
+   the mechanism actually in use — and, for a write-only argument, that the
+   provider marks that argument write-only, since the language feature alone
+   does not make one available.
+
+   **Then check what feeds it, because the guarantee is scoped to the
+   argument.** Terraform "discards that value without storing it in the plan or
+   state file", which keeps it out of the resource's stored attributes — but
+   write-only arguments "accept both ephemeral and non-ephemeral values", and a
+   saved plan records "all of the plan options including the input variables".
+   So a write-only argument fed from an ordinary `variable` block keeps the
+   secret out of state and still writes it into the plan file in cleartext.
+   Mark the source `ephemeral` as well — that is the argument that "omit[s] the
+   variable from state and plan files" — or source it from an ephemeral
+   resource. Only then does this settle D5 for the value. A review that checks
+   the argument and not what assigns to it has approved half a fix, and the
+   half it approved is the half that was never the plaintext exposure.
 
 One pattern to recognize and *replace* rather than copy: Ansible's own
 documentation shows a per-host derivation of the form
@@ -153,11 +182,22 @@ require one before any apply touching ingress rules or destroying a resource.
 
 The configuration-management parallel has the same trap, in both directions:
 
-- A **syntax check** resolves module, role and collection references only
-  against what is *actually installed* in that environment. A CI image that
-  skipped its requirements file passes the check vacuously — every reference
-  "resolves" because nothing was present to contradict it. Assert the
-  dependencies were installed in the same job as the check.
+- A **syntax check** traverses only what resolves *statically*, and the split
+  is `import_*` against `include_*`. As of ansible-core 2.19, a missing role
+  named in `roles:`, in `import_role`, or in a role's own `meta/main.yml`
+  dependencies fails the check, and so does a module name — FQCN or short —
+  whose collection is not installed. A CI image that skipped its requirements
+  file therefore does not pass vacuously; it goes red, which is the useful
+  case. What passes green is what the check never reaches: `include_role` and
+  `include_tasks` naming a target that does not exist, and any name built from
+  a variable, are left to runtime — and because the include is not followed, a
+  syntax error inside the role it names goes unseen too. A `collections:` entry
+  is not itself validated either; the error surfaces at the task that needs a
+  name from it, not at the declaration. So keep the assertion that the
+  dependencies were installed in the same job as the check — that is what makes
+  green mean "the static references resolved" rather than "the check never got
+  far enough to try" — and when citing a green check, say how much of the play
+  is reached only through a dynamic include, because none of that was examined.
 - A **check-mode run** is weaker evidence than it reads as. Ansible documents
   that "modules that do not support check mode report nothing and do nothing";
   it produces no output for tasks conditional on variables registered by earlier
@@ -187,8 +227,12 @@ several years out of date:
 - **Terraform has no client-side equivalent** and depends on the backend, which
   protects the stored copy and not much else: a local state file, or a plan file
   handed to a CI job as an artifact, is still plaintext.
-- **Best is never putting the value in state at all** — ephemeral resources and
-  write-only arguments (Terraform 1.11+), the same mechanism D3 reaches for.
+- **Best is never putting the value in state at all** — ephemeral resources
+  (Terraform 1.10+) for a secret Terraform fetches, and write-only arguments
+  (1.11+) for one it passes into a resource; the mechanisms D3 reaches for.
+  Read the source with the argument, though: this rule covers two files, and a
+  write-only argument assigned from a non-`ephemeral` variable clears only one
+  of them — out of state, still cleartext in a saved plan. D3 item 3 has why.
 
 **D6. Blanket log suppression is blunt and has a cost.** Marking a task `no_log`
 keeps a rendered credential out of the run's output — necessary — but it also
