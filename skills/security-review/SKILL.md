@@ -232,11 +232,13 @@ Where `## Stack` names `infra-provisioning`, P12–P16 of
 is reachable from items 1–5: ranking by blast radius (an account-scoped provider
 token is not rotated by a rebuild), the three places a secret lands on a target,
 where the value lives at rest, short-lived and derived over stored, and the
-metadata endpoint as a credential surface. `config-as-code` → D5 adds the values
-a tool writes on the project's own behalf. Without that module, still treat a
-tool-generated state or plan artifact as credential material until shown
-otherwise — such tools routinely persist values a reviewer assumed were hidden —
-and say the tool-specific remedies were not graded.
+metadata endpoint as a credential surface. Wherever `config-as-code` is named —
+machine or not — D5 adds the values a tool writes on the project's own behalf,
+and on a repository that provisions no machine it is usually the group's whole
+content, since the provider token is what such a layer holds. Without that
+module, still treat a tool-generated state or plan artifact as credential
+material until shown otherwise — such tools routinely persist values a reviewer
+assumed were hidden — and say the tool-specific remedies were not graded.
 
 ## Group 4 — Client and data handling
 
@@ -254,13 +256,20 @@ and say the tool-specific remedies were not graded.
    runtime; the database constraint or server-side validator is the real one.
    A new synced field needs the same treatment as the ones already there.
 
-Where `## Stack` names `infra-provisioning` or `config-as-code`, `client-data`
-on a machine has no client in it: it is what the run writes to disk on the
-target and what it prints. The written half is P3 — the mode and owner of a file
-the code has just put a credential into — with P8 and `config-as-code` → D3 on
-why an in-place edit leaves an end state no reviewer can see, and why a value
-interpolated into a `sed` expression is code rather than data. The printed half
-is P5 and D6, and item 1 above covers only that half. Without either module,
+Where `## Stack` names `infra-provisioning`, or a `config-as-code` layer that
+manages a machine, `client-data` has no client in it: it is what the run writes
+to disk on the target and what it prints. The written half is P3 — the mode and
+owner of a file the code has just put a credential into — with P8 and
+`config-as-code` → D3 on why an in-place edit leaves an end state no reviewer
+can see, and why a value interpolated into a `sed` expression is code rather
+than data. The printed half is P5 and D6, and item 1 above covers only that
+half.
+
+Where `config-as-code` is named for a layer that manages **no** machine — DNS,
+object storage, a SaaS tenant — there is no target to write to, so drop the P
+rules and the written half with them. D3 and D6 still hold: a rendered artifact
+and a run's output exist whatever is being reconciled, and D6 is where a
+credential reaches a job log. Without either module,
 still read the group that way on such a repo — the mode and owner of any file
 the change writes a credential into, and any value that reaches a terminal or a
 job log — and say the rule-level detail was not graded.
@@ -346,10 +355,11 @@ the run downloads and executes as root, and P2 of
 `references/infra-provisioning.md` ranks the shape that is usually such a repo's
 largest surface here — a remote installer piped to a root shell, unpinned and
 unverified. P1 is item 5's shape one layer down: a caller-controlled value
-landing in a root script's path, command or config line. `config-as-code` → D4
-names a manifest item 1 will otherwise not think to look for, the role and
-collection requirements file a syntax check resolves against — green there
-covers only the statically referenced half, never the dynamically included one.
+landing in a root script's path, command or config line. Wherever
+`config-as-code` is named — machine or not — D4 names a manifest item 1 will
+otherwise not think to look for, the role and collection requirements file a
+syntax check resolves against; green there covers only the statically
+referenced half, never the dynamically included one.
 Item 4 above and `ci-workflows` → C9 are the same runner asked about from the
 other side; reach the machine rules directly rather than through that hop.
 Without those modules, still ask what the change fetches and executes with
