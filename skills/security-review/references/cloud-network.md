@@ -153,8 +153,17 @@ concurrency has a second failure that neither path fixes.
   whichever writes last erases the other's rule. The same race lets a cleanup
   step silently *reopen* a rule another job just closed, by writing back an
   array it read before the close. The failure is non-deterministic, invisible,
-  and produces precisely the leak the cleanup step exists to prevent. The fix
-  is the next bullet, not a lock around the job.
+  and produces precisely the leak the cleanup step exists to prevent. Two
+  remediations work, and which one is right depends on who owns the resource.
+  Moving to the rules endpoints (next bullet) removes the read-modify-write
+  altogether, and is the simpler fix where the automation owns the firewall
+  directly. Where a *declarative* layer owns it, that move writes around the
+  state owner and buys drift instead — so serialize there: one lock, or a
+  concurrency group, that **every** writer takes. That condition is the whole
+  control, and it is the part to check rather than the lock's existence. A lock
+  only one pipeline honors, with a console change or a second repository
+  writing outside it, serializes nothing and reads in a diff exactly like one
+  that works.
 - **The dedicated rules endpoints are not.** `POST /v2/firewalls/{id}/rules`
   and `DELETE /v2/firewalls/{id}/rules` each take a list of rules to add or to
   remove and return `204` with no body; `doctl compute firewall add-rules` and
