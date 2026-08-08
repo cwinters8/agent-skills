@@ -94,7 +94,7 @@
       "required": false,
       "requiredWith": ["security-review"],
       "readBy": ["security-review"],
-      "supplies": "Which reference modules apply, from the skill's references directory: postgres-rls, ci-workflows, mobile-release, infra-provisioning, cloud-network, config-as-code. List only what this project actually uses, with one exception in one direction: naming cloud-network or config-as-code also means naming infra-provisioning, which is the base module of the three and carries the group translation the other two are written against.",
+      "supplies": "Which reference modules apply, from the skill's references directory: postgres-rls, ci-workflows, mobile-release, infra-provisioning, cloud-network, config-as-code. List only what this project actually uses, with one exception in one direction: naming cloud-network also means naming infra-provisioning, and so does naming config-as-code when the declarative layer manages a configured machine. infra-provisioning is the base module of the three and carries the group translation the other two are written against; an infrastructure-as-code repository that provisions no machine — DNS, object storage, SaaS configuration — names config-as-code alone.",
       "fallback": "No reference module loads and the review stays at the level of the generic checks."
     },
     {

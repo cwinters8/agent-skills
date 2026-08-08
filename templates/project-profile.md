@@ -139,9 +139,12 @@ TODO
      you don't produces checks that cannot pass.
 
      One exception, in one direction: name infra-provisioning whenever you name
-     cloud-network or config-as-code. It is the base module of the three and
-     carries the group translation the other two are written against, even if no
-     imperative shell survives in your repository. -->
+     cloud-network, and whenever the layer config-as-code covers manages a
+     configured machine. It is the base module of the three and carries the
+     group translation the other two are written against, even if no imperative
+     shell survives in your repository. An infrastructure-as-code repository
+     that provisions no machine — DNS, object storage, SaaS configuration —
+     names config-as-code alone. -->
 
 TODO
 

@@ -9,18 +9,25 @@ approved it says something other than what the reviewer read in the repository.
 
 ## Reading the six groups
 
-A `## Stack` naming this module names `infra-provisioning` too, so read that
-module's *Reading the six groups for infrastructure* table first — it is the
-full translation of `SKILL.md`'s group names onto a machine, kept in one place
-so it cannot drift, and the D-series below is written against it. The two
-readings this module turns on: what the run **writes to disk on the target**, at
-what mode, and what it **prints** to an operator's terminal or a CI job log, is
-`client-data`; what it **downloads and executes** is `supply-chain`.
+Where the layer this module covers manages a **configured machine**, `## Stack`
+names `infra-provisioning` too, so read that module's *Reading the six groups
+for infrastructure* table first — it is the full translation of `SKILL.md`'s
+group names onto a machine, kept in one place so it cannot drift. The two
+readings it turns on for the D-series: what the run **writes to disk on the
+target**, at what mode, and what it **prints** to an operator's terminal or a CI
+job log, is `client-data`; what it **downloads and executes** is `supply-chain`.
 
-If that module was not loaded anyway, apply the D-series regardless and say in
-the report which group each finding was filed under and that the translation was
-unavailable — an improvised mapping a reader can see is fine, one they cannot
-distinguish from the canonical one is not.
+**A declarative repository need not have a machine at all.** One that manages
+only DNS, object storage or a SaaS tenant boots nothing, and for it that table
+translates onto nothing — its groups are about accounts on a box, writes to a
+target's disk, and port reachability. Such a project names this module alone,
+which is the expected path rather than a degradation: apply the D-series, file
+each finding against `SKILL.md`'s own group names, and say no machine
+translation applied. Almost the whole series survives the loss, because what it
+describes is tooling behavior — a parser coercing a bare word, two layers
+disagreeing about a value, what a plan file retains, what a green check did not
+reach. D3's worked example is the exception, since a host account's password
+salt presumes accounts on a box.
 
 ## Rules
 

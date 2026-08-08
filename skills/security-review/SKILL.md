@@ -118,9 +118,12 @@ When `## Stack` names `postgres-rls`, read `references/postgres-rls.md` — it
 carries the RLS-specific rules, the live audit queries, and the two-account
 probe procedure, including the ways a probe passes while proving nothing.
 
-When `## Stack` names `infra-provisioning`, `cloud-network` or `config-as-code`,
-the translation of this group onto a machine applies: `authorization` there is
-which accounts exist, the sudo policy, and what identity each service runs as.
+When `## Stack` names `infra-provisioning` or `cloud-network`, the translation
+of this group onto a machine applies: `authorization` there is which accounts
+exist, the sudo policy, and what identity each service runs as. A `## Stack`
+naming only `config-as-code` may have no machine to translate onto — a
+declarative repository managing DNS, object storage or a SaaS tenant — in which
+case read this group as written and say so.
 Its concrete rule is P7 — a sudoers drop-in is staged, validated with its mode,
 ownership and final filename already set, and only then installed. An invalid
 file in `/etc/sudoers.d` denies escalation to every account and takes with it

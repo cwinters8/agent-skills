@@ -28,6 +28,26 @@ section simply finds nothing to match on a repository that has no shell. A
 project with a provisioning script and neither of those layers names this module
 alone.
 
+That implication is bounded by what this module is *about*, and the boundary
+falls in one of the two. What the table below translates the six group names
+onto is **a configured machine**: which accounts exist on the box, what the run
+writes to disk on the target, which sources may reach a port. `cloud-network`
+always has that machine, since what its rules govern is what can reach one.
+`config-as-code` need not: a declarative repository can manage DNS records,
+object storage or a SaaS tenant's configuration and provision nothing that boots.
+Almost all of its D-series still holds there, because those rules are properties
+of the tooling rather than of a target — parser coercion, what a plan does and
+does not verify, state and plan files as credential material, a secret reaching
+a run's output. The translation is the part with nothing to map onto, and
+loading this module for such a repository asks account, disk and reachability
+questions it cannot answer, which is the "checks that cannot pass" failure the
+profile warns about. So a declarative repository that provisions no machine
+names `config-as-code` alone and takes that module's own not-loaded path: apply
+the D-series, file each finding under a group by hand, and say in the report
+that no machine translation applied. Name this module the moment any target *is*
+a machine — one instance, one `authorized_keys` line, one host firewall is
+enough.
+
 ## Reading the six groups for infrastructure
 
 The group names in `SKILL.md` assume an application with user accounts. They map

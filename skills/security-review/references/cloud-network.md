@@ -20,7 +20,10 @@ which of its defaults are in force, before applying any N-series rule.
 A `## Stack` naming this module names `infra-provisioning` too, so read that
 module's *Reading the six groups for infrastructure* table first — it is the
 full translation of `SKILL.md`'s group names onto a machine, kept in one place
-so it cannot drift, and the N-series below is written against it.
+so it cannot drift, and the N-series below is written against it. That holds
+here without qualification, because this module's subject *is* a machine's
+reachability: naming it asserts there is a box behind the firewall, and a
+project with no box has nothing for N1–N5 to review either.
 
 The reading this module turns on: **reachability is filed under `auth-session`**,
 because it travels with the credential it fronts. It is not there because a
@@ -98,9 +101,9 @@ with a permissive network-level rule above it has verified the smaller half.
 
 **N3. Just-in-time firewall rules fail open.** The pattern is a CI job opening
 its own runner's address at start and closing it in an always-run final step.
-Three independent problems. The third does the most damage where it lands, but
-unlike the other two it is conditional on how the automation talks to the
-provider — so establish that before reporting it.
+Three independent problems. The third does the most damage where it lands, and
+only half of it is conditional on how the automation talks to the provider — so
+establish that before reporting that half.
 
 **The closing step runs on a budget, not a guarantee.** The claim that a
 cancelled job simply skips its cleanup is wrong, and stating it costs the rule
@@ -136,7 +139,8 @@ DigitalOcean:
 **two concurrent jobs clobbering each other's rules** — is real, but it is a
 property of the *whole-firewall update* path rather than of the provider, and
 the provider offers both paths. Read the automation and decide which one it
-drives before reporting anything.
+drives before reporting a clobber — then read the third bullet, because
+concurrency has a second failure that neither path fixes.
 
 - **The whole-firewall update is the racy path.** `PUT /v2/firewalls/{id}`,
   `doctl compute firewall update`, and any declarative infrastructure resource
@@ -158,8 +162,29 @@ drives before reporting anything.
   is exactly *why* those endpoints address rules by value — send the rule you
   want gone and the provider drops that rule and leaves the rest alone — which
   makes delete-by-value the race-free path rather than the impossible one. A
-  project already on these endpoints does not have this bug, and reporting it
-  there is a false positive; false positives cost the gate its credibility.
+  project already on these endpoints does not have the clobbering bug, and
+  reporting that one there is a false positive; false positives cost the gate
+  its credibility. It may still have the next one.
+- **Neither path survives two jobs sharing a source address.** The missing rule
+  id cuts both ways. It is what lets these endpoints address a rule by value,
+  and it is also what makes a rule unattributable — so when two runs come from
+  one address (self-hosted runners behind a single NAT, or two runs drawn from
+  the same hosted egress range) they do not each get a rule, they *both* ask
+  for the identical tuple, and nothing in the firewall records whose it is. The
+  provider does not document whether a second identical add stores a second
+  copy or collapses into one, and neither answer rescues the pattern: collapsed,
+  the first job's cleanup deletes the only rule while the second job is still
+  using it; kept, the `DELETE` names a value rather than an instance, so nothing
+  promises it removes one copy rather than both — and the copies are
+  interchangeable anyway. The symptom is the reverse of the leak this rule opens
+  with: a run whose access is withdrawn partway through, at a moment set by
+  another run's schedule. AWS makes the same collision loud rather than silent —
+  a duplicate authorization is refused with `InvalidPermission.Duplicate`, so
+  the second job fails at its own open step, and if it shrugs that off and
+  continues, the first job's revoke strands it exactly the same way. Report this
+  wherever concurrent runs can share a source, and require one of: a distinct
+  source per job, a lock serializing the runs, or the stable identity below,
+  which dissolves the question by adding no per-job rule at all.
 
 What leaks when it does go wrong is SSH open to an address the project does not
 control, indefinitely, with nothing distinguishing it from a deliberate rule.
