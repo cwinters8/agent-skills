@@ -17,14 +17,26 @@ which of its defaults are in force, before applying any N-series rule.
 
 ## Reading the six groups
 
-If `## Stack` also names `infra-provisioning`, read that module's *Reading the
-six groups for infrastructure* table first — it is the full translation of
-`SKILL.md`'s group names onto a machine, and it is kept in one place so it
-cannot drift. The reading this module turns on: **reachability is filed under
-`auth-session`**, because it travels with the credential it fronts. It is not
-there because a firewall authenticates anything — a source address identifies a
-path, not a principal, so "the port is filtered" never upgrades a service that
-has no credential.
+A `## Stack` naming this module names `infra-provisioning` too, so read that
+module's *Reading the six groups for infrastructure* table first — it is the
+full translation of `SKILL.md`'s group names onto a machine, kept in one place
+so it cannot drift, and the N-series below is written against it. That holds
+here without qualification, because this module's subject *is* a machine's
+reachability: naming it asserts there is a box behind the firewall, and a
+project with no box has nothing for N1–N5 to review either.
+
+The reading this module turns on: **reachability is filed under `auth-session`**,
+because it travels with the credential it fronts. It is not there because a
+firewall authenticates anything — a source address identifies a path, not a
+principal, so "the port is filtered" never upgrades a service that has no
+credential. That argument is stated once, with the standards framing behind it,
+in `references/infra-provisioning.md`'s same section; the one-line version here
+is a reminder, and a refinement belongs there rather than in both.
+
+If that module was not loaded anyway, apply the N-series regardless and say in
+the report which group each finding was filed under and that the translation was
+unavailable — an improvised mapping a reader can see is fine, one they cannot
+distinguish from the canonical one is not.
 
 ## Rules
 
@@ -89,7 +101,9 @@ with a permissive network-level rule above it has verified the smaller half.
 
 **N3. Just-in-time firewall rules fail open.** The pattern is a CI job opening
 its own runner's address at start and closing it in an always-run final step.
-Three independent problems, and the third is the strongest.
+Three independent problems. The third does the most damage where it lands, and
+only half of it is conditional on how the automation talks to the provider — so
+establish that before reporting that half.
 
 **The closing step runs on a budget, not a guarantee.** The claim that a
 cancelled job simply skips its cleanup is wrong, and stating it costs the rule
@@ -116,23 +130,79 @@ DigitalOcean:
   expressiveness.
 - **DigitalOcean** is worse than the old text implied. An inbound rule has no
   id, no description, no tags and no timestamp — `created_at` lives on the
-  enclosing firewall, not on the rule — so closing one rule means a read,
-  modify, write of the *entire* rule array.
+  enclosing firewall, not on the rule — so "expire anything older than N
+  minutes" is not merely unenforced, it is *inexpressible*. There is nothing on
+  the rule to compare a clock against, and nothing to tell one job's rule from
+  another job's, or from a rule somebody added deliberately.
 
-That last point is the strongest argument against the pattern, and it was
-missing: **two concurrent CI jobs clobber each other's rules.** Job A reads the
-array, job B reads the same array, both write, and whichever writes last erases
-the other's rule. The same race lets a cleanup step silently *reopen* a rule
-another job just closed, by writing back an array it read before the close. The
-failure is non-deterministic, invisible, and produces precisely the leak the
-cleanup step exists to prevent. What leaks is SSH open to an address the project
-does not control, indefinitely, with nothing distinguishing it from a deliberate
-rule.
+**Check which API path the automation takes.** The pattern's worst failure —
+**two concurrent jobs clobbering each other's rules** — is real, but it is a
+property of the *whole-firewall update* path rather than of the provider, and
+the provider offers both paths. Read the automation and decide which one it
+drives before reporting a clobber — then read the third bullet, because
+concurrency has a second failure that neither path fixes.
+
+- **The whole-firewall update is the racy path.** `PUT /v2/firewalls/{id}`,
+  `doctl compute firewall update`, and any declarative infrastructure resource
+  that manages the firewall as a single unit all send a full representation:
+  "the request should contain a full representation of the firewall including
+  existing attributes… any attributes that are not provided will be reset to
+  their default values." Changing one rule therefore does mean reading the
+  current array, modifying it, and writing all of it back — and that is the
+  race. Job A reads the array, job B reads the same array, both write, and
+  whichever writes last erases the other's rule. The same race lets a cleanup
+  step silently *reopen* a rule another job just closed, by writing back an
+  array it read before the close. The failure is non-deterministic, invisible,
+  and produces precisely the leak the cleanup step exists to prevent. Two
+  remediations work, and which one is right depends on who owns the resource.
+  Moving to the rules endpoints (next bullet) removes the read-modify-write
+  altogether, and is the simpler fix where the automation owns the firewall
+  directly. Where a *declarative* layer owns it, that move writes around the
+  state owner and buys drift instead — so serialize there: one lock, or a
+  concurrency group, that **every** writer takes. That condition is the whole
+  control, and it is the part to check rather than the lock's existence. A lock
+  only one pipeline honors, with a console change or a second repository
+  writing outside it, serializes nothing and reads in a diff exactly like one
+  that works.
+- **The dedicated rules endpoints are not.** `POST /v2/firewalls/{id}/rules`
+  and `DELETE /v2/firewalls/{id}/rules` each take a list of rules to add or to
+  remove and return `204` with no body; `doctl compute firewall add-rules` and
+  `remove-rules` wrap them. Neither reads anything first. The missing rule id
+  is exactly *why* those endpoints address rules by value — send the rule you
+  want gone and the provider drops that rule and leaves the rest alone — which
+  makes delete-by-value the race-free path rather than the impossible one. A
+  project already on these endpoints does not have the clobbering bug, and
+  reporting that one there is a false positive; false positives cost the gate
+  its credibility. It may still have the next one.
+- **Neither path survives two jobs sharing a source address.** The missing rule
+  id cuts both ways. It is what lets these endpoints address a rule by value,
+  and it is also what makes a rule unattributable — so when two runs come from
+  one address (self-hosted runners behind a single NAT, or two runs drawn from
+  the same hosted egress range) they do not each get a rule, they *both* ask
+  for the identical tuple, and nothing in the firewall records whose it is. The
+  provider does not document whether a second identical add stores a second
+  copy or collapses into one, and neither answer rescues the pattern: collapsed,
+  the first job's cleanup deletes the only rule while the second job is still
+  using it; kept, the `DELETE` names a value rather than an instance, so nothing
+  promises it removes one copy rather than both — and the copies are
+  interchangeable anyway. The symptom is the reverse of the leak this rule opens
+  with: a run whose access is withdrawn partway through, at a moment set by
+  another run's schedule. AWS makes the same collision loud rather than silent —
+  a duplicate authorization is refused with `InvalidPermission.Duplicate`, so
+  the second job fails at its own open step, and if it shrugs that off and
+  continues, the first job's revoke strands it exactly the same way. Report this
+  wherever concurrent runs can share a source, and require one of: a distinct
+  source per job, a lock serializing the runs, or the stable identity below,
+  which dissolves the question by adding no per-job rule at all.
+
+What leaks when it does go wrong is SSH open to an address the project does not
+control, indefinitely, with nothing distinguishing it from a deliberate rule.
 
 **Prefer a stable identity.** A long-lived runner carrying a provider tag, and
 one static rule whose source is that tag. That removes the IP detection, the
-reaper, the race, and — worth stating explicitly — the cloud-provider API token
-from CI entirely, since no job needs to mutate infrastructure any more.
+reaper, whichever API path the job was driving, and — worth stating explicitly —
+the cloud-provider API token from CI entirely, since no job needs to mutate
+infrastructure any more.
 
 Analogues exist on the other providers and are stronger: an AWS security group
 can name **another security group** as a rule's source, and GCP supports source
