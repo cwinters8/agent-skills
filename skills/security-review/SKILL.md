@@ -376,12 +376,16 @@ largest surface here — a remote installer piped to a root shell, unpinned and
 unverified. P1 is item 5's shape one layer down: a caller-controlled value
 landing in a root script's path, command or config line. Where `config-as-code`
 covers configuration management, D4 names a manifest item 1 will otherwise not
-think to look for — the role and collection requirements file a syntax check
-resolves against, where green covers only the statically referenced half and
-never the dynamically included one. Where it covers infrastructure-as-code
-instead, there is no such manifest and D4's subject is the init, validate and
-plan sequence; looking for a requirements file there invents a missing
-dependency.
+think to look for: whatever dependency file that system's own check resolves
+against, and how much of the tree the check never reaches. D4 works that case
+through Ansible, where it is the role and collection requirements file and
+green covers only the statically referenced half, never the dynamically
+included one. On another configuration-management system read D4 for that shape
+and establish what its equivalent is before reporting a missing manifest —
+naming Ansible's on a system that has no such thing is the same invented
+finding, one system over. Where `config-as-code` covers infrastructure-as-code
+instead, there is no such manifest at all and D4's subject is the init,
+validate and plan sequence.
 Item 4 above and `ci-workflows` → C9 are the same runner asked about from the
 other side; reach the machine rules directly rather than through that hop.
 Without those modules, still ask what the change fetches and executes with
