@@ -121,10 +121,15 @@ probe procedure, including the ways a probe passes while proving nothing.
 When `## Stack` names `infra-provisioning`, `cloud-network` or `config-as-code`,
 the translation of this group onto a machine applies: `authorization` there is
 which accounts exist, the sudo policy, and what identity each service runs as.
-Its concrete rule is P7 — a sudoers drop-in is staged, validated with its mode
-and ownership already set, and only then installed, because an invalid or
-world-writable one in `/etc/sudoers.d` denies escalation to every account and
-takes with it the privilege needed to repair it.
+Its concrete rule is P7 — a sudoers drop-in is staged, validated with its mode,
+ownership and final filename already set, and only then installed. An invalid
+file in `/etc/sudoers.d` denies escalation to every account and takes with it
+the privilege needed to repair it; a file sudo silently skips or never reads
+leaves the intended grant merely absent instead. P7 says which defect lands
+where. Without that module, still ask it of any privilege-granting file the
+change installs — which accounts it grants, whether it was validated before it
+landed, and whether a defect in it fails loudly or silently — and say the
+rule-level detail was not graded.
 `references/infra-provisioning.md` carries the full six-group translation for
 all three, and the other two point at it. Groups 2 through 5 carry their own
 pointers as well, because that is where most of these modules' content lands.
@@ -225,10 +230,10 @@ is reachable from items 1–5: ranking by blast radius (an account-scoped provid
 token is not rotated by a rebuild), the three places a secret lands on a target,
 where the value lives at rest, short-lived and derived over stored, and the
 metadata endpoint as a credential surface. `config-as-code` → D5 adds the values
-a tool writes on the project's own behalf. Without that module, still report a
-state or plan file as credential material — marking a value `sensitive` changes
-only what is printed, not what is written — and say the tool-specific remedies
-were not graded.
+a tool writes on the project's own behalf. Without that module, still treat a
+tool-generated state or plan artifact as credential material until shown
+otherwise — such tools routinely persist values a reviewer assumed were hidden —
+and say the tool-specific remedies were not graded.
 
 ## Group 4 — Client and data handling
 
@@ -252,7 +257,10 @@ target and what it prints. The written half is P3 — the mode and owner of a fi
 the code has just put a credential into — with P8 and `config-as-code` → D3 on
 why an in-place edit leaves an end state no reviewer can see, and why a value
 interpolated into a `sed` expression is code rather than data. The printed half
-is P5 and D6, and item 1 above covers only that half.
+is P5 and D6, and item 1 above covers only that half. Without either module,
+still read the group that way on such a repo — the mode and owner of any file
+the change writes a credential into, and any value that reaches a terminal or a
+job log — and say the rule-level detail was not graded.
 
 ## Group 5 — Supply chain and CI
 
