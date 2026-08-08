@@ -118,6 +118,12 @@ When `## Stack` names `postgres-rls`, read `references/postgres-rls.md` — it
 carries the RLS-specific rules, the live audit queries, and the two-account
 probe procedure, including the ways a probe passes while proving nothing.
 
+When `## Stack` names `infra-provisioning`, `cloud-network` or `config-as-code`,
+the translation of this group onto a machine applies: `authorization` there is
+which accounts exist, the sudo policy, and what identity each service runs as.
+`references/infra-provisioning.md` carries the full six-group translation for
+all three, and the other two point at it.
+
 Whether you may probe at all is `## Probe policy`. Reading policy definitions is
 weaker evidence than testing them; when probing is forbidden, say in the report
 that the authorization finding rests on reading definitions only.

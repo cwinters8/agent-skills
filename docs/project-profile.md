@@ -243,6 +243,9 @@ Which reference modules apply, from `skills/security-review/references/`:
 | `postgres-rls` | Postgres with row-level security, including Supabase / PostgREST |
 | `ci-workflows` | GitHub Actions |
 | `mobile-release` | shipping to the App Store or Play |
+| `infra-provisioning` | the machine is configured by imperative shell run as root — the shell itself, the ordering that keeps the operator able to reach the box, and the secrets such a run handles |
+| `cloud-network` | what can reach the machine is decided by a provider-managed layer — cloud firewalls, VPCs and network ACLs, or ingress pinned to particular addresses |
+| `config-as-code` | a declarative layer reconciles the machine or the infrastructure — configuration management, or infrastructure-as-code with a state file |
 
 List only what the project actually uses. Each module is depth about a stack, not
 about your project; naming one you don't use produces checks that cannot pass.

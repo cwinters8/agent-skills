@@ -94,7 +94,7 @@
       "required": false,
       "requiredWith": ["security-review"],
       "readBy": ["security-review"],
-      "supplies": "Which reference modules apply, from the skill's references directory: postgres-rls, ci-workflows, mobile-release. List only what this project actually uses.",
+      "supplies": "Which reference modules apply, from the skill's references directory: postgres-rls, ci-workflows, mobile-release, infra-provisioning, cloud-network, config-as-code. List only what this project actually uses.",
       "fallback": "No reference module loads and the review stays at the level of the generic checks."
     },
     {
