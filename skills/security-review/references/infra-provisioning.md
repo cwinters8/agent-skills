@@ -330,13 +330,27 @@ answer, and it distinguishes a considered fallback from an unexamined one.
   printing a switch and have the unattended caller set it off.
 - **Written.** Which file, at what mode, owned by whom (P3), and whether a later
   step rewrites it and resets the mode.
-- **Passed as a process argument.** Anything on `argv` is visible in `/proc` to
-  any local user for the life of the call: `/proc/<pid>/cmdline` is `0444`,
-  `hidepid=0` is the documented default, no mainstream distribution enables
-  `hidepid`, and Red Hat advises against it on RHEL 7+ because it conflicts with
-  systemd — so do not treat process hiding as an available mitigation. Some
-  vendor CLIs accept a token only as a flag, so the exposure may be unavoidable;
-  record it as a known limitation rather than leaving a reader to find it. An
+- **Passed as a process argument.** Anything on `argv` is visible in `/proc`:
+  `/proc/<pid>/cmdline` is `0444` and `hidepid=0` is the documented default, so
+  on an ordinary host every local user can read it for the life of the call.
+
+  Do not turn that into "process hiding is not an available mitigation", which
+  was this rule's older overreach — **check the target, not the
+  distribution.** `hidepid=1` or `hidepid=2` on the `/proc` mount genuinely does
+  keep users outside a process's own uid out of its entries, and a provisioning
+  repository that sets it deliberately has a control the review should credit
+  rather than a finding. `findmnt -no OPTIONS /proc` is the entire check, and
+  the `gid=` option, where present, names the group exempted from it. Two things
+  stay true regardless: same-uid and privileged readers still see everything, so
+  this narrows the audience rather than closing the exposure; and no mainstream
+  distribution sets it, with Red Hat advising against it on RHEL 7+ where it
+  interacts badly with systemd — which is a reason a project may have chosen not
+  to, not a reason to overlook that another project did. On a host that has not
+  set it, `argv` is public and the finding stands.
+
+  Some vendor CLIs accept a token only as a flag, so the exposure may be
+  unavoidable; record it as a known limitation rather than leaving a reader to
+  find it. An
   environment variable is materially better than `argv` — `/proc/<pid>/environ`
   is `0400`, owner-only — but stdin is better than both, because the value is
   never parked in an interface another process can read at leisure. Do not
@@ -671,25 +685,33 @@ identity" is too vague for a reviewer to act on, so resolve it to one of these
 and check for that:
 
 - **OIDC federation from CI to the cloud provider**, against a trust policy
-  scoped so that only the intended workflow can assume it. Require repository
-  scope plus **one** of a permitted ref or a protected deployment environment —
-  one, not both, because the subject claim carries one *or* the other. A
-  ref-scoped subject names the branch or tag directly; an environment-scoped one
-  (`repo:<owner>/<repo>:environment:<name>`) carries no ref at all, and which
-  branches may reach it is decided by that environment's own deployment
-  restrictions instead. So demanding a ref in the subject rejects the
-  environment-scoped setup, which can be the *stronger* of the two, since an
-  environment can additionally require a reviewer — `references/ci-workflows.md`
-  → C9.5 is where those restrictions get checked, and this bullet defers to it
-  rather than restating them. Establish which shape the subject takes, then
-  verify the restriction that actually bounds it: the ref pattern where it is
-  ref-scoped, and where it is environment-scoped, the deployment branch or tag
-  rules deciding which refs may reach that environment. **Required reviewers is
-  an optional protection rule layered on top**, so ask for it where the
-  project's own policy calls for approval on that deployment — not as a
-  condition of accepting the subject, which would report a deliberately
-  unattended deployment as a finding. Scoped to the repository and nothing else
-  is the finding, in either shape. Any of this
+  scoped so that only the intended workflow can assume it. State that
+  platform-neutrally, because this module covers infrastructure repositories on
+  any CI system and the claims differ between them: the policy has to pin
+  **two** things, not one — the identity of the repository or project, *and* a
+  restriction on which runs of it may assume the role. A branch or tag, a named
+  deployment target, a particular pipeline: whatever that platform's token
+  actually carries. **A policy naming the repository and nothing else is the
+  finding**, on every platform, because any run of that repository — from any
+  branch, through any path the platform lets an outsider trigger — then mints
+  the credential.
+
+  What the second pin looks like is the platform's business, so read the claims
+  it issues rather than matching a shape learned somewhere else. On GitHub
+  Actions, where `references/ci-workflows.md` carries the depth, the subject
+  claim carries a ref *or* an environment and never both: a ref-scoped subject
+  names the branch or tag directly, while an environment-scoped one carries no
+  ref and delegates the question to that environment's deployment branch and tag
+  rules. Demanding a ref there rejects the environment-scoped setup, which can
+  be the stronger of the two since an environment can additionally require a
+  reviewer — → C9.5 is where those restrictions get checked. Required reviewers
+  is an optional protection rule layered on top, so ask for it where the
+  project's own policy calls for approval on that deployment, not as a condition
+  of accepting the subject, which would report a deliberately unattended
+  deployment as a finding. On another platform, establish which claims the
+  provider is configured to trust and verify whichever restriction actually
+  bounds the run — the two-part pin is the rule, and the subject shapes above
+  are one ecosystem's way of satisfying it. Any of this
   replaces a long-lived access key sitting in repository secrets, which is the
   most common finding in this class.
 - **An attached instance role**, read from the metadata service at the moment of
@@ -761,12 +783,25 @@ What to require:
 
   Reporting "hop limit is 2" without establishing which of the three applies is
   reporting a configuration, not a hole.
-- **Deny the link-local range at the egress boundary** wherever the box runs a
+- **Deny the metadata service at the egress boundary** wherever the box runs a
   forward proxy or anything else fetching attacker-influenced URLs — the common
   shape for this stack. Belt and braces, with each brace named for what it
   actually holds: the token requirement stops the redirected GET, the hop limit
   bounds how far the token response can travel, and the egress rule stops a
   direct fetch by something running on the box.
+
+  **Enumerate the endpoints before writing that rule, and check both address
+  families.** "Deny the link-local range" is the IPv4 half and not the whole
+  service: AWS also serves IMDS at `fd00:ec2::254` where the instance has the
+  IPv6 endpoint enabled, so a boundary denying only `169.254.169.254` — or all
+  of `169.254.0.0/16` — leaves the direct-fetch path to role credentials wide
+  open on any box with working v6. That is N5's address-family lesson arriving
+  from the egress side: every rule has an address-family dimension, and a review
+  that read the v4 rules has read half the policy. So establish which metadata
+  endpoints the provider in use actually serves, which of them are enabled on
+  this instance, and deny all of them. Where the v6 endpoint is not needed,
+  turning it off is a smaller thing to keep correct than a rule that has to stay
+  in step with it.
 
   **Scope that denial to the fetcher rather than to the host**, or it takes the
   legitimate reader out with the hostile one: `references/cloud-network.md` → N4

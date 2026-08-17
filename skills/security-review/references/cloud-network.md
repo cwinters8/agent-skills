@@ -229,7 +229,24 @@ concurrency has a second failure that neither path fixes.
   makes delete-by-value the race-free path rather than the impossible one. A
   project already on these endpoints does not have the clobbering bug, and
   reporting that one there is a false positive; false positives cost the gate
-  its credibility. It may still have the next one.
+  its credibility. It may still have the next one — and one more that is not
+  about concurrency at all.
+
+  **Delete-by-value cannot tell whose rule it is**, and the collision that does
+  the most damage is not with another run but with the *persistent
+  configuration*. Where the firewall already carries the identical
+  source/protocol/port tuple as a deliberate static rule, the add either
+  collapses into it or creates an indistinguishable copy; the cleanup then
+  deletes by value and can take the static rule with it. The symptom is an
+  outage in something unrelated to CI, surfacing at the end of a *successful*
+  job, on a firewall that simply no longer has a rule somebody added on
+  purpose — and nothing in the run's logs mentions it. So require the
+  automation to establish that it owns the tuple before removing it: a source
+  unique to the run is the cheap answer, and failing that, read the rule set
+  before adding and skip both the add and the delete when the tuple was already
+  present. The bullet below covers run-against-run; this is
+  run-against-configuration, and neither the provider nor these endpoints
+  distinguish the two.
 - **Neither path survives two jobs sharing a source address.** The missing rule
   id cuts both ways. It is what lets these endpoints address a rule by value,
   and it is also what makes a rule unattributable — so when two runs come from
