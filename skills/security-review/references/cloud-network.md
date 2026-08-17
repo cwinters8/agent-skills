@@ -368,12 +368,20 @@ Four things the rule needs, in descending severity:
    One **complete** cutoff closes it, and demanding two produces a finding
    against a box that is already safe. This is N2's rule-and-path conjunction
    read the other way: exposure needs a listener *and* a permitted path, so
-   removing either ends it. A daemon conclusively not listening on `::` cannot
-   be reached however open the v6 rules are; a firewall dropping all inbound v6
-   to that port is enough however the daemon binds. Verify one of them properly
-   and say which — "sshd is v4-only, so the `::/0` rule reaches no listener" is
-   a complete answer, and a better one than a vague claim that both were
-   hardened. Two things to carry with it: a single-layer cutoff is one edit away
+   removing either ends it.
+
+   "Complete" is doing real work in that sentence, and the daemon half is the
+   easy one to get wrong: **the absence of a wildcard `::` socket is not the
+   absence of an IPv6 listener.** A `ListenAddress 2001:db8::1` binds one
+   specific v6 address and is reached perfectly well through a permissive v6
+   rule, while a check that grepped the config for `::` reports the daemon
+   v4-only and the box internet-exposed-but-approved. So establish that there is
+   no v6 listener *at all* — read the sockets the daemon actually holds, not one
+   directive — or verify the firewall half instead, which has the advantage of
+   not depending on how the daemon binds. Then say which you established: "no
+   IPv6 socket bound on this port, per the listening sockets" is a complete
+   answer; "no `::` in the config" is not, and a vague claim that both layers
+   were hardened is worse than either. Two things to carry with it: a single-layer cutoff is one edit away
    from re-opening, since nothing at the other layer would object, so note it
    where the config lives; and the cutoff you verified covers *that port*, not
    the host — other services listening on `::` are their own question, and a

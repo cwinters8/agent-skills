@@ -363,9 +363,23 @@ that reports success while installing a grant that does not exist:
 - **`visudo -cf <file>` does not check mode or ownership.** Those checks run
   only when *no* path is given. A staged file at `0666` reports "parsed OK" —
   and sudo then **skips** a world-writable drop-in at runtime. Pass `-O -P` to
-  check owner and permissions too, or set `0440 root:root` on the staged file
-  before validating it, which is better anyway since it is the mode the file
-  will be installed with.
+  check owner and permissions too, and set `0440 root:root` on the staged file
+  before validating it. `-O -P` earns its place: verified locally, a drop-in at
+  `0755` or `0664` parses fine under `-csf` and exits `0`, while
+  `visudo -c -O -P -s -f` reports `bad permissions, should be mode 0440` and
+  exits `1`.
+
+  **Then read the install step, because validating the staged inode says
+  nothing about the one sudo opens.** GNU `install` does not carry the source's
+  mode across — its own `--help` gives `-m` as setting the mode "instead of
+  rwxr-xr-x" — so a staged file validated at `0440` arrives at the destination
+  as `0755`, confirmed locally. The privilege policy is then readable by every
+  local account, and the mode contract established one sentence earlier is
+  broken by the step that publishes the file. Require the installing command to
+  set owner, group and mode itself (`install -o root -g root -m 0440`), or a
+  `mv`/`cp -p` that preserves them. This is the general form of the trap: a
+  check proves a property of the artifact it was pointed at, and the artifact
+  the consumer reads is a different one.
 - **Without `-s`, an undefined `Cmnd_Alias` reference exits 0.** It prints a
   diagnostic and returns success, so a script keying off the exit status ships
   the break silently. Use `visudo -csf <file>`.
@@ -564,9 +578,18 @@ rather than assuming either end of it. The metadata endpoint is the same
 question one step removed — it is account-scoped when what it serves is, and an
 instance with no role attached has nothing there at all (P16).
 
-**P13. A secret reaching a target through a configuration run lands in three
-places on that target.** Enumerate all three for every such value rather than
-generalizing from one:
+**P13. A secret reaching a target through a configuration run has three places
+it can land.** Walk all three for every such value rather than generalizing from
+one — then report the ones it actually reaches.
+
+The older phrasing said the value *lands* in all three, which is both wrong and
+in conflict with P5 a few rules up: preferring stdin, a credential API or a
+mode-protected temporary file is worth doing precisely because those routes miss
+one or more of these. A tool that streams the value to the target's stdin and
+suppresses it from task output has put it in neither of the first two. So treat
+the list as channels to establish rather than findings to file — an argv
+exposure reported against a transport that never touched argv is the false
+positive that gets the rule waved through the next time it is right:
 
 - **process arguments** on the target, for the life of the invoking task (P5);
 - **run output** — the operator's terminal locally, a job log in CI;

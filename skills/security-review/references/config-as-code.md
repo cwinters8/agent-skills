@@ -23,11 +23,31 @@ translates onto nothing — its groups are about accounts on a box, writes to a
 target's disk, and port reachability. Such a project names this module alone,
 which is the expected path rather than a degradation: apply the D-series, file
 each finding against `SKILL.md`'s own group names, and say no machine
-translation applied. Almost the whole series survives the loss, because what it
-describes is tooling behavior — a parser coercing a bare word, two layers
-disagreeing about a value, what a plan file retains, what a green check did not
-reach. D3's worked example is the exception, since a host account's password
-salt presumes accounts on a box.
+translation applied. Much of the series survives the loss, because what it
+describes is tooling behavior — a parser coercing a bare word, what a plan file
+retains, what a green check did not reach. But "almost the whole series" was too
+generous, and a reviewer who takes it applies rules with nothing to bite on,
+which is the cannot-pass failure this path exists to avoid. Take them one at a
+time, and record the ones with no subject *as* having none:
+
+- **D1** needs a YAML 1.1 consumer on the path. A stack parsing no YAML has no
+  subject here — the rule says so itself.
+- **D2** assumes a service, a firewall, a port number living in two layers, and
+  a loopback check that passes anyway. No machine, no subject — unless the
+  project has some *other* value duplicated across a state boundary, in which
+  case the shape transfers and only the worked example does not.
+- **D3** applies to whatever the layer renders; its worked example does not,
+  since a host account's password salt presumes accounts on a box.
+- **D4** applies wherever there is a requirements manifest and a run claiming to
+  have verified something.
+- **D5** applies always, and is such a repository's principal rule: state and
+  plan are credential material whatever was or was not provisioned.
+- **D6** is Ansible's `no_log`. A layer that is not Ansible has no subject.
+
+Saying which of these had no subject is part of the report rather than an
+omission from it. A group listing four rules as clean is making a different
+claim from one that graded four, and a maintainer cannot tell them apart unless
+the report does.
 
 ## Rules
 

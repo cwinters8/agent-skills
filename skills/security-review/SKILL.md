@@ -251,7 +251,11 @@ Where `## Stack` names `infra-provisioning`, P12–P16 of
 is reachable from items 1–5: ranking by blast radius (an account-scoped provider
 token is not rotated by a rebuild), the three places a secret lands on a target,
 where the value lives at rest, short-lived and derived over stored, and the
-metadata endpoint as a credential surface. Wherever `config-as-code` is named —
+metadata endpoint as a credential surface. **P6 belongs to this group too**, and
+sits outside that range: a value the run generates, prints once and stores
+nowhere is a secrets problem rather than a written-file one, and it is the rule
+P12's rebuild-does-not-rotate caveat turns on, so routing the range without it
+splits one argument across two groups. Wherever `config-as-code` is named —
 machine or not — D5 adds the values a tool writes on the project's own behalf.
 
 D5 is not the whole of this group on a repository that provisions no machine,
@@ -290,11 +294,14 @@ not graded.
 Where `## Stack` names `infra-provisioning`, or a `config-as-code` layer that
 manages a machine, `client-data` has no client in it: it is what the run writes
 to disk on the target and what it prints. The written half is P3 — the mode and
-owner of a file the code has just put a credential into — with P8 and
-`config-as-code` → D3 on why an in-place edit leaves an end state no reviewer
-can see, and why a value interpolated into a `sed` expression is code rather
-than data. The printed half is P5 and D6, and item 1 above covers only that
-half.
+owner of a file the code has just put a credential into — with P4 where the
+consumer is a systemd unit and the mode is therefore the fallback rather than
+the design, P9 where the config format cannot carry the credential's shape and
+mis-parses it into a service that starts fine and rejects every login, and P8
+and `config-as-code` → D3 on why an in-place edit leaves an end state no
+reviewer can see, and why a value interpolated into a `sed` expression is code
+rather than data. The printed half is P5 and D6, and item 1 above covers only
+that half.
 
 Where `config-as-code` is named for a layer that manages **no** machine — DNS,
 object storage, a SaaS tenant — there is no target to write to, so drop the P
