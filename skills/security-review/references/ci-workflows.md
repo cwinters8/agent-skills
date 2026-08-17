@@ -277,9 +277,9 @@ is a **stale profile**, and quietly compensating for one hides the staleness
 while a later reviewer keeps getting a report shaped by whichever module
 happened to load. Apply C9 from the runner side, say in the report that the
 repository provisions its own runner while the profile names no provisioning
-module and that the machine-side depth was therefore not graded, and hand off to
-`profile-refresh` to correct `## Stack`. If that skill is not vendored here, say
-the profile needs the entry and leave it to the maintainer.
+module and that the machine-side depth was therefore not graded, and follow
+`SKILL.md`'s stale-profile step, which is where the `profile-refresh`
+delegation and its not-vendored fallback are stated.
 
 **C9.1 Only private repositories may target the runner.** A fork PR on a
 **public** repo can run code on a self-hosted runner — GitHub's own words:

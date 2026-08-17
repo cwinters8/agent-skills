@@ -248,9 +248,20 @@ one unit through `$CREDENTIALS_DIRECTORY`, held in non-swappable memory. systemd
 documents that "access to credentials is restricted to the service's user", that
 "the credential data is not propagated down the process tree", and that "each
 time a credential is accessed an access check is enforced by the kernel". There
-is no mode to get wrong and nothing on `argv` (P5).
-`LoadCredentialEncrypted=` goes further and lets the encrypted value live in the
-repository.
+is nothing on `argv` (P5), and no mode to get wrong **on the copy the service
+reads**. `LoadCredentialEncrypted=` goes further and lets the encrypted value
+live in the repository.
+
+That qualifier is load-bearing, because plain `LoadCredential=` has to read the
+secret from somewhere, and systemd's controls attach to the runtime copy in
+`$CREDENTIALS_DIRECTORY` — not to the source. A unit pointing at a plaintext
+file leaves that file exactly where it was, at whatever owner and mode it was
+created with, and a review that reads "systemd credentials, so the mode is not
+the control" has approved a world-readable secret one path away from the one it
+checked. P3 still governs the source file: state its owner, group and mode at
+the point the run writes it. The mechanism removes the mode question only where
+the source is itself protected, or where `LoadCredentialEncrypted=` makes the
+on-disk form useless without the key (and see the key-mode caveat below).
 
 **Read the middle guarantee precisely: it is about the bytes, not about
 access.** What does not propagate is the *secret value* — unlike
@@ -383,11 +394,25 @@ that reports success while installing a grant that does not exist:
   rwxr-xr-x" — so a staged file validated at `0440` arrives at the destination
   as `0755`, confirmed locally. The privilege policy is then readable by every
   local account, and the mode contract established one sentence earlier is
-  broken by the step that publishes the file. Require the installing command to
-  set owner, group and mode itself (`install -o root -g root -m 0440`), or a
-  `mv`/`cp -p` that preserves them. This is the general form of the trap: a
-  check proves a property of the artifact it was pointed at, and the artifact
-  the consumer reads is a different one.
+  broken by the step that publishes the file.
+
+  **Publish it by rename, not by copy** — the metadata is only half of what the
+  publishing step decides. `install` and `cp` write *into* the destination:
+  verified locally, both keep the destination's inode and truncate it in place,
+  so an interrupted copy or a full filesystem leaves a **partially written
+  sudoers file** where a valid one used to be, which is the outcome this entire
+  rule exists to prevent, arrived at from the one direction the validation
+  cannot see. `mv` within the same filesystem is a rename: verified locally, the
+  destination gets the staged file's inode and its `0440` intact, and a failure
+  leaves the previous valid policy untouched. So stage the file **on the
+  destination's filesystem**, set owner, group and mode there, validate it
+  there, then rename it into place — and note the condition, since `mv` across
+  filesystems degrades to copy-then-unlink and gives none of this back.
+
+  The general form of the trap is worth keeping in view: a check proves a
+  property of the artifact it was handed, and what the consumer reads is a
+  different artifact — different mode, different inode, or different content
+  than the one that passed.
 - **Without `-s`, an undefined `Cmnd_Alias` reference exits 0.** It prints a
   diagnostic and returns success, so a script keying off the exit status ships
   the break silently. Use `visudo -csf <file>`.

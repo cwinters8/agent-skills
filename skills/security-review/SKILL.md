@@ -53,6 +53,17 @@ Most add depth to one group, but a module can also change how a group should be
 *read*, and a reviewer who meets it only from inside the group that happens to
 cite it has already worked the others on the wrong definitions.
 
+`## Stack` is the authority on which modules load, so never load one it does not
+name in order to cover something you noticed in the repository. Where the code
+plainly needs a module the profile omits — a repository provisioning its own CI
+runner while naming only `ci-workflows` is the case the modules call out — that
+is a **stale profile**, not a gap to paper over: grade what the named modules
+reach, say in the report which depth was therefore not graded, and hand off to
+`profile-refresh` to correct `## Stack`. If that skill is not vendored here, say
+the profile needs the entry and leave it to the maintainer. Quietly compensating
+hides the staleness and produces a report whose shape depends on what the
+reviewer happened to notice.
+
 **Without a profile, this skill cannot do its job.** Run the `secrets` and
 `supply-chain` groups over the diff, report every other group as *not
 configured*, and say so in the first line of the report. A security review that
