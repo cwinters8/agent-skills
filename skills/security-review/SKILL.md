@@ -477,6 +477,30 @@ merged PR description is a finding that has been lost.
 | **Medium** | Defense-in-depth gap with a precondition — unencrypted token storage, an over-broad log | Fix before launch; may merge with a tracking issue. |
 | **Low** | Hardening with no known exploit path | Note it; don't block. |
 
+Those rows are written from an application's outcomes. Where `## Stack` names an
+infrastructure module the subject is a machine and an account, and the mapping
+has to be stated or the same finding gets ranked three tiers apart by two
+readers. Same scale, same merge actions:
+
+| Outcome on infrastructure | Tier |
+| --- | --- |
+| An account-scoped credential exposed or reachable by an outsider — a provider API token, a platform token with administration scope, or a path that reaches an attached role's credentials at the metadata endpoint. Every resource under that account, and a rebuild does not revoke it | **Critical** |
+| Arbitrary code execution as root on the target, including unverified remote code fetched and executed by the provisioning run | **Critical** |
+| An unauthenticated or administrative service reachable from the internet | **High** |
+| A machine-scoped credential exposed on a box that also holds an account-scoped one, where the pivot is plausible but not established | **High** |
+| A defense-in-depth gap on the machine with a precondition — a credential file wider than its reader needs, a secret in a job log of restricted visibility, an ingress rule wider than the host requires but fronting nothing unauthenticated | **Medium** |
+| Hardening with no established path | **Low** |
+
+Two rankings this table deliberately leaves to the module, because the module
+makes them and the answer moves the tier. Whether an attached role is
+account-scoped or machine-scoped is settled by reading its policy rather than
+assumed — that is P12, and a policy the review could not read is reported as
+*scope not established* instead of ranked at either end. And a safety control
+the run could not verify is not a finding with a severity at all: it is a failed
+run, which P11 states as `die` rather than `warn`. Where those modules are not
+loaded, rank from the outcomes above and say the rule-level ranking was not
+available.
+
 Report findings with the file and line, the concrete attack (who does what, and
 what they get), and the fix. "This could be unsafe" is not a finding — if
 there's no path from an attacker to an outcome, say so and drop it. False

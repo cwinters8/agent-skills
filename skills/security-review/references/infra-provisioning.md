@@ -722,12 +722,22 @@ to read the policy for.
 
 What to require:
 
-- **Session-oriented metadata access.** On AWS, IMDSv2 — session token required
-  — plus a PUT response hop limit tight enough that an HTTP redirect or a
-  neighboring container cannot reach the endpoint second-hand. Require the
-  equivalent on whichever provider is in use; the providers that demand a
-  specific header on the request are relying on the same property, that a naive
-  proxied GET cannot produce it.
+- **Session-oriented metadata access.** On AWS, IMDSv2 — a session token
+  obtained by PUT and presented on every read. Require the equivalent on
+  whichever provider is in use; the providers demanding a specific header on the
+  request rely on the same property, that a naive proxied GET cannot produce it.
+
+  **Keep IMDSv2's two halves apart, because they stop different attackers and
+  conflating them approves a path neither one closed.** The **token
+  requirement** is what defeats a redirect: a fetcher induced to follow a `302`
+  to `169.254.169.254` issues an ordinary GET, and gets nothing without a token
+  it never thought to request. The **PUT response hop limit** does nothing there
+  — a redirect followed by a process on the host crosses no IP hop, so no hop
+  limit is in that path to begin with. What the hop limit bounds is how far the
+  *token response* itself travels: one network hop, which is exactly what a
+  container on a bridge network, or a router in front of the instance, adds.
+  Crediting the hop limit against SSRF is how a host-side fetch gets waved
+  through on the strength of a setting that was never in its way.
 
   **The hop limit is a decision, not a constant**, and `1` prescribed blindly
   breaks working credentials. A process in a container on a bridge network
@@ -753,8 +763,10 @@ What to require:
   reporting a configuration, not a hole.
 - **Deny the link-local range at the egress boundary** wherever the box runs a
   forward proxy or anything else fetching attacker-influenced URLs — the common
-  shape for this stack. Belt and braces: the hop limit stops the redirect, the
-  egress rule stops the direct fetch.
+  shape for this stack. Belt and braces, with each brace named for what it
+  actually holds: the token requirement stops the redirected GET, the hop limit
+  bounds how far the token response can travel, and the egress rule stops a
+  direct fetch by something running on the box.
 
   **Scope that denial to the fetcher rather than to the host**, or it takes the
   legitimate reader out with the hostile one: `references/cloud-network.md` → N4

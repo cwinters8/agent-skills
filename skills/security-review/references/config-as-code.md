@@ -190,6 +190,19 @@ random salt *and* a quiet run:
    `update_password: on_create`, so an existing account's hash is never
    rewritten. The task is idempotent with a fully random salt, because the salt
    is not regenerated on a run that has nothing to create.
+
+   **That setting also disables rotation, so it is only a fix where something
+   else rotates.** `on_create` ignores the new hash for an account that already
+   exists — so changing the password input to retire a compromised or expired
+   credential changes nothing on the box, while the run reports success and the
+   old password keeps working. That is this module's own D2 failure re-created
+   inside one task: two representations of the value, no error when they
+   disagree. Take it where the credential is genuinely set once at provision
+   time, and say what the rotation path is — a separate play that sets
+   `update_password: always`, or a deliberate account teardown. Where rotation
+   has to run through this task, item 2 is the answer instead: it keeps the
+   salt stable by persisting it, so re-rendering is quiet *and* a changed
+   stored value actually lands.
 2. **Generate once, then read.** Mint the value on first provision, persist it
    where the project keeps secrets (`references/infra-provisioning.md` → P14),
    and template the *stored* copy on every later run. Ansible's
