@@ -260,11 +260,26 @@ CI often runs a script that commits generated content. Two properties matter:
 ## C9. Self-hosted runners are part of the trust boundary
 
 A hosted runner is a fresh VM the platform throws away. A self-hosted runner is a
-machine someone owns, and every rule below follows from that difference. When
-the project also provisions that machine, read `references/infra-provisioning.md`
-alongside this — and `references/cloud-network.md` where a provider firewall
-decides what reaches the runner, or `references/config-as-code.md` where the
-provisioning is declarative.
+machine someone owns, and every rule below follows from that difference.
+
+Where the project also provisions that machine, the provisioning modules carry
+the depth for it: `references/infra-provisioning.md` for the machine itself,
+`references/cloud-network.md` where a provider firewall decides what reaches the
+runner, `references/config-as-code.md` where the provisioning is declarative.
+Read each **only where `## Stack` names it** — the profile selects the modules,
+and a cross-reference that loads one it did not name applies checks the consumer
+never configured, on a stack this module cannot see.
+
+That gating matters most in the case it looks wrong in. A repository holding
+both workflows and runner-provisioning code, whose `## Stack` names
+`ci-workflows` alone, is not an invitation to load the other three anyway — it
+is a **stale profile**, and quietly compensating for one hides the staleness
+while a later reviewer keeps getting a report shaped by whichever module
+happened to load. Apply C9 from the runner side, say in the report that the
+repository provisions its own runner while the profile names no provisioning
+module and that the machine-side depth was therefore not graded, and hand off to
+`profile-refresh` to correct `## Stack`. If that skill is not vendored here, say
+the profile needs the entry and leave it to the maintainer.
 
 **C9.1 Only private repositories may target the runner.** A fork PR on a
 **public** repo can run code on a self-hosted runner — GitHub's own words:

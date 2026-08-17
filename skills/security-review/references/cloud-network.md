@@ -137,8 +137,9 @@ hang a run by ignoring the cancellation that was trying to stop it — but
 one of the cases a rule-closing step exists to cover. Adopting it here
 guarantees the ingress rule stays open on every cancelled run, and the diff
 reads as a tidy-up. A step whose job is to withdraw ingress keeps `always()`,
-and the hang it risks gets bounded the right way: a `timeout-minutes` on the
-step, so a wedged API call cannot eat the five-minute budget, plus something
+and the hang it risks gets bounded the right way: a step-level `timeout-minutes`
+(`jobs.<job_id>.steps[*].timeout-minutes`, which bounds that step rather than
+the job), so a wedged API call cannot eat the five-minute budget, plus something
 independent of the run — the reaper below, or the stable identity that removes
 the per-run rule entirely — for the runs where the step never executed at all.
 `!cancelled()` is right for a step that must not run after a cancellation; it is
@@ -264,10 +265,22 @@ cannot pass anywhere gets deleted rather than fixed.
 
 Read `169.254.169.254` instead — the link-local metadata endpoint every major
 provider serves, which reports the address actually assigned to the instance. It
-has a second property that matters here: link-local traffic is not subject to
-AWS security groups or network ACLs, so the read survives a kill switch and a
-default-deny egress rule that would break an outbound HTTP call. Treat that
-endpoint as the credential surface it also is —
+has a second property that matters here, and it needs stating precisely because
+the loose version sends a provisioning run into exactly the failure this rule is
+meant to prevent. Link-local traffic is not subject to **AWS security groups or
+network ACLs**, so the read survives those where an outbound HTTP call to a
+public address would not. That is a statement about the *provider* layer only.
+It says nothing about the host, and the controls most likely to be in the way
+are host controls: a kill switch is an nftables base chain on the box
+(`references/infra-provisioning.md` → P10), and a policy-routing rule can send
+`169.254.169.254` into the tunnel rather than out the real interface, which
+fails as a timeout rather than as a refusal. So do not assert that the read
+survives a kill switch. Either **order the discovery before** the step that
+captures reachability — P10's rule already requires that ordering for
+everything else — or require an explicit host-side exception for the link-local
+range, scoped to the provisioner as P16 describes. Then keep P11's posture: if
+the address cannot be discovered, the run fails rather than proceeding on a
+guess. Treat that endpoint as the credential surface it also is —
 `references/infra-provisioning.md` → P16 is the other half of this rule.
 
 **With one exception, and it is the floating-address case above wearing a
@@ -311,8 +324,21 @@ Four things the rule needs, in descending severity:
    source while `sshd` listens on `::` and the firewall's IPv6 source is left at
    `::/0` leaves the box reachable from the entire internet — and the diff reads
    as a lockdown. Every ingress rule has an address-family dimension; a review
-   that reads only the v4 rules has read half the policy. Pin both families, or
-   disable the one you are not pinning at the daemon *and* the firewall.
+   that reads only the v4 rules has read half the policy.
+
+   One **complete** cutoff closes it, and demanding two produces a finding
+   against a box that is already safe. This is N2's rule-and-path conjunction
+   read the other way: exposure needs a listener *and* a permitted path, so
+   removing either ends it. A daemon conclusively not listening on `::` cannot
+   be reached however open the v6 rules are; a firewall dropping all inbound v6
+   to that port is enough however the daemon binds. Verify one of them properly
+   and say which — "sshd is v4-only, so the `::/0` rule reaches no listener" is
+   a complete answer, and a better one than a vague claim that both were
+   hardened. Two things to carry with it: a single-layer cutoff is one edit away
+   from re-opening, since nothing at the other layer would object, so note it
+   where the config lives; and the cutoff you verified covers *that port*, not
+   the host — other services listening on `::` are their own question, and a
+   permissive v6 rule reaching them is a separate finding rather than this one.
 2. **The console credential must be exercised, not merely set.** Same reasoning
    as `references/infra-provisioning.md` → P11: an unverified control is a
    false belief, and this one is only ever tested on the day it is needed. A

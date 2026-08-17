@@ -222,7 +222,32 @@ documents that "access to credentials is restricted to the service's user", that
 time a credential is accessed an access check is enforced by the kernel". There
 is no mode to get wrong, nothing on `argv` (P5), and nothing a child process
 inherits by accident. `LoadCredentialEncrypted=` goes further and lets the
-encrypted value live in the repository, sealed to the host's TPM.
+encrypted value live in the repository.
+
+**Check what it was sealed *to* before crediting that last part.** "Encrypted"
+here names a file format, not a guarantee, and the guarantee is chosen by
+`--with-key=` at encryption time — `host`, `tpm2`, `host+tpm2`, `tpm2-absent`,
+`auto`, `auto-initrd`. Two of those change the review's conclusion, and neither
+announces itself in the unit file:
+
+- **`auto` with no usable TPM2 silently falls back to the host key.** Verified
+  on systemd 255: the encrypt succeeds, warns only that
+  `/var/lib/systemd/credential.secret` "is not located on encrypted media", and
+  emits ordinary-looking ciphertext. Nothing is TPM-bound. That still protects a
+  repository copy — the secret file is `0400 root:root` and local to the box —
+  but it binds the ciphertext to *that machine's* secret file, so a rebuilt host
+  cannot read it and the credential has to be re-encrypted. Worth knowing before
+  a rebuild, not after.
+- **`tpm2-absent` provides nothing at all.** It says so — "Using a null key for
+  encryption and signing. Confidentiality or authenticity will not be provided"
+  — and still writes a blob indistinguishable at a glance from a real one. A
+  value committed to a repository under that mode is plaintext to anyone who
+  can read the repository, wearing the appearance of an encrypted credential.
+  This is the one to grep for.
+
+So require evidence of the key mode and of TPM availability on the target before
+treating a repository-stored ciphertext as TPM-bound. Where the mode is not
+recorded anywhere the repository can show you, that is itself the finding.
 
 The honest caveat: many daemons only know how to read a plaintext config file,
 so this is guidance where it applies rather than a universal replacement. Where

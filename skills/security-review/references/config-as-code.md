@@ -32,9 +32,20 @@ salt presumes accounts on a box.
 ## Rules
 
 **D1. YAML 1.1 coerces bare `off`, `on`, `yes`, `no` to booleans.** Those four
-words are exactly the right list to grep for, and the reason is narrower than
-"YAML 1.1": PyYAML — and therefore Ansible — implements YAML 1.1 but a subset of
-its resolver, dropping the bare `y`/`n` forms the 1.1 spec also admits. Worth
+words are the right list, and the reason is narrower than "YAML 1.1": PyYAML —
+and therefore Ansible — implements YAML 1.1 but a subset of its resolver,
+dropping the bare `y`/`n` forms the 1.1 spec also admits.
+
+**Grep for three case forms of each, not one.** A scan for the lowercase
+spellings alone reports clean on a playbook full of `Off`, `YES` and `ON`, which
+is the same defect this rule exists to catch — and a reviewer who ran the check
+now believes the file is fine. PyYAML's resolver matches the all-lowercase, the
+Capitalized and the ALL-CAPS spelling of each word, and **only** those three:
+tested against PyYAML 6.0.1, `off`, `Off` and `OFF` all resolve to `False` while
+`oFf` stays a string. So the pattern is `(off|Off|OFF|on|On|ON|yes|Yes|YES|no|
+No|NO)`, not a case-insensitive match — case-insensitive over-matches the mixed
+spellings, and a check that fires on a correct line is one that stops getting
+run. Worth
 knowing that YAML **1.2**'s core schema admits only
 `true|True|TRUE|false|False|FALSE`, so a repository whose linter targets 1.2
 while its runtime parses 1.1 genuinely disagrees with itself about the same
@@ -265,8 +276,16 @@ Two caveats on `no_log` itself, both arguing against leaning on it:
 
 - it is not a dependable diff censor — modules have shipped bugs where `--diff`
   output escaped it, so treat it as a policy rather than a boundary;
-- it never affects `-vvv` debug output, so a verbose run or a support-bundle
-  capture can still print the value.
+- it does not cover every path a value can take to an operator's screen — but
+  name the paths that actually leak, because the blunt version of this claim is
+  false and produces findings against safe troubleshooting. **A plain `-vvv` run
+  is not one of them:** the task result is sanitized before callbacks ever
+  receive it, so verbosity alone does not defeat `no_log`. What does defeat it
+  is a value that reaches output by a route that is not that task's result — an
+  explicit `debug` task printing the variable, a `set_fact` that copies it into
+  something later displayed, connection- or module-level debug instrumentation
+  below the sanitizer, and anything the module writes to the target's own logs.
+  Report those; do not report a verbose run as a bypass.
 
 Better than either: split the secret into its own small file, so the bulk of the
 configuration stays fully diffable and only the one-line credential file is
