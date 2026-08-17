@@ -80,9 +80,19 @@ coercion happens inside it. The coercion bites where the bare word is a scalar
 an item in a loop. A reader who tests the free-form command string, watches it
 work, and dismisses the rule has been misled by the rule's own example.
 
-Require a YAML linter among the project's mechanical checks. yamllint's `truthy`
-rule is **on by default but only at `level: warning`** — promote it to an error
-or it is decoration. It also checks mapping *keys*, and some ecosystems use a
+Require a YAML linter among the project's mechanical checks **where the project
+parses YAML 1.1 at all** — which this module cannot assume, since it covers
+declarative stacks as well as configuration management. Ansible, and anything
+else riding PyYAML, qualifies. A pure HCL stack does not: there is no YAML on
+the path this rule describes, so requiring the linter there gates on a parser
+the project never runs, and a finding for its absence is noise of exactly the
+kind that gets a whole module ignored. Establish the YAML 1.1 consumer first,
+and where there is none, report that **D1 had no subject** rather than reporting
+it clean — those two read identically to a maintainer and only one of them is
+true.
+
+Where it does apply: yamllint's `truthy` rule is **on by default but only at
+`level: warning`** — promote it to an error or it is decoration. It also checks mapping *keys*, and some ecosystems use a
 bare truthy word as a key legitimately (GitHub Actions' `on:` is the canonical
 case). Set `check-keys: false` there rather than disabling the rule, which would
 lose the value case — the one that actually bites.

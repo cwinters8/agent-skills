@@ -88,8 +88,14 @@ expansion, or an `rm -rf "$dir/"` where `$dir` can be empty is arbitrary
 root-level damage from a caller-controlled value. Ask of every new variable: who
 sets it, and where does it land — a path, a command, a config line, a regex?
 
-Require `set -euo pipefail` and a shell linter, but treat `set -e` as a **floor,
-not a guarantee**. It is not unambiguously good practice: BashFAQ 105 is titled
+Require a shell linter, and require the strict-mode options the script's own
+shell actually has — **read the shebang before prescribing them.** Under bash
+that is `set -euo pipefail`. Under `#!/bin/sh` on a dash system it is `set -eu`,
+because `pipefail` is not POSIX: `dash -c 'set -euo pipefail'` answers `Illegal
+option -o pipefail` and exits 2, so the line prescribed as hardening kills the
+script on its first statement. Where a POSIX script genuinely needs a pipeline's
+status, check it explicitly rather than reaching for the option. Then treat
+`set -e` as a **floor, not a guarantee**. It is not unambiguously good practice: BashFAQ 105 is titled
 "Why doesn't set -e do what I expected?" and concludes "don't use set -e. Add
 your own error checking instead", and Google's Shell Style Guide declines to
 recommend it, saying "Always check return values" instead. The recommendation
@@ -112,8 +118,7 @@ A return value that must stop the run therefore gets checked explicitly, `set
 not by default**: ShellCheck's checks for exactly this class
 (`check-set-e-suppressed`, `check-extra-masked-returns`, SC2310/SC2311/SC2312)
 live in `--list-optional` and are off unless enabled. Enabling them is part of
-what "require a linter" has to mean here. Minor but real: `pipefail` is not
-POSIX, so it is correct under bash and wrong under `#!/bin/sh` on a dash system.
+what "require a linter" has to mean here.
 
 **P2. A remote installer piped to a shell as root is usually the repo's largest
 supply-chain surface.** `sh <(curl … install.sh)` and `curl … | sh` execute
@@ -509,7 +514,8 @@ miss the one that does.
 **P11. A safety property that cannot be established is fatal, not a warning.**
 Kill switches, egress verification, the tunnel technology actually in effect,
 autoconnect-on-boot, detection of a genuinely reachable public address (the
-routability assertion in `references/cloud-network.md` → N4): each either holds
+reachability check in `references/cloud-network.md` → N4, which is the range
+check *and* the positive association, not either alone): each either holds
 or the run did not succeed. `die`, not `warn`.
 
 The reason is the caller. Unattended runs key off the exit status, so a script

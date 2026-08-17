@@ -127,8 +127,19 @@ When `## Stack` names `infra-provisioning` or `cloud-network`, the translation
 of this group onto a machine applies: `authorization` there is which accounts
 exist, the sudo policy, and what identity each service runs as. A `## Stack`
 naming only `config-as-code` may have no machine to translate onto — a
-declarative repository managing DNS, object storage or a SaaS tenant — in which
-case read this group as written and say so.
+declarative repository managing DNS, object storage or a SaaS tenant. Do not
+read this group as written there. Most of it has no subject, and working
+"can one user reach another's data" through a repository with no application
+identities and no data path yields either an informal skip or a false
+missing-control finding. Take the module's own no-machine path instead, which
+`references/config-as-code.md` states and `references/infra-provisioning.md`
+points at: apply the D-series, file each finding against these group names by
+hand, and say in the report that no machine translation applied. For this group
+that splits in two — the provider IAM governing what the layer's own credential
+may change **is** authorization here and gets graded; application-user
+authorization has no subject and gets recorded as having none, rather than
+passed over in silence. With neither module loaded, ask the same two questions
+from that shape and say the mapping was improvised.
 Its concrete rule is P7 — a sudoers drop-in is staged, validated with its mode,
 ownership and final filename already set, and only then installed. An invalid
 file in `/etc/sudoers.d` denies escalation to every account and takes with it

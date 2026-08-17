@@ -286,8 +286,8 @@ backwards on most providers:
   use. An instance created without public networking has no public interface at
   all.
 
-On AWS and GCP the interface read fails the rule's **own** routability assertion
-on every instance, because what it finds is an RFC1918 address. A rule that
+On AWS and GCP the interface read fails the rule's **own** range check on every
+instance, because what it finds is an RFC1918 address. A rule that
 cannot pass anywhere gets deleted rather than fixed.
 
 Read `169.254.169.254` instead — the link-local metadata endpoint every major
@@ -327,14 +327,26 @@ input and say in the finding that it was supplied rather than discovered. Ask
 first whether the two questions have different answers on this project; where
 they do not, the plain metadata read is correct.
 
-Keep the assertion, and relabel it. Rejecting a loopback, RFC1918, link-local or
-RFC 6598 (`100.64.0.0/10`) answer is a **routability test**, not a NAT detector,
-and the difference is not pedantic: AWS permits publicly-routable CIDRs inside a
-VPC, and `100.64.0.0/10` is a common secondary CIDR for pod networking, so the
-identical result is correct on one account and a bug on another. Publishing a
-non-routable value as an endpoint is worse than failing
-(`references/infra-provisioning.md` → P11) — so assert routability, fail closed,
-and do not claim the assertion tells you whether NAT is in play.
+Keep the assertion, and label it accurately — the original label was wrong in
+one direction and calling it a routability test overshoots in the other.
+Rejecting a loopback, RFC1918, link-local or RFC 6598 (`100.64.0.0/10`) answer
+is not a NAT detector, and it does not establish routability either. It is a
+**special-use range check**, and the asymmetry is the whole point: it can fail
+an address, never pass one. The evidence is the sentence it was already paired
+with — AWS permits publicly-routable CIDRs inside a VPC, so an address drawn
+from global space and used entirely privately clears every range on that list
+and is still unreachable from outside, while `100.64.0.0/10` is a common
+secondary CIDR for pod networking, making the identical result correct on one
+account and a bug on another.
+
+So run the range check as the cheap negative filter it is, then establish
+reachability **positively**, which takes the provider rather than the address:
+a public-IP association or external access config on the instance, a forwarding
+rule or load balancer in front of it, or the reserved-address mapping above.
+Publishing a non-routable value as an endpoint is worse than failing
+(`references/infra-provisioning.md` → P11), so fail closed on the range check,
+fail closed again where the association cannot be confirmed, and never report
+"passed the range check" as if it had established the endpoint is reachable.
 
 **N5. Pinning ingress to a single egress IP couples reachability to a client
 staying connected.** Restricting SSH to one VPN dedicated address is a strong
