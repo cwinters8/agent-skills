@@ -123,7 +123,15 @@ it clean — those two read identically to a maintainer and only one of them is
 true.
 
 Where it does apply: yamllint's `truthy` rule is **on by default but only at
-`level: warning`** — promote it to an error or it is decoration. It also checks mapping *keys*, and some ecosystems use a
+`level: warning`**, and a warning does not fail the run. Verified on yamllint
+1.38.0 — a file whose values are `off` and `yes` produces two truthy warnings
+and exits **`0`** under the default config, so a CI step running plain
+`yamllint` passes while reporting the exact defect this rule is about. Two
+things fix it and either suffices: promote the rule to `level: error`, which
+exits `1`, or run with `--strict`, which makes any warning non-zero and exits
+`2`. What does not work is leaving it at warning level and assuming the step
+enforces it — so check which of the two the project actually does, because the
+config file alone will not tell you. It also checks mapping *keys*, and some ecosystems use a
 bare truthy word as a key legitimately (GitHub Actions' `on:` is the canonical
 case). Set `check-keys: false` there rather than disabling the rule, which would
 lose the value case — the one that actually bites.

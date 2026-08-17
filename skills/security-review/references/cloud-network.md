@@ -271,10 +271,21 @@ concurrency has a second failure that neither path fixes.
 What leaks when it does go wrong is SSH open to an address the project does not
 control, indefinitely, with nothing distinguishing it from a deliberate rule.
 
-**Prefer a stable identity.** A long-lived runner carrying a provider tag, and
-one static rule whose source is that tag. That removes the IP detection, the
-reaper, and whichever API path the job was driving — and with them the
-firewall-write permission the job needed in order to open its own way in.
+**Prefer a stable identity — the identity, not the runner.** One static rule
+whose source is a provider tag, security group or service account, and runners
+that carry that membership. That removes the IP detection, the reaper, and
+whichever API path the job was driving — and with them the firewall-write
+permission the job needed in order to open its own way in.
+
+The wording matters, because "a long-lived runner" trades this race for a worse
+problem: `references/ci-workflows.md` → C9.4 requires one job per host and the
+host destroyed afterwards, since a runner surviving a job hands the next one
+whatever the last one left behind. The two requirements are compatible so long
+as what persists is the **membership** rather than the machine — a freshly
+created instance joins the security group, carries the tag, or runs as the
+service account, and the static rule names that membership and never changes.
+Reaching network stability by keeping the host around instead swaps a CI
+isolation control for a firewall convenience, and C9.4 is what loses.
 
 Be precise about how far that reaches, because "CI no longer needs a provider
 token" holds only for a job that did nothing else with one. Where the same

@@ -415,6 +415,18 @@ that reports success while installing a grant that does not exist:
   `visudo -c -O -P -s -f` reports `bad permissions, should be mode 0440` and
   exits `1`.
 
+  **`--help` does not list those two flags, and that is not evidence they are
+  missing.** Verified on sudo 1.9.15p5: the usage line reads
+  `visudo [-chqsV] [[-f] sudoers]` with neither `-O` nor `-P` among the options,
+  and yet both are accepted and perform the check, while a genuinely unknown
+  option is refused with `visudo: invalid option -- 'Z'` and the usage line. So
+  a reviewer who checks `--help` will conclude the rule prescribes something
+  impossible, and a script author may drop the flags for the same reason. Test
+  the flags against the target's own `visudo` rather than its help text. Where a
+  build genuinely refuses them, do not drop the check — `stat` the staged file
+  for owner and mode as a separate step after `-csf`, which is the same
+  guarantee in two commands.
+
   **Then read the install step, because validating the staged inode says
   nothing about the one sudo opens.** GNU `install` does not carry the source's
   mode across — its own `--help` gives `-m` as setting the mode "instead of
@@ -539,9 +551,21 @@ both dependencies with the thing it is supposed to back up, so it fails in
 precisely the scenario it would be called on for, and both of those
 dependencies have to be permitted before the change rather than just the UDP
 range. The only genuinely out-of-band path is one that does not traverse the
-machine's network policy at all — the provider's serial or web console, or a
-management interface on a separate path — and `references/cloud-network.md` →
-N5 requires that one be exercised rather than merely configured.
+machine's network policy at all: a serial, hypervisor or agent channel the
+provider terminates outside the guest's network stack.
+
+**A "web console" is not by itself evidence of that**, and this is where the
+category leaks. Providers implement browser shells in more than one way, and one
+common shape is SSH — an identity-aware proxy opening a TCP 22 connection to the
+guest's own daemon — which depends on exactly the two things this recovery path
+exists to survive: a running `sshd`, and a firewall permitting that port. Such a
+console fails in the same instant as the primary path while having looked like a
+second one, which is worse than having no fallback, because it was counted.
+Establish which channel the console actually uses before crediting it; where it
+bottoms out in SSH, treat it as another SSH path and find a real fallback.
+`references/cloud-network.md` → N5 already states the test correctly — "a
+provider console that does not use SSH and is unaffected by the firewall" — and
+requires that path be exercised rather than merely configured.
 
 The mechanism is worth getting right, because the usual shorthand — "a VPN
 client's port allowlist is not a firewall" — is literally false and leads a
