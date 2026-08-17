@@ -220,9 +220,25 @@ one unit through `$CREDENTIALS_DIRECTORY`, held in non-swappable memory. systemd
 documents that "access to credentials is restricted to the service's user", that
 "the credential data is not propagated down the process tree", and that "each
 time a credential is accessed an access check is enforced by the kernel". There
-is no mode to get wrong, nothing on `argv` (P5), and nothing a child process
-inherits by accident. `LoadCredentialEncrypted=` goes further and lets the
-encrypted value live in the repository.
+is no mode to get wrong and nothing on `argv` (P5).
+`LoadCredentialEncrypted=` goes further and lets the encrypted value live in the
+repository.
+
+**Read the middle guarantee precisely: it is about the bytes, not about
+access.** What does not propagate is the *secret value* — unlike
+`Environment=SECRET=…`, the credential never enters the environment block that
+descendants inherit and that surfaces in `/proc/<pid>/environ`. That is a real
+gain and most of the reason to prefer this mechanism. What descendants **do**
+inherit is `$CREDENTIALS_DIRECTORY` and the namespace it names, and the access
+check is against the *unit's* identity rather than the individual process — so a
+helper, plugin or subprocess the service spawns under that same identity can
+open the credential file and read it. The boundary is the unit, not the process
+that was handed the secret. Where something the service starts must not read the
+value — a plugin, an interpreter running user-supplied code, a shell-out to a
+third-party binary — that needs a *different* identity: a separate unit with its
+own `LoadCredential=`, or a sandbox that unsets the variable and drops the
+mount. Say which is in place, because "it uses systemd credentials" on its own
+does not keep a value away from everything the service launches.
 
 **Check what it was sealed *to* before crediting that last part.** "Encrypted"
 here names a file format, not a guarantee, and the guarantee is chosen by
@@ -526,8 +542,22 @@ identity" is too vague for a reviewer to act on, so resolve it to one of these
 and check for that:
 
 - **OIDC federation from CI to the cloud provider**, against a trust policy
-  scoped to the repository and ref. This replaces a long-lived access key
-  sitting in repository secrets, which is the most common finding in this class.
+  scoped so that only the intended workflow can assume it. Require repository
+  scope plus **one** of a permitted ref or a protected deployment environment —
+  one, not both, because the subject claim carries one *or* the other. A
+  ref-scoped subject names the branch or tag directly; an environment-scoped one
+  (`repo:<owner>/<repo>:environment:<name>`) carries no ref at all, and which
+  branches may reach it is decided by that environment's own deployment
+  restrictions instead. So demanding a ref in the subject rejects the
+  environment-scoped setup, which is usually the *stronger* of the two, since an
+  environment can also require a reviewer — `references/ci-workflows.md` → C9.5
+  is where those restrictions get checked, and this bullet defers to it rather
+  than restating them. Establish which shape the subject takes, then verify the
+  matching restriction: the ref pattern where it is ref-scoped, the branch rules
+  and required reviewers where it is environment-scoped. Scoped to the
+  repository and nothing else is the finding, in either shape. Any of this
+  replaces a long-lived access key sitting in repository secrets, which is the
+  most common finding in this class.
 - **An attached instance role**, read from the metadata service at the moment of
   use, instead of a static token written into an environment file on the box.
   P16 governs how that endpoint then has to be locked down.
@@ -606,9 +636,20 @@ What to require:
   hole again. A rule that simply drops `169.254.169.254` for everything is not a
   stricter version of this control; it is a different control that breaks the
   run.
-- **Best of all, no attached role.** An instance with no role attached has
-  nothing at that endpoint worth stealing. Ask what the role is for before
-  hardening around it; the answer is sometimes "nothing, any more".
+- **Best of all, no attached role.** An instance with no role attached has no
+  live cloud credentials at that endpoint, which removes the escalation this
+  rule opens with. Ask what the role is for before hardening around it; the
+  answer is sometimes "nothing, any more".
+
+  It does not empty the endpoint, though, and "no role, so nothing to steal" is
+  how a reviewer stops one step early. The same service still answers for the
+  instance's **user-data** — where a bootstrap script routinely parks the very
+  credentials it exists to install — along with the signed instance identity
+  document, any keys the provider injects, and whatever else that provider files
+  under its own metadata categories. Inventory what the endpoint actually serves
+  on the provider in play rather than inferring it from the role, and keep the
+  hop limit and egress controls above pointed at it either way. A role-less
+  instance is a smaller prize, not an empty one.
 
 `references/cloud-network.md` → N4 legitimately reads this same endpoint to
 discover the instance's own public address — that rule and this one are the two

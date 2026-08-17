@@ -3,9 +3,14 @@ name: security-review
 description: >
   Security review gate. Run when a change touches the project's trust boundary —
   data authorization, auth and session handling, secrets, client data handling,
-  CI and dependencies — and as a full sweep before any release or store
-  submission. Use when asked to "security review", "check RLS", "can users touch
-  each other's data", "audit auth", or "pre-launch security check".
+  CI and dependencies — or the infrastructure the project runs on: machine
+  provisioning, infrastructure as code, configuration management, cloud
+  firewalls, and what is reachable from the internet. Also run as a full sweep
+  before any release or store submission. Use when asked to "security review",
+  "check RLS", "can users touch each other's data", "audit auth", "review the
+  provisioning script", "audit our infrastructure as code", "check cloud
+  firewall exposure", "is this server hardened", "what is exposed to the
+  internet", or "pre-launch security check".
 ---
 
 # Security review
