@@ -256,8 +256,25 @@ contains a valid representation", and a resource attribute is unknown at
 validate time anyway. That failure surfaces at apply, against a real value. Cite
 an example validation actually catches — a mistyped argument name that silently
 configures nothing, or a required argument omitted — and rely on the plan for
-the rest. Only a plan against real state shows what will actually change;
-require one before any apply touching ingress rules or destroying a resource.
+the rest. Only a plan against real state shows what will actually change — but
+"require a plan" is not the control, and that is where this requirement usually
+leaks.
+
+`apply` has two modes. Handed a **saved plan file**, it applies exactly that
+plan. Handed none, it computes a *fresh* plan from the configuration and state
+as they stand at that moment, and applies that. So a pipeline that plans, posts
+the output for a human to read, and then calls `apply -auto-approve` satisfies
+"a plan was required" while executing something nobody inspected — and anything
+that moved in between, a merged commit, a drifted resource, a changed provider
+version, is inside the applied change and outside the reviewed one. The gap is
+invisible in the workflow file unless you know the two modes exist.
+
+Where the plan **is** the safety gate — an apply touching ingress rules or
+destroying a resource — require the whole chain: `plan -out=<file>`, approval of
+that artifact, and an apply of *that file*. Then protect it, because D5 covers
+it and a reviewer who stopped at state will miss it: a saved plan records the
+input variables, so the artifact being handed between jobs is itself credential
+material.
 
 The configuration-management parallel has the same trap, in both directions:
 

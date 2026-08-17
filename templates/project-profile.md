@@ -111,9 +111,11 @@ TODO
 ## Threat model
 
 <!-- REQUIRED IF YOU VENDOR security-review. One paragraph: what ships to
-     parties you don't control, and the single real control keeping one user out
-     of another's data. Write it as a claim that could be wrong — it is what
-     ranks findings by consequence instead of by category. -->
+     parties you don't control, and the single real control keeping an attacker
+     out of what matters — one user out of another's data on an application; an
+     outsider off the box and off the provider account it can reach, on
+     infrastructure. Write it as a claim that could be wrong — it is what ranks
+     findings by consequence instead of by category. -->
 
 TODO
 
@@ -150,8 +152,14 @@ TODO
 
 ## Identity model
 
-<!-- How a user proves who they are, what key rows are owned by, and every
-     redirect or deep-link surface participating in auth. -->
+<!-- How a principal proves who it is, and what that then reaches.
+
+     On an application: how a user authenticates, what key rows are owned by,
+     and every redirect or deep-link surface participating in auth.
+
+     On infrastructure: which keys and accounts grant access to the machine,
+     what identity each service authenticates as, and which sources may reach
+     the ports those credentials front. -->
 
 TODO
 

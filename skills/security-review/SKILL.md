@@ -41,7 +41,7 @@ lets this review rank findings by consequence instead of by category.
 | `## Threat model` | ranking findings; the one control that matters |
 | `## Trust boundary` | which check groups a changed path triggers — **authoritative** |
 | `## Stack` | which `references/` modules to load |
-| `## Identity model` | auth flow, ownership key, redirect surfaces |
+| `## Identity model` | auth flow, ownership key, redirect surfaces — or, on infrastructure, what grants access to the machine and which sources reach the ports |
 | `## Secrets policy` | which values are public by design |
 | `## Probe policy` | whether authorization can be tested rather than only read |
 | `## Release targets` | whether the release group applies |
@@ -185,6 +185,16 @@ machine: a port number owned by one layer and a firewall rule owned by another
 can disagree with nothing raising an error anywhere, leaving a service that
 starts, a loopback check that passes, and a port no real client can reach. The
 first module's table carries the whole translation.
+
+**A missing `## Identity model` does not empty this group on a machine.** That
+section is written from an application's identities, so a machine-only
+repository may legitimately have nothing to put in it — and reporting the whole
+group unconfigured would retire SSH keys, service credentials and every
+reachability rule, which is most of what an infrastructure review is for. Where
+`## Stack` names an infrastructure module, run that module's reachability and
+machine-credential rules regardless, and report only the application identity
+half as not configured. Where no such module is named and the section is absent,
+the group reports as not configured in full.
 With `cloud-network` unnamed, still work reachability from the rules as written,
 but assume no default for egress, for network-level filtering above the
 instance, or for the address family a rule covers: N1, N2 and N5 exist because
@@ -486,10 +496,21 @@ readers. Same scale, same merge actions:
 | --- | --- |
 | An account-scoped credential exposed or reachable by an outsider — a provider API token, a platform token with administration scope, or a path that reaches an attached role's credentials at the metadata endpoint. Every resource under that account, and a rebuild does not revoke it | **Critical** |
 | Arbitrary code execution as root on the target, including unverified remote code fetched and executed by the provisioning run | **Critical** |
-| An unauthenticated or administrative service reachable from the internet | **High** |
+| An **unauthenticated** service reachable from the internet, an authentication bypass on an administrative one, or another established path from an outsider to control of the box | **High** |
 | A machine-scoped credential exposed on a box that also holds an account-scoped one, where the pivot is plausible but not established | **High** |
-| A defense-in-depth gap on the machine with a precondition — a credential file wider than its reader needs, a secret in a job log of restricted visibility, an ingress rule wider than the host requires but fronting nothing unauthenticated | **Medium** |
+| A defense-in-depth gap on the machine with a precondition — a credential file wider than its reader needs, a secret in a job log of restricted visibility, or an ingress rule wider than the host requires in front of a service that still authenticates | **Medium** |
 | Hardening with no established path | **Low** |
+
+The line between those last two rows is **whether the exposure alone reaches an
+outcome**, and it has to be stated or the table reproduces the inconsistency it
+was added to remove. A service is not High for being administrative: SSH open to
+`0.0.0.0/0` while requiring a key the attacker does not have is over-exposed
+rather than compromised, and it ranks Medium with the width of the rule as the
+finding. It becomes High when the authentication is absent, bypassable, or
+something an attacker can supply. That is the group's own reachability argument
+read in the other direction — "the port is filtered" never upgrades a service
+with no credential, and equally, an open port never downgrades a credential the
+attacker cannot produce.
 
 Two rankings this table deliberately leaves to the module, because the module
 makes them and the answer moves the tier. Whether an attached role is

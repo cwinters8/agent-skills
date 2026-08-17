@@ -200,9 +200,13 @@ session has.
 ### `## Threat model` — required with `security-review`
 
 One paragraph: what ships to parties you do not control, and what the single real
-control is that keeps one user out of another's data. This is the most important
-section in the file, because it is what lets the skill rank findings by
-consequence instead of by category.
+control is that keeps an attacker out of what matters. On an application that is
+usually what keeps one user out of another's data. On infrastructure it is what
+keeps an outsider off the box — and off the provider account that box can reach,
+which is often the larger of the two. This is the most important section in the
+file, because it is what lets the skill rank findings by consequence instead of
+by category, and a machine-shaped project answering the application-shaped
+question invents facts rather than supplying them.
 
 Write it as a claim that could be wrong. "The anon key ships inside a public
 binary, so row-level security is the only thing standing between one user and
@@ -288,9 +292,24 @@ generic checks.
 
 Read by `security-review`.
 
-How a user proves who they are, what key rows are owned by, and every redirect or
-deep-link surface that participates in auth. The deep-link surfaces matter more
-than they look: they are the part an attacker can reach from outside the app.
+How a principal proves who it is, and what that then reaches.
+
+On an application: how a user authenticates, what key rows are owned by, and
+every redirect or deep-link surface that participates in auth. The deep-link
+surfaces matter more than they look: they are the part an attacker can reach from
+outside the app.
+
+On infrastructure: which keys and accounts grant access to the machine, what
+identity each service authenticates as, and which sources may reach the ports
+those credentials front. That last clause is not decoration — the infrastructure
+modules file reachability under `auth-session` precisely because a firewall rule
+and the credential behind it have to be reviewed together.
+
+Leaving this out reports the `auth-session` group as not configured. Where
+`## Stack` names an infrastructure module the group still runs that module's
+reachability and machine-credential rules, and only the application identity half
+is reported unconfigured — a machine-only repository does not lose a core group
+for having no users.
 
 *Missing:* the `auth-session` group reports as not configured.
 
