@@ -839,11 +839,13 @@ What to require:
   demands session-oriented access there produces a finding the project cannot
   close. Where the provider has no such control, say so in the finding and move
   the weight onto the controls that do exist: the egress boundary below, scoped
-  to the fetcher; whether the instance needs an attached role at all; and
-  whether the metadata service can be disabled outright, which some providers
-  allow and which is the strongest answer available when it is. "This provider
-  offers no protected metadata request, so the boundary and the absent role are
-  carrying it" is a complete answer; a demand for IMDSv2 on a provider that has
+  to the fetcher; whether the workload needs an attached role at all, on the
+  conditional terms below rather than as a default; and whether the metadata
+  service can be disabled outright, which some providers allow and which is the
+  strongest answer available where the address is obtainable another way (N4).
+  "This provider offers no protected metadata request, so the fetcher-scoped
+  egress boundary is carrying it, against a role scoped to X" is a complete
+  answer; a demand for IMDSv2 on a provider that has
   no such thing is not.
 
   **Keep IMDSv2's two halves apart, because they stop different attackers and
@@ -914,10 +916,22 @@ What to require:
   hole again. A rule that simply drops `169.254.169.254` for everything is not a
   stricter version of this control; it is a different control that breaks the
   run.
-- **Best of all, no attached role.** An instance with no role attached has no
-  live cloud credentials at that endpoint, which removes the escalation this
-  rule opens with. Ask what the role is for before hardening around it; the
-  answer is sometimes "nothing, any more".
+- **No attached role, where the workload needs no provider access.** An
+  instance with no role has no live cloud credentials at that endpoint, which
+  removes the escalation this rule opens with. Ask what the role is for before
+  hardening around it; the answer is sometimes "nothing, any more".
+
+  **Read that as conditional, not as a ranking**, or it collides with P15 one
+  section up, which prefers an attached role's short-lived credentials over a
+  static token precisely because the role is the better of those two. Removing
+  a role from an instance that genuinely calls provider APIs does not remove
+  the requirement — it relocates it, usually onto a long-lived key written into
+  an environment file on the box, which is the finding P15 exists to prevent
+  and is strictly worse than what was removed. So: no role where nothing needs
+  one; otherwise a least-privilege role, scoped by the policy read P12
+  describes, with the session requirement, hop limit and egress boundary above
+  carrying the isolation. "Detach the role" is a finding only when the workload
+  can actually do without it.
 
   It does not empty the endpoint, though, and "no role, so nothing to steal" is
   how a reviewer stops one step early. The same service still answers for the

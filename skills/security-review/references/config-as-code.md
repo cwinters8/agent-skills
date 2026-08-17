@@ -70,9 +70,31 @@ the report does.
 ## Rules
 
 **D1. YAML 1.1 coerces bare `off`, `on`, `yes`, `no` to booleans.** Those four
-words are the right list, and the reason is narrower than "YAML 1.1": PyYAML —
-and therefore Ansible — implements YAML 1.1 but a subset of its resolver,
-dropping the bare `y`/`n` forms the 1.1 spec also admits.
+words are the right list for the *surprising* case, and the reason is narrower
+than "YAML 1.1": PyYAML — and therefore Ansible — implements YAML 1.1 but a
+subset of its resolver, dropping the bare `y`/`n` forms the 1.1 spec also
+admits.
+
+**Bare `true` and `false` coerce identically, and every gate this rule
+prescribes lets them through.** They are not surprising as booleans — that is
+the point — but the defect this rule is about is a *string-typed* parameter
+receiving one, and there the coercion bites the same way: the bare scalar
+becomes a Python `True`, and the argument-spec conversion below renders it as
+the string `"True"`, capitalised, which is not the text anyone wrote. Verified:
+PyYAML resolves `true` and `false` to bools exactly as it does `off` and `yes`,
+while yamllint's `truthy` rule at error level **passes** a file of `true`/`false`
+(exit `0`) and fails the same file written with `off`/`yes` (exit `1`) — because
+canonical spellings are what that rule steers projects *toward*. So the
+four-word scan and the linter both agree the file is clean while the parameter
+receives `"True"`.
+
+Which means the scan is a heuristic for one half of the problem, not the whole
+check. Where a parameter is string-typed and its intended value is the literal
+text `true` or `false`, the answer is to quote it at the call site, and the way
+to find those is by parameter type rather than by word: read what the receiving
+argument spec declares. Say in the report which of the two you did — the
+four-word grep across the tree, or a type-aware pass over string parameters —
+because they catch different files and only one of them is cheap.
 
 **Grep for three case forms of each, not one.** A scan for the lowercase
 spellings alone reports clean on a playbook full of `Off`, `YES` and `ON`, which

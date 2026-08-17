@@ -151,16 +151,15 @@ may change **is** authorization here and gets graded; application-user
 authorization has no subject and gets recorded as having none, rather than
 passed over in silence. With neither module loaded, ask the same two questions
 from that shape and say the mapping was improvised.
-Its concrete rule is P7 — a privilege-granting drop-in is staged, validated with
-its mode, ownership and final filename already set, and only then installed. The
-two ways that goes wrong fail very differently, which is why the order matters:
-an invalid file already installed into the privilege system denies escalation to
-every account and takes with it the access needed to repair it, while a file the
-consumer silently skips or never reads leaves the intended grant merely absent.
-P7 says which defect lands where and carries the validation mechanics. Without that module, still ask it of any privilege-granting file the
-change installs — which accounts it grants, whether it was validated before it
-landed, and whether a defect in it fails loudly or silently — and say the
-rule-level detail was not graded.
+Its concrete rule is P7: a privilege-granting file the change installs is
+validated before it lands, not after, and a defect in one fails loudly or
+silently depending on what is wrong with it. P7 owns which defect lands where,
+what to validate, and how to install it — do not restate any of that here, since
+a second copy is what leaves this group reporting an outcome the loaded module
+has since rejected. Without that module, still ask the same three things of any
+privilege-granting file the change installs — which accounts it grants, whether
+it was validated before it landed, and whether a defect in it fails loudly or
+silently — and say the rule-level detail was not graded.
 `references/infra-provisioning.md` carries the full six-group translation for
 all three, and the other two point at it. Groups 2 through 5 carry their own
 pointers as well, because that is where most of these modules' content lands.
