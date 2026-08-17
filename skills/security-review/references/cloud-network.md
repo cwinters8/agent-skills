@@ -115,8 +115,21 @@ all, so a script or module that assumes one exists fails outright rather than
 quietly landing in a shared network.
 
 Practically: check the network-level rules as well as the instance-level ones,
-and say in the finding which layer you checked. "The security group is tight"
-with a permissive network-level rule above it has verified the smaller half.
+and say in the finding which layer you checked — but read the two the way the
+packet does, because **they compose by conjunction**. That is the same argument
+`references/infra-provisioning.md` → P10 makes about a host firewall and a
+provider one: a deny at either layer ends the packet, and no upper layer grants
+what a lower one refuses.
+
+So a tight security group under a permissive network ACL is not "the smaller
+half" — it is the layer doing the work, and reporting exposure there would fire
+on the ordinary default-ACL arrangement that nearly every account runs. The
+asymmetry is what to carry: a **permit** at the layer you read is half an
+answer, since some other layer may still deny; a **deny** at it is a whole one.
+Report ingress exposure only where every filter on the path permits, and where
+you read one layer and not the other, say which — a permissive instance rule
+saved by a restrictive network ACL you never opened is the case this warning is
+actually for.
 
 **N3. Just-in-time firewall rules fail open.** The pattern is a CI job opening
 its own runner's address at start and closing it in an always-run final step.
@@ -243,9 +256,17 @@ control, indefinitely, with nothing distinguishing it from a deliberate rule.
 
 **Prefer a stable identity.** A long-lived runner carrying a provider tag, and
 one static rule whose source is that tag. That removes the IP detection, the
-reaper, whichever API path the job was driving, and — worth stating explicitly —
-the cloud-provider API token from CI entirely, since no job needs to mutate
-infrastructure any more.
+reaper, and whichever API path the job was driving — and with them the
+firewall-write permission the job needed in order to open its own way in.
+
+Be precise about how far that reaches, because "CI no longer needs a provider
+token" holds only for a job that did nothing else with one. Where the same
+workflow also applies declarative infrastructure or touches other provider
+resources, it still needs credentials for that work, and prescribing their
+removal prescribes a broken deployment. What this change retires is the
+**firewall-mutation permission**: drop it from the job's policy, or split the
+ingress step out onto its own credential, and say which was done. The finding is
+a job still holding firewall-write it no longer uses — not the token as such.
 
 Analogues exist on the other providers and are stronger: an AWS security group
 can name **another security group** as a rule's source, and GCP supports source

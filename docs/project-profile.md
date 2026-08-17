@@ -245,7 +245,7 @@ Which reference modules apply, from `skills/security-review/references/`:
 | `mobile-release` | shipping to the App Store or Play |
 | `infra-provisioning` | the product is a configured machine rather than an application — the ordering that keeps the operator able to reach the box, where infrastructure credentials live, and how a machine-scoped finding becomes account-scoped, plus the imperative shell run as root where a project still has one |
 | `cloud-network` | what can reach the machine is decided by a provider-managed layer — cloud firewalls, VPCs and network ACLs, or ingress pinned to particular addresses |
-| `config-as-code` | a declarative layer reconciles the machine or the infrastructure — configuration management, or infrastructure-as-code with a state file |
+| `config-as-code` | a declarative layer reconciles the machine or the infrastructure — configuration management, or infrastructure-as-code, whether or not it keeps a state file |
 
 List only what the project actually uses. Each module is depth about a stack, not
 about your project; naming one you don't use produces checks that cannot pass.

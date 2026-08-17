@@ -169,7 +169,11 @@ for the ordering that decides whether the operator can still reach the box,
 which is as much a host-firewall question as a provider one, and N1–N5 of
 `references/cloud-network.md` **only where that module is named**, since those
 rules turn on a provider-managed layer a box behind a host firewall alone does
-not have. The first module's table carries the whole translation.
+not have. `config-as-code` → D2 belongs here too, wherever that layer manages a
+machine: a port number owned by one layer and a firewall rule owned by another
+can disagree with nothing raising an error anywhere, leaving a service that
+starts, a loopback check that passes, and a port no real client can reach. The
+first module's table carries the whole translation.
 With `cloud-network` unnamed, still work reachability from the rules as written,
 but assume no default for egress, for network-level filtering above the
 instance, or for the address family a rule covers: N1, N2 and N5 exist because
@@ -300,9 +304,12 @@ that mode a fallback rather than the design; P9 where the config format cannot
 carry the credential's shape and mis-parses it silently; and P8 with
 `config-as-code` → D3 on why an in-place edit leaves an end state no reviewer
 can see, and why a value interpolated into a text-substitution expression is
-code rather than data. Those modules hold the mechanism, the ranking and the
-edge cases — this is routing, not a summary to keep in step. The printed half
-is P5 and D6, and item 1 above covers only that half.
+code rather than data. `config-as-code` → D1 belongs here as well: where the
+layer's own parser coerces a bare word, the file the run writes does not say
+what the repository appears to say, and D1 keeps its own no-subject answer for a
+stack that parses no such dialect. Those modules hold the mechanism, the ranking
+and the edge cases — this is routing, not a summary to keep in step. The printed
+half is P5 and D6, and item 1 above covers only that half.
 
 Where `config-as-code` is named for a layer that manages **no** machine — DNS,
 object storage, a SaaS tenant — there is no target to write to, so drop the P

@@ -167,7 +167,15 @@ descending order of preference:
 2. **A pinned release artifact with a recorded checksum**, verified by the
    fetching step itself rather than by a later call a `|| true` could swallow.
    Version and digest live together and move together.
-3. **A source checkout at a pinned ref**, where the vendor supports it.
+3. **A source checkout at an immutable revision**, where the vendor supports
+   it — a full commit object id, or a tag whose signature is actually verified.
+   "Pinned ref" is not enough, and the phrase does real damage here: a branch
+   or an ordinary release tag is a mutable pointer the vendor can move after
+   the review that approved it, and what then runs as root is whatever it
+   points at now. `references/ci-workflows.md` establishes this for privileged
+   CI, where a retagged release is a documented incident rather than a
+   hypothetical; a root shell on the box is the same requirement with a larger
+   blast radius.
 
 Rewriting `curl | sh` as "download to a file, then run the file" does not fix
 the **integrity** problem — the same unverified bytes still execute, and it
