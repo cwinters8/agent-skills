@@ -38,10 +38,21 @@ time, and record the ones with no subject *as* having none:
   case the shape transfers and only the worked example does not.
 - **D3** applies to whatever the layer renders; its worked example does not,
   since a host account's password salt presumes accounts on a box.
-- **D4** applies wherever there is a requirements manifest and a run claiming to
-  have verified something.
-- **D5** applies always, and is such a repository's principal rule: state and
-  plan are credential material whatever was or was not provisioned.
+- **D4** applies to any run that claims to have verified something — an
+  infrastructure-as-code `init`/`validate`/`plan` sequence just as much as a
+  configuration-management syntax check. Only its *requirements manifest* half
+  is specific to configuration management, so the absence of a manifest does
+  not retire the rule: a plan is exactly where a declarative repository's "we
+  checked" gets made, and D4 is what says which parts it did not reach.
+- **D5** applies wherever the tool actually persists state or plan output. On
+  most infrastructure-as-code layers it does, and there it is such a
+  repository's principal rule: state and plan are credential material whatever
+  was or was not provisioned. A layer that reconciles a DNS zone or a SaaS API
+  directly and keeps nothing between runs has no such artifact, and hunting for
+  one — or reporting it unprotected — is a finding about a file that does not
+  exist. Establish whether the tool writes either before grading it. The
+  group's separate point stands regardless: the layer's own provider credential
+  is a secrets question, and D5 never covered it.
 - **D6** is Ansible's `no_log`. A layer that is not Ansible has no subject.
 
 Saying which of these had no subject is part of the report rather than an

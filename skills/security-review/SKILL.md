@@ -295,13 +295,14 @@ Where `## Stack` names `infra-provisioning`, or a `config-as-code` layer that
 manages a machine, `client-data` has no client in it: it is what the run writes
 to disk on the target and what it prints. The written half is P3 — the mode and
 owner of a file the code has just put a credential into — with P4 where the
-consumer is a systemd unit and the mode is therefore the fallback rather than
-the design, P9 where the config format cannot carry the credential's shape and
-mis-parses it into a service that starts fine and rejects every login, and P8
-and `config-as-code` → D3 on why an in-place edit leaves an end state no
-reviewer can see, and why a value interpolated into a `sed` expression is code
-rather than data. The printed half is P5 and D6, and item 1 above covers only
-that half.
+platform can hand a credential to the consuming service directly, which makes
+that mode a fallback rather than the design; P9 where the config format cannot
+carry the credential's shape and mis-parses it silently; and P8 with
+`config-as-code` → D3 on why an in-place edit leaves an end state no reviewer
+can see, and why a value interpolated into a text-substitution expression is
+code rather than data. Those modules hold the mechanism, the ranking and the
+edge cases — this is routing, not a summary to keep in step. The printed half
+is P5 and D6, and item 1 above covers only that half.
 
 Where `config-as-code` is named for a layer that manages **no** machine — DNS,
 object storage, a SaaS tenant — there is no target to write to, so drop the P

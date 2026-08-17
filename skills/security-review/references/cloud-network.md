@@ -89,8 +89,13 @@ layer where the hole actually is.
   calling it internet-exposed on the rule alone is a false positive, and false
   positives are what this gate loses credibility for. Require both halves: the
   permissive rule, and a routable endpoint or forwarding path — an external IP,
-  a forwarding rule or load balancer, a NAT or proxy front end, an
-  identity-aware tunnel terminating inbound. Where only the rule is present the
+  a forwarding rule or load balancer, an **inbound** destination-NAT or port
+  forward, a reverse proxy in front of it, an identity-aware tunnel terminating
+  inbound. Read "NAT" strictly here: an outbound NAT gateway gives the instance
+  egress and carries the return traffic for connections *it* opened, and accepts
+  no unsolicited inbound connection at all. Counting one as the second half
+  turns an entirely ordinary egress arrangement into a reported public SSH
+  endpoint, which is the false positive this paragraph was written to stop. Where only the rule is present the
   finding is still real and smaller: every peer that *can* reach the instance —
   anything else on that network, anything routed to it over a VPN or
   interconnect — reaches port 22, with the rule contributing nothing to keeping
@@ -314,7 +319,9 @@ guess. Treat that endpoint as the credential surface it also is —
 different hat.** Metadata answers "what address is assigned to this instance",
 which stops being the same question as "what address do clients use" the moment
 a separately-mapped address fronts the box — a reserved or floating IP, a load
-balancer, a NAT or proxy front end. What metadata reports there is the
+balancer, an inbound destination-NAT or a reverse proxy fronting it — the test
+being that clients reach the box *through* it, not that the box reaches the
+internet through it. What metadata reports there is the
 underlying address, and that address can itself be publicly routable, so the
 assertion below **passes on it** and the project pins a firewall or publishes an
 endpoint on the wrong value with nothing failing anywhere. A wrong answer that
