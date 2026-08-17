@@ -152,10 +152,20 @@ fix a second, independent problem, and flatly calling it "fixes nothing" is
 wrong: a connection dropped mid-transfer feeds a **truncated** script to the
 shell, which has already executed every line it read. The canonical illustration
 is a line reading `rm -rf /usr/bin/some-app` truncating after `rm -rf /`.
-Downloading first makes the file either whole or absent; the shell never sees a
-prefix. Credit that, and still require the verification step. When judging a
-vendor's installer, one that wraps all of its work in a function invoked on the
-last line is immune to truncation by construction.
+
+Downloading first *makes it possible* for the shell never to see a prefix; it
+does not achieve it, and crediting the two-step form on its own re-opens the
+same bug one line later. curl leaves the partial output file in place when a
+transfer fails — `--remove-on-error` is documented as opt-in, and it fires only
+on an error curl actually returns, so it needs `--fail` beside it or an HTTP
+error page is a *successful* transfer of the wrong bytes. None of which matters
+if the script then invokes the file without consulting the download's exit
+status. So credit the rewrite only when all three hold: the transfer's status
+gates the execution, a failed transfer leaves no file behind (or the download
+lands on a temporary path and is renamed into place only on success, which buys
+the same guarantee from the filesystem), and the digest or signature check above
+still runs. When judging a vendor's installer, one that wraps all of its work in
+a function invoked on the last line is immune to truncation by construction.
 
 Two more properties of the piped form. In `curl … | sh`, curl's exit status is
 the **left** side of the pipe, so without `pipefail` a failed or truncated
@@ -239,12 +249,29 @@ answer, and it distinguishes a considered fallback from an unexamined one.
 
 **P6. A generated-and-printed secret is not reproducible.** A script that invents
 a password when the input is unset, prints it once and stores it nowhere has
-produced a value existing only in terminal scrollback: it cannot be rotated
-(nothing knows the current one), re-derived, or recovered once the window closes.
-Requiring it as an input from wherever the project keeps secrets is the fix; the
-convenience lost is smaller than the recovery problem created. Note what the
-requirement costs elsewhere — see P12 on why an input-supplied credential is
-*not* rotated by a rebuild.
+produced a value existing only in terminal scrollback: once that window closes,
+the value cannot be recovered or re-derived.
+
+Say **unrecoverable**, not **unrotatable**, because the two come apart and the
+stronger claim is usually false. Rotating a credential means replacing it, and
+replacement rarely requires the current value: an administrator with root on the
+box overwrites the stored hash, or rewrites the service configuration, without
+presenting the old password. What the lost value actually costs is every
+*consumer* of it — the client config, the backup job, the operator's own access
+— each of which now has to be found and updated, and any one that is missed
+breaks at the moment of the reset rather than at the moment of the loss. So ask
+two questions rather than asserting the worst: can the value be replaced without
+knowing it, and can every dependent be updated when it is. Where both answers
+are yes, a lost generated password is a reset-and-update chore, and the finding
+is scoped to that. Where the value genuinely cannot be replaced without itself —
+an encryption key that existing data was sealed under, a credential a third
+party will only change on presentation of the old one — the loss is permanent
+and that is a different severity.
+
+Requiring the value as an input from wherever the project keeps secrets is the
+fix in either case; the convenience lost is smaller than the recovery problem
+created. Note what the requirement costs elsewhere — see P12 on why an
+input-supplied credential is *not* rotated by a rebuild.
 
 **P7. Validate before installing, never after — and validate the thing you are
 about to install, the way its consumer will read it.** Sudoers is the sharpest
@@ -269,6 +296,20 @@ that reports success while installing a grant that does not exist:
 - **Without `-s`, an undefined `Cmnd_Alias` reference exits 0.** It prints a
   diagnostic and returns success, so a script keying off the exit status ships
   the break silently. Use `visudo -csf <file>`.
+
+  Strict mode then costs something, and a project that hit the cost and dropped
+  `-s` rather than fixing the cause has quietly lost the check. `-s` treats an
+  alias used before it is defined as a parse error, and a drop-in validated on
+  its own never sees an alias defined in the parent `sudoers` — so a drop-in
+  that legitimately references one fails validation while being perfectly valid
+  at runtime, where `@includedir` has pulled it in after the definitions. Two
+  fixes keep `-s`: require drop-ins to be **self-contained**, defining every
+  alias they use, which is the better default because it also makes the file
+  mean the same thing to anything that reads it in isolation; or validate a
+  **staged complete tree** — a temporary copy of the main `sudoers` and its
+  include directory with the new file in place — and check that rather than the
+  fragment. What is not a fix is dropping `-s`, which restores the
+  exit-0-on-a-broken-grant hole this bullet opens with.
 - **The destination filename is part of the contract.** `@includedir` skips any
   name containing a `.` or ending in `~`, so a drop-in installed as
   `50-proxy.sudoers` is never read and nothing anywhere reports it. The file is
@@ -315,26 +356,45 @@ through the provider console, mid-run, with the configuration half applied.
 
 The mechanism is worth getting right, because the usual shorthand — "a VPN
 client's port allowlist is not a firewall" — is literally false and leads a
-reviewer to the wrong conclusion about what the allowlist did. A commercial VPN
-client's kill switch installs an nftables base chain at the `input` hook with
-`policy drop`; that is why an un-allowlisted SSH session dies the moment the
-tunnel connects. Allowlisting a port then adds **three** things, not one:
+reviewer to the wrong conclusion about what the allowlist did.
 
-1. an `accept` rule in the client's own nftables table — this is what saves the
-   SSH session;
-2. a packet mark plus an inverted-fwmark policy-routing rule, so that traffic
-   keeps using the real interface and the return path works;
-3. a `masquerade`, so the reply leaves with the right source address.
+State the invariant before any implementation, since the invariant is what has
+to hold and it holds for every client. A kill switch works by making the default
+packet path **drop**, which is why an un-allowlisted SSH session dies the moment
+the tunnel connects. Restoring one port therefore has to restore **three**
+distinct properties, and an allowlist that delivers fewer has left the port
+broken rather than open:
 
-The older description covered only the second. Its conclusion still holds — the
-allowlist cannot open a port the real firewall denies — but the reason is the
-traversal rule, not the absence of filtering: at a given hook, nftables
-evaluates **every** base chain in priority order, so an `accept` in one table
-merely lets the packet continue into the next, while a `drop` anywhere is
-immediate and final. So the client's allowlist, the host firewall and the
-provider firewall (`references/cloud-network.md`) must **all** permit, and any
-one of them denying is the end of it. A review that conflates the three will
-either report a hole that does not exist or miss the one that does.
+1. **the inbound packet survives filtering** — something has to accept it where
+   the kill switch drops. This is the part that saves the SSH session;
+2. **the reply is routed back out the real interface** rather than into the
+   tunnel. That is a routing decision, and the accept rule does not make it;
+3. **the reply leaves with the source address the client sent to**, or it is
+   discarded as unrelated.
+
+Check for the three by their effect, not by their spelling. A client whose kill
+switch is an nftables base chain at the `input` hook with `policy drop`
+satisfies them with an `accept` rule in its own table, a packet mark plus an
+inverted-fwmark policy-routing rule, and a `masquerade` — one concrete example,
+useful because it is a common one. Another client does the same work with a
+separate routing table and an `iptables` rule, or in a `wg-quick` `PostUp`. A
+reviewer matching on the nftables spelling reads those as "no kill switch"; a
+reviewer matching on the invariant does not. The older description of this rule
+named only the second property, which is why its conclusion needs restating from
+the invariant rather than from any one mechanism.
+
+That conclusion still holds — the allowlist cannot open a port the real firewall
+denies — but the reason is that the layers compose by **conjunction**, not that
+the client filters nothing. Where the kill switch and the host firewall are both
+nftables base chains, the composition is explicit in the traversal rule: at a
+given hook, nftables evaluates every base chain in priority order, so an
+`accept` in one table merely lets the packet continue into the next, while a
+`drop` anywhere is immediate and final. The provider firewall
+(`references/cloud-network.md`) is a separate device on the path and composes
+the same way. So the client's allowlist, the host firewall and the provider
+firewall must **all** permit, and any one of them denying is the end of it. A
+review that conflates the three will either report a hole that does not exist or
+miss the one that does.
 
 **P11. A safety property that cannot be established is fatal, not a warning.**
 Kill switches, egress verification, the tunnel technology actually in effect,
@@ -372,7 +432,21 @@ Then a pivot check, because "bounded by the machine" is a claim about the
 machine's *reach*, not its size. A box holding a provider API token, carrying an
 attached instance role, or merely able to reach the metadata endpoint (P16) is
 not bounded by itself: compromise of it is compromise of whatever those
-credentials reach, and the finding inherits account-scoped severity.
+credentials reach.
+
+Which makes the severity a question about the *grant*, not about its existence,
+so read the grant before assigning one. An administration-scoped API token, or a
+role whose policy names a wildcard resource, is account-scoped and the finding
+says so. A role constrained to that host's own backup prefix, one parameter
+path, or a single queue reaches what compromise of the box already reached, and
+promoting it to account-scoped inverts the ranking this rule exists to produce:
+nearly every instance carries *some* role, so a check that promotes all of them
+promotes none of them. Inspect the attached policies' actions, resources and
+conditions and rank on what they actually reach; where those policies are not
+readable from the repository under review, say the scope was not established
+rather than assuming either end of it. The metadata endpoint is the same
+question one step removed — it is account-scoped when what it serves is, and an
+instance with no role attached has nothing there at all (P16).
 
 **P13. A secret reaching a target through a configuration run lands in three
 places on that target.** Enumerate all three for every such value rather than
@@ -434,17 +508,42 @@ The consequence is the standard escalation path for this stack: a component that
 fetches a URL on someone else's behalf — a forward proxy configured to fetch
 arbitrary URLs, a webhook handler, a script curling a caller-supplied address —
 will fetch *that* URL too if asked. That is the whole distance from "someone got
-a request through your service" to "someone has your cloud account", and it
-converts every machine-scoped finding in P12 into an account-scoped one.
+a request through your service" to "someone has whatever the attached role has",
+and it lifts a machine-scoped finding in P12 to the scope of that role — up to
+the whole account where the role is scoped that way, which is what P12 sends you
+to read the policy for.
 
 What to require:
 
 - **Session-oriented metadata access.** On AWS, IMDSv2 — session token required
-  — with the PUT response hop limit set to `1`, so that a container on the host
-  or an HTTP redirect cannot reach it second-hand. Require the equivalent on
-  whichever provider is in use; the providers that demand a specific header on
-  the request are relying on the same property, that a naive proxied GET cannot
-  produce it.
+  — plus a PUT response hop limit tight enough that an HTTP redirect or a
+  neighboring container cannot reach the endpoint second-hand. Require the
+  equivalent on whichever provider is in use; the providers that demand a
+  specific header on the request are relying on the same property, that a naive
+  proxied GET cannot produce it.
+
+  **The hop limit is a decision, not a constant**, and `1` prescribed blindly
+  breaks working credentials. A process in a container on a bridge network
+  reaches the endpoint one hop further out than a host process does, so `1` is
+  precisely what denies IMDS to containerized workloads — the goal when nothing
+  in a container needs the role, an outage when something does, and the same
+  setting either way. Establish which case the box is in before requiring a
+  value:
+
+  - **Nothing containerized needs IMDS** → `1`, and that is the value to
+    require.
+  - **A containerized workload holds the identity** → give the workload its own
+    credential instead of letting it reach the host's. The task- or pod-level
+    identity the platform issues is served from its own endpoint, so the host
+    hop limit stays at `1` and the container never touches `169.254.169.254`.
+  - **Neither is available** → the provider-documented container hop limit (`2`
+    on AWS) is the supported fallback, and the finding says so rather than
+    leaving it to look like an oversight: every process one hop out now reaches
+    the endpoint, so the egress rule below and the role's own scope (P12) are
+    carrying the control the hop limit was.
+
+  Reporting "hop limit is 2" without establishing which of the three applies is
+  reporting a configuration, not a hole.
 - **Deny the link-local range at the egress boundary** wherever the box runs a
   forward proxy or anything else fetching attacker-influenced URLs — the common
   shape for this stack. Belt and braces: the hop limit stops the redirect, the

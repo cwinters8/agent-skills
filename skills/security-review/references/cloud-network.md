@@ -82,7 +82,21 @@ layer where the hole actually is.
   defined at the *network* level rather than per instance, and the auto-created
   `default` network ships `default-allow-ssh` (TCP 22 from anywhere) alongside
   `default-allow-rdp`. An instance in the default VPC therefore sits in an
-  ingress **hole**, not a neutral position.
+  ingress **hole** rather than a neutral position — but a hole is a rule *and*
+  a path, and the rule on its own is half of one. `0.0.0.0/0` in a firewall rule
+  is the set of sources permitted *if a packet arrives*; a VM with no external
+  IP and no other inbound route has nothing delivering one from the internet, so
+  calling it internet-exposed on the rule alone is a false positive, and false
+  positives are what this gate loses credibility for. Require both halves: the
+  permissive rule, and a routable endpoint or forwarding path — an external IP,
+  a forwarding rule or load balancer, a NAT or proxy front end, an
+  identity-aware tunnel terminating inbound. Where only the rule is present the
+  finding is still real and smaller: every peer that *can* reach the instance —
+  anything else on that network, anything routed to it over a VPN or
+  interconnect — reaches port 22, with the rule contributing nothing to keeping
+  them out. Report that as exposure to reachable peers, and say which half you
+  established, the same way N4 separates a routable address from an assigned
+  one.
 - **AWS**: "Each subnet in your VPC must be associated with a network ACL." The
   default NACL is permissive, but it is never *absent*, and a restrictive one is
   a real filter a security-group-only review will not see.
@@ -114,9 +128,21 @@ server will forcibly terminate all jobs and steps marked for cancellation that
 are still running." The real failure cases are a killed or evicted runner, a
 crashed harness, a job or workflow timeout that ends the run outright, and
 cleanup that outruns the five-minute budget — an API call retrying against a
-rate limit will. Treat `always()` as a budget, not a promise. Note also that
-GitHub's own guidance prefers `if: ${{ !cancelled() }}`, because `always()` can
-hang a run by ignoring the cancellation that was trying to stop it.
+rate limit will. Treat `always()` as a budget, not a promise.
+
+**And do not carry GitHub's general preference for `if: ${{ !cancelled() }}`
+into this step.** The preference is real, and so is its reason — `always()` can
+hang a run by ignoring the cancellation that was trying to stop it — but
+`!cancelled()` evaluates *false* exactly when the job was cancelled, which is
+one of the cases a rule-closing step exists to cover. Adopting it here
+guarantees the ingress rule stays open on every cancelled run, and the diff
+reads as a tidy-up. A step whose job is to withdraw ingress keeps `always()`,
+and the hang it risks gets bounded the right way: a `timeout-minutes` on the
+step, so a wedged API call cannot eat the five-minute budget, plus something
+independent of the run — the reaper below, or the stable identity that removes
+the per-run rule entirely — for the runs where the step never executed at all.
+`!cancelled()` is right for a step that must not run after a cancellation; it is
+wrong for every step that must.
 
 **Provider-side expiry does not exist anywhere; expressiveness varies a lot.**
 "Rules carry no timestamp" is overstated for AWS and *understated* for
@@ -243,6 +269,23 @@ AWS security groups or network ACLs, so the read survives a kill switch and a
 default-deny egress rule that would break an outbound HTTP call. Treat that
 endpoint as the credential surface it also is —
 `references/infra-provisioning.md` → P16 is the other half of this rule.
+
+**With one exception, and it is the floating-address case above wearing a
+different hat.** Metadata answers "what address is assigned to this instance",
+which stops being the same question as "what address do clients use" the moment
+a separately-mapped address fronts the box — a reserved or floating IP, a load
+balancer, a NAT or proxy front end. What metadata reports there is the
+underlying address, and that address can itself be publicly routable, so the
+assertion below **passes on it** and the project pins a firewall or publishes an
+endpoint on the wrong value with nothing failing anywhere. A wrong answer that
+survives the check is worse than the interface read this rule replaced, which at
+least failed loudly. So where such a mapping is in play, take the advertised
+address from the provider's own mapping — the provider that puts the anchor
+address on the interface also serves the active reserved address under its own
+metadata key, separate from the interface keys — or accept it as an explicit
+input and say in the finding that it was supplied rather than discovered. Ask
+first whether the two questions have different answers on this project; where
+they do not, the plain metadata read is correct.
 
 Keep the assertion, and relabel it. Rejecting a loopback, RFC1918, link-local or
 RFC 6598 (`100.64.0.0/10`) answer is a **routability test**, not a NAT detector,
