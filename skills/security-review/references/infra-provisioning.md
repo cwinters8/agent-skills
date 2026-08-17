@@ -96,8 +96,12 @@ recommend it, saying "Always check return values" instead. The recommendation
 stands here anyway — on a root script, carrying on after a failed step is the
 worse failure — but the documented holes are wide:
 
-- it is silently disabled inside any function invoked in a condition, or on
-  either side of `&&` / `||`;
+- it is silently disabled inside any function invoked in a condition, and for
+  every command in an `&&` / `||` list **except the last one** — so `false &&
+  true` carries on while `true && false` exits, which is the reverse of the
+  shorthand "`set -e` is off around `&&`". Getting this backwards produces
+  findings against a failure the shell does stop on, which is how the rule
+  loses the reader;
 - `local var=$(cmd)` discards the command's status, because `local` is itself a
   command and it succeeded;
 - it is not inherited inside command substitutions without `inherit_errexit`;
@@ -349,10 +353,24 @@ can be enforced, because the format cannot express it.
 **P10. Allowlist the inbound paths before anything captures reachability.** Any
 step that changes how the machine can be reached — enabling a host firewall,
 connecting a VPN client whose kill switch captures the default route, restarting
-the SSH daemon under new config, changing the bind address — must have SSH, the
-out-of-band shell (mosh or equivalent) and any service port permitted *before* it
+the SSH daemon under new config, changing the bind address — must have SSH, any
+second shell the project relies on, and any service port permitted *before* it
 takes effect. Reordering those strands the operator on a box reachable only
 through the provider console, mid-run, with the configuration half applied.
+
+Be careful what gets counted as that second shell, because the usual candidate
+is not independent of the first. A roaming shell such as mosh is genuinely
+valuable mid-reprovision — it survives the address change and the dropped
+connection that would kill an SSH session — but it is **not an out-of-band
+path**: the client bootstraps the remote server over SSH, and the session then
+needs its own UDP range through the very firewall the run is changing. It shares
+both dependencies with the thing it is supposed to back up, so it fails in
+precisely the scenario it would be called on for, and both of those
+dependencies have to be permitted before the change rather than just the UDP
+range. The only genuinely out-of-band path is one that does not traverse the
+machine's network policy at all — the provider's serial or web console, or a
+management interface on a separate path — and `references/cloud-network.md` →
+N5 requires that one be exercised rather than merely configured.
 
 The mechanism is worth getting right, because the usual shorthand — "a VPN
 client's port allowlist is not a firewall" — is literally false and leads a
@@ -548,12 +566,32 @@ What to require:
   forward proxy or anything else fetching attacker-influenced URLs — the common
   shape for this stack. Belt and braces: the hop limit stops the redirect, the
   egress rule stops the direct fetch.
+
+  **Scope that denial to the fetcher rather than to the host**, or it takes the
+  legitimate reader out with the hostile one: `references/cloud-network.md` → N4
+  has the provisioning run itself reading this endpoint to discover the
+  machine's advertised address, and a host-wide link-local drop blocks that too.
+  What makes the two compatible is that they are different *principals* on one
+  box, so the boundary has to be drawn where that difference is visible — the
+  fetcher's own network namespace or container, a rule matching its uid or
+  cgroup, an egress policy attached to its identity rather than to the
+  interface. Where the platform expresses none of those, invert it: deny broadly
+  and permit the one trusted caller explicitly, and say in the finding which
+  principal the exception names, since an exception nobody can enumerate is the
+  hole again. A rule that simply drops `169.254.169.254` for everything is not a
+  stricter version of this control; it is a different control that breaks the
+  run.
 - **Best of all, no attached role.** An instance with no role attached has
   nothing at that endpoint worth stealing. Ask what the role is for before
   hardening around it; the answer is sometimes "nothing, any more".
 
 `references/cloud-network.md` → N4 legitimately reads this same endpoint to
 discover the instance's own public address — that rule and this one are the two
-halves of the same fact, and they are not in tension: a provisioning script
-running as root reading it is fine. The control is that nothing *else* on the
-box can be induced to read it on an outsider's behalf.
+halves of the same fact. They are not in tension over *whether* the endpoint may
+be read: a provisioning script running as root reading it is fine, and the
+control is that nothing *else* on the box can be induced to read it on an
+outsider's behalf. Where they do collide is over how a denial gets written,
+which is why the egress rule above has to name a principal rather than an
+address — the host-wide version satisfies this rule by breaking that one. A
+review reporting "link-local is reachable from this host" without asking which
+process was doing the reaching has not yet established either half.

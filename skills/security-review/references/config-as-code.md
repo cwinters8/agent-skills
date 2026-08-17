@@ -222,8 +222,20 @@ several years out of date:
 
 - **OpenTofu 1.7+ encrypts state *and* plan files client-side** (AES-GCM, keyed
   by a passphrase or by AWS KMS, GCP KMS, Azure Key Vault or OpenBao). It is
-  **off until configured**, so on an OpenTofu project its *absence* is a finding
-  rather than an acceptable default.
+  **off until configured**, so on an OpenTofu project it is worth checking for
+  by name — but rank its absence against what the state actually holds rather
+  than as a default-on requirement. "Credential material until shown otherwise"
+  is the presumption this rule opens with, and a presumption is rebuttable: a
+  configuration whose resources take no secret inputs and whose outputs are
+  addresses and ids has state worth no more than the code already in the
+  repository, and reporting it anyway spends the reader's attention on nothing.
+  So establish the disclosure path before ranking it — a sensitive value that
+  reaches state or a saved plan, or a copy of either landing somewhere the
+  backend does not protect: a working directory, a CI artifact, a plan file
+  handed between jobs. With one of those, the absence is a real finding and the
+  severity follows the value. With none, say the state was inspected and found
+  to carry nothing sensitive, which is a more useful report than either flagging
+  it reflexively or skipping it silently.
 - **Terraform has no client-side equivalent** and depends on the backend, which
   protects the stored copy and not much else: a local state file, or a plan file
   handed to a CI job as an artifact, is still plaintext.

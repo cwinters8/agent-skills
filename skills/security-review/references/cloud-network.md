@@ -332,3 +332,20 @@ This also connects to `references/infra-provisioning.md` → P12: a dedicated
 egress address is normally a paid subscription feature, so a lapsed payment or a
 cancelled account revokes the address and locks everyone out — a billing event
 with the blast radius of a firewall change.
+
+**And the lockout is the lesser half.** A revoked address returns to the
+provider's pool and is reassigned to another customer, while the rule naming it
+sits there unchanged. At that moment the rule stops being a restriction and
+becomes a **grant**: whoever now holds the address is permitted through the
+boundary to a port the project believed only it could reach. Note the asymmetry
+in how the two halves surface. The lockout announces itself, because the
+operator's own access broke; the transfer announces nothing, because from inside
+the account every rule still reads exactly as written and nothing about the
+handover is visible. So treat a pinned address as something whose ownership has
+to be established *continuously* rather than once: withdraw the rule as soon as
+the subscription lapses, and where the address is load-bearing, monitor that it
+still belongs to the account rather than trusting that a rule nobody edited
+still means what it meant. This is N3's leaked JIT rule arrived at from billing
+instead of from a skipped cleanup step, and it has the same ending — an ingress
+rule for a source the project does not control, with nothing marking it as
+stale.
