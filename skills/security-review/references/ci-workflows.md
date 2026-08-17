@@ -445,36 +445,42 @@ authorization one: triggering it needs write access — the same access that cou
 merge to the branch a `push` trigger fires on. It adds no reviewer, and it does
 not withhold the secret.
 
-Put the privileged job in an environment. A job referencing one cannot access
-that environment's secrets until every protection rule passes, so an unapproved
-run never reaches the credential — which is the property `workflow_dispatch`
-lacks entirely. Add branch or tag deployment restrictions so only the release ref
-can deploy, and prefer OIDC over a stored deploy secret (C9.2).
+So ask one question of a privileged workflow: **what withholds the credential
+from a run that should not have it?** There are two answers that work, the
+project picks one, and the review checks the one it picked.
+
+- **An environment.** A job referencing one cannot reach that environment's
+  secrets until every protection rule passes, so an unapproved run never
+  touches the credential — the property `workflow_dispatch` lacks entirely.
+- **A ref-scoped federated identity.** With OIDC there is no stored secret for
+  an environment to withhold; the trust policy makes the role assumable only
+  from the named branch or tag, so the gate sits at the identity provider.
+  `references/infra-provisioning.md` → P15 is the same requirement written from
+  that side, and it accepts this shape on its own.
+
+**Do not require both.** Requiring an environment on top of a correctly
+ref-scoped federated deployment reports a valid unattended setup as a defect,
+and this rule and P15 have to agree on that or a consumer loading both modules
+gets a finding whichever way the project built it. Establish which mechanism is
+in play, then check *that* one: for an environment, that its protection rules
+and its branch or tag deployment restrictions actually bound who can deploy;
+for federation, that the subject is pinned to a ref rather than to the
+repository alone, which is P15's two-part pin.
+
+**The finding is a privileged deployment where neither holds** — a stored
+deploy secret reachable from any ref, with no environment and no ref-scoped
+federation in front of it. Where a stored secret is the mechanism, prefer
+replacing it with OIDC (C9.2) rather than only wrapping it.
 
 **Required reviewers** and **prevent self-review** are the protection rules to
-reach for where the deployment is meant to be approved by a human, and that is
-the common case for a privileged apply. Ask for them against the project's own
-policy rather than unconditionally: a deployment deliberately run unattended —
-a scheduled reconcile, an automated promotion gated on tests — is restricted by
-the branch and tag rules above and by the environment membership itself, and
-reporting it for lacking an approver is a false finding.
-`references/infra-provisioning.md` → P15 says the same thing from the OIDC side
-and cites this rule, so the two have to agree: the environment is required, the
-*approval* protection rule is required where the project's policy calls for
-approval.
+reach for where the deployment is meant to be approved by a human, which is the
+common case for a privileged apply — but ask for them against the project's own
+policy rather than unconditionally. A deployment deliberately run unattended, a
+scheduled reconcile or an automated promotion gated on tests, is bounded by the
+ref restriction above, and reporting it for lacking an approver is a false
+finding.
 
-The same care applies one step out, because "no environment" is not a finding
-on its own either — what has to be true is that *something* gates the
-credential. An environment gates it by withholding its secrets until the
-protection rules pass. A ref-scoped OIDC subject gates it at the identity
-provider instead: the role is assumable only from the named branch or tag, and
-there is no stored secret for an environment to withhold. P15 accepts that
-alternative explicitly, so requiring an environment on top would report a
-correctly federated unattended deployment as a defect. Ask which of the two the
-project relies on and check that one. What is always a finding is a privileged
-deployment where **neither** holds — a stored deploy secret reachable from any
-ref, with no environment and no ref-scoped federation in front of it. Manual
-dispatch
-on top of that is still useful, and a `dry_run` input defaulting to true is sound
-hygiene for a workflow whose failure mode is an unreachable target — but that is
-operational practice, not the security control.
+Manual dispatch on top of any of this is still useful, and a `dry_run` input
+defaulting to true is sound hygiene for a workflow whose failure mode is an
+unreachable target — but that is operational practice, not the security
+control.
