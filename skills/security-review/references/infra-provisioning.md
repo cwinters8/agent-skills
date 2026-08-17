@@ -529,6 +529,23 @@ the SSH daemon under new config, changing the bind address — must have the
 the project relies on. Reordering those strands the operator on a box reachable
 only through the provider console, mid-run, with the configuration half applied.
 
+**"Permitted before" means the path you are keeping, not a path you are
+opening.** The rule reads as "open SSH first", and on a freshly provisioned host
+that is the same mistake the next paragraph forbids for application ports: the
+distribution's `sshd` is already running under its shipped configuration, so
+opening the port before the run has installed the authorized keys, disabled
+password authentication and validated the new config publishes an unconfigured
+administrative listener — and it is the one listener whose compromise is the
+whole box. What the rule is actually protecting is **continuity of the access
+you already have**: an established session, or a genuinely out-of-band console
+per the test above. So hold that open path, stage and validate the SSH
+configuration behind it, and permit the new ingress once the daemon
+authenticates the way the repository says it should. Where no such path exists
+yet — the very first boot, reached only over the network — the sequence is
+narrower still: bring the port up already restricted to the operator's source,
+never to `0.0.0.0/0`, and treat the window between listener and keys as
+something to measure rather than to ignore.
+
 **Application ports are the opposite case, and folding them into the same rule
 inverts it.** A package that starts its daemon on install starts it under the
 distribution's default configuration — before the run has written the
@@ -649,9 +666,19 @@ not bounded by itself: compromise of it is compromise of whatever those
 credentials reach.
 
 Which makes the severity a question about the *grant*, not about its existence,
-so read the grant before assigning one. An administration-scoped API token, or a
-role whose policy names a wildcard resource, is account-scoped and the finding
-says so. A role constrained to that host's own backup prefix, one parameter
+so read the grant before assigning one. An administration-scoped API token is
+account-scoped and the finding says so.
+
+**A wildcard resource is not that test**, and using it as one re-creates the
+over-promotion this rule was written to stop. Many actions do not support
+resource-level permissions at all, so a policy granting them *must* write
+`Resource: "*"` however narrow the action is — an inventory-listing or
+describe-only grant is the common case, and it reaches nothing beyond knowing
+what exists. The tuple that matters is the **action** together with the resource
+and any conditions: `"*"` on actions that read, modify or administer
+account-wide resources is account-scoped; `"*"` forced by an action that has no
+resource dimension is not, and a check keying on the resource field alone cannot
+tell those apart. A role constrained to that host's own backup prefix, one parameter
 path, or a single queue reaches what compromise of the box already reached, and
 promoting it to account-scoped inverts the ranking this rule exists to produce:
 nearly every instance carries *some* role, so a check that promotes all of them
@@ -743,8 +770,13 @@ and check for that:
   P16 governs how that endpoint then has to be locked down.
 - **A secrets manager's dynamic-secret or database backend**, issuing a
   credential per run under a lease that expires on its own.
-- **SPIFFE/SPIRE SVIDs**, where a service mesh already issues workload
-  identities.
+- **A workload identity plane already present in the environment**, issuing
+  each workload a short-lived, automatically rotated credential in place of a
+  stored one. Where a service mesh or an identity plane is already deployed,
+  this costs nothing extra and is usually the strongest option available;
+  SPIFFE SVIDs issued through SPIRE are one implementation, and the check is
+  for the property — per-workload identity, short lifetime, rotation without a
+  human — rather than for that product.
 
 If none of them apply, say so in the finding. "No federation is available for
 this provider and CI combination, so a static token is the only option; it is
