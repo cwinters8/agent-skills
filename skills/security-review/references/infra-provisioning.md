@@ -131,9 +131,16 @@ descending order of preference:
 1. **The vendor's signed package repository**, key fetched to a keyring and the
    repository entry pinned to it. The apt option is spelled `signed-by=` in a
    one-line `sources.list` entry and `Signed-By:` in a deb822 `.sources` file —
-   note the hyphen. `signed_by` with an underscore is Ansible's `apt_repository`
-   parameter name, not apt's, so grep for the hyphenated form or the search
-   comes back empty on a repository that is doing it right. Debian's
+   note the hyphen. The underscore form is a *module parameter* rather than apt's
+   spelling, and attributing it to the wrong module turns this into a false
+   finding: verified against ansible-core 2.19,
+   `ansible.builtin.deb822_repository` takes `signed_by:` as a genuine
+   parameter, while `ansible.builtin.apt_repository` has no such parameter at
+   all and carries the hyphenated `signed-by=` inside its `repo` string. So a
+   playbook writing `signed_by:` under `deb822_repository` is doing exactly the
+   right thing, and a grep restricted to the hyphenated form reports a missing
+   key pin on a repository that has one. Search both spellings, and attribute
+   each to the layer it belongs to. Debian's
    guidance: the entry "SHOULD have the signed-by option set", the key "MUST NOT
    be placed in /etc/apt/trusted.gpg.d or loaded by apt-key add", and keyrings
    belong in `/etc/apt/keyrings` (operator-managed) or `/usr/share/keyrings`
@@ -244,7 +251,13 @@ recommendation that sounds generous:
 
 **P4. Where the consumer is a systemd unit, the file mode is the fallback, not
 the design.** `LoadCredential=` and `LoadCredentialEncrypted=` pass a secret to
-one unit through `$CREDENTIALS_DIRECTORY`, held in non-swappable memory. systemd
+one unit through `$CREDENTIALS_DIRECTORY`, which the manager backs with memory
+rather than persistent storage where it can. Read that as the intended
+placement rather than a guarantee: systemd conditions the memory-backed mount on
+its being possible and permitted, and a *user* unit gets weaker backing than a
+system one. Where a finding turns on the at-rest property specifically,
+establish the unit type and what the credentials directory is actually mounted
+on for that target, instead of crediting it from the directive. systemd
 documents that "access to credentials is restricted to the service's user", that
 "the credential data is not propagated down the process tree", and that "each
 time a credential is accessed an access check is enforced by the kernel". There
@@ -608,8 +621,11 @@ promotes none of them. Inspect the attached policies' actions, resources and
 conditions and rank on what they actually reach; where those policies are not
 readable from the repository under review, say the scope was not established
 rather than assuming either end of it. The metadata endpoint is the same
-question one step removed — it is account-scoped when what it serves is, and an
-instance with no role attached has nothing there at all (P16).
+question one step removed — it is account-scoped when what it serves is. What
+detaching the role removes is the *role credential*, not the endpoint: the same
+service still answers for user-data, the instance identity document and any
+injected keys, so finish this check against P16's inventory of what the provider
+serves rather than stopping at "no role, nothing to reach".
 
 **P13. A secret reaching a target through a configuration run has three places
 it can land.** Walk all three for every such value rather than generalizing from
@@ -662,13 +678,18 @@ and check for that:
   (`repo:<owner>/<repo>:environment:<name>`) carries no ref at all, and which
   branches may reach it is decided by that environment's own deployment
   restrictions instead. So demanding a ref in the subject rejects the
-  environment-scoped setup, which is usually the *stronger* of the two, since an
-  environment can also require a reviewer — `references/ci-workflows.md` → C9.5
-  is where those restrictions get checked, and this bullet defers to it rather
-  than restating them. Establish which shape the subject takes, then verify the
-  matching restriction: the ref pattern where it is ref-scoped, the branch rules
-  and required reviewers where it is environment-scoped. Scoped to the
-  repository and nothing else is the finding, in either shape. Any of this
+  environment-scoped setup, which can be the *stronger* of the two, since an
+  environment can additionally require a reviewer — `references/ci-workflows.md`
+  → C9.5 is where those restrictions get checked, and this bullet defers to it
+  rather than restating them. Establish which shape the subject takes, then
+  verify the restriction that actually bounds it: the ref pattern where it is
+  ref-scoped, and where it is environment-scoped, the deployment branch or tag
+  rules deciding which refs may reach that environment. **Required reviewers is
+  an optional protection rule layered on top**, so ask for it where the
+  project's own policy calls for approval on that deployment — not as a
+  condition of accepting the subject, which would report a deliberately
+  unattended deployment as a finding. Scoped to the repository and nothing else
+  is the finding, in either shape. Any of this
   replaces a long-lived access key sitting in repository secrets, which is the
   most common finding in this class.
 - **An attached instance role**, read from the metadata service at the moment of

@@ -286,8 +286,14 @@ variable-file exception, and that a committed lock file is the dependency lock
 The remedies have moved, and a review citing only "use a remote backend" is
 several years out of date:
 
-- **OpenTofu 1.7+ encrypts state *and* plan files client-side** (AES-GCM, keyed
-  by a passphrase or by AWS KMS, GCP KMS, Azure Key Vault or OpenBao). It is
+- **OpenTofu 1.7+ can encrypt state *and* plan files client-side** (AES-GCM,
+  keyed by a passphrase or by AWS KMS, GCP KMS, Azure Key Vault or OpenBao) —
+  and the two are **configured as separate targets**, which is the step a
+  reviewer skips. Finding client-side encryption "in the project" is not the
+  check: a configuration that encrypts state while also saving a plan file
+  leaves that plan in cleartext holding the same values, and whoever confirmed
+  encryption exists has confirmed it for one of the two artifacts. Check each
+  target the project actually produces, and say which ones you checked. It is
   **off until configured**, so on an OpenTofu project it is worth checking for
   by name — but rank its absence against what the state actually holds rather
   than as a default-on requirement. "Credential material until shown otherwise"
