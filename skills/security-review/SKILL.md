@@ -151,12 +151,13 @@ may change **is** authorization here and gets graded; application-user
 authorization has no subject and gets recorded as having none, rather than
 passed over in silence. With neither module loaded, ask the same two questions
 from that shape and say the mapping was improvised.
-Its concrete rule is P7 — a sudoers drop-in is staged, validated with its mode,
-ownership and final filename already set, and only then installed. An invalid
-file in `/etc/sudoers.d` denies escalation to every account and takes with it
-the privilege needed to repair it; a file sudo silently skips or never reads
-leaves the intended grant merely absent instead. P7 says which defect lands
-where. Without that module, still ask it of any privilege-granting file the
+Its concrete rule is P7 — a privilege-granting drop-in is staged, validated with
+its mode, ownership and final filename already set, and only then installed. The
+two ways that goes wrong fail very differently, which is why the order matters:
+an invalid file already installed into the privilege system denies escalation to
+every account and takes with it the access needed to repair it, while a file the
+consumer silently skips or never reads leaves the intended grant merely absent.
+P7 says which defect lands where and carries the validation mechanics. Without that module, still ask it of any privilege-granting file the
 change installs — which accounts it grants, whether it was validated before it
 landed, and whether a defect in it fails loudly or silently — and say the
 rule-level detail was not graded.
@@ -343,9 +344,9 @@ contradiction. **The concern** — a credential reaching an operator's terminal 
 a job log — always has a subject, because a run's output exists either way, and
 it is P5's printed path and this group's own item regardless of tooling. **D6
 itself** is one tool's suppression mechanism and has no subject outside it; the
-module says so, and that is the answer to record for D6. So a non-Ansible layer
-reports the printed-credential concern as graded and D6 as not applicable, which
-is one outcome rather than two contradictory ones. Without either module,
+module says so, and that is the answer to record for D6. So a layer other than
+the one D6 names reports the printed-credential concern as graded and D6 as not
+applicable, which is one outcome rather than two contradictory ones. Without either module,
 still read the group that way on such a repo — the mode and owner of any file
 the change writes a credential into, and any value that reaches a terminal or a
 job log — and say the rule-level detail was not graded.
@@ -432,17 +433,14 @@ the run downloads and executes as root, and P2 of
 largest surface here — a remote installer piped to a root shell, unpinned and
 unverified. P1 is item 5's shape one layer down: a caller-controlled value
 landing in a root script's path, command or config line. Where `config-as-code`
-covers configuration management, D4 names a manifest item 1 will otherwise not
-think to look for: whatever dependency file that system's own check resolves
-against, and how much of the tree the check never reaches. D4 works that case
-through Ansible, where it is the role and collection requirements file and
-green covers only the statically referenced half, never the dynamically
-included one. On another configuration-management system read D4 for that shape
-and establish what its equivalent is before reporting a missing manifest —
-naming Ansible's on a system that has no such thing is the same invented
-finding, one system over. Where `config-as-code` covers infrastructure-as-code
-instead, there is no such manifest at all and D4's subject is the init,
-validate and plan sequence.
+covers configuration management, D4 names a dependency manifest item 1 will
+otherwise not think to look for: whatever file that system's own check resolves
+against, and how much of the tree that check never reaches. Establish what the
+system in play actually uses before reporting a missing manifest — D4 has the
+mechanics, including which reference shapes a check follows and which it walks
+straight past, and reporting one system's manifest as absent from another is an
+invented finding. Where `config-as-code` covers infrastructure-as-code instead,
+there is no such manifest and D4's subject is the validate-and-plan sequence.
 Item 4 above and `ci-workflows` → C9 are the same runner asked about from the
 other side; reach the machine rules directly rather than through that hop.
 Without those modules, still ask what the change fetches and executes with

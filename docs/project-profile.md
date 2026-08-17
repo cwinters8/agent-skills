@@ -320,7 +320,10 @@ reachability and machine-credential rules, and only the application identity hal
 is reported unconfigured — a machine-only repository does not lose a core group
 for having no users.
 
-*Missing:* the `auth-session` group reports as not configured.
+*Missing:* the `auth-session` group reports as not configured — except where
+`## Stack` names an infrastructure module, in which case that module's
+reachability and machine-credential rules still run and only the application
+identity half reports unconfigured.
 
 ### `## Secrets policy` — optional
 
