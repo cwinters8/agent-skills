@@ -191,11 +191,15 @@ first module's table carries the whole translation.
 section is written from an application's identities, so a machine-only
 repository may legitimately have nothing to put in it — and reporting the whole
 group unconfigured would retire SSH keys, service credentials and every
-reachability rule, which is most of what an infrastructure review is for. Where
-`## Stack` names an infrastructure module, run that module's reachability and
-machine-credential rules regardless, and report only the application identity
-half as not configured. Where no such module is named and the section is absent,
-the group reports as not configured in full.
+reachability rule, which is most of what an infrastructure review is for. The
+condition is a **machine**, not the module list: where `## Stack` names
+`infra-provisioning` or `cloud-network`, or a `config-as-code` layer that
+manages a machine, run that module's reachability and machine-credential rules
+regardless and report only the application identity half as not configured. A
+declarative layer that provisions nothing — DNS, object storage, a SaaS tenant —
+has no ports and no host credentials for those rules to reach, so there, as
+where no such module is named at all, the group reports as not configured in
+full.
 With `cloud-network` unnamed, still work reachability from the rules as written,
 but assume no default for egress, for network-level filtering above the
 instance, or for the address family a rule covers: N1, N2 and N5 exist because
@@ -491,9 +495,11 @@ merged PR description is a finding that has been lost.
 | **Low** | Hardening with no known exploit path | Note it; don't block. |
 
 Those rows are written from an application's outcomes. Where `## Stack` names an
-infrastructure module the subject is a machine and an account, and the mapping
-has to be stated or the same finding gets ranked three tiers apart by two
-readers. Same scale, same merge actions:
+infrastructure module the subject becomes a machine and an account, and the
+mapping has to be stated or the same finding gets ranked three tiers apart by
+two readers. Where the layer provisions no machine the subject is the account
+alone, and the machine rows below simply have no subject — say so rather than
+ranking against them. Same scale, same merge actions:
 
 | Outcome on infrastructure | Tier |
 | --- | --- |

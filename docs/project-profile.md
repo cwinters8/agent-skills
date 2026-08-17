@@ -315,15 +315,21 @@ modules file reachability under `auth-session` precisely because a firewall rule
 and the credential behind it have to be reviewed together.
 
 Leaving this out reports the `auth-session` group as not configured. Where
-`## Stack` names an infrastructure module the group still runs that module's
-reachability and machine-credential rules, and only the application identity half
-is reported unconfigured — a machine-only repository does not lose a core group
-for having no users.
+`## Stack` names `infra-provisioning` or `cloud-network` — or a `config-as-code`
+layer that manages a machine — the group still runs that module's reachability
+and machine-credential rules, and only the application identity half is reported
+unconfigured: a machine-only repository does not lose a core group for having no
+users. The condition is the *machine*, not the module list. A declarative layer
+that provisions nothing — DNS records, object storage, a SaaS tenant — has no
+ports, no host credentials and nothing for those rules to reach, so there the
+whole group reports as not configured, which is the no-machine path this file
+describes under `## Stack`.
 
-*Missing:* the `auth-session` group reports as not configured — except where
-`## Stack` names an infrastructure module, in which case that module's
-reachability and machine-credential rules still run and only the application
-identity half reports unconfigured.
+*Missing:* the `auth-session` group reports as not configured — except where the
+stack has a machine (`infra-provisioning`, `cloud-network`, or a
+`config-as-code` layer managing one), in which case that module's reachability
+and machine-credential rules still run and only the application identity half
+reports unconfigured.
 
 ### `## Secrets policy` — optional
 

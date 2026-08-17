@@ -438,11 +438,12 @@ for the control, which is what it was ever offered as. A persistent runner that 
 infrastructure is a finding on its own; a nominally ephemeral runner on a
 recycled host is the same finding wearing a flag.
 
-**C9.5 A privileged apply/deploy workflow is gated by an environment, not by its
-trigger.** `workflow_dispatch` is an intentionality control, not an authorization
-one: triggering it needs write access — the same access that could merge to the
-branch a `push` trigger fires on. It adds no reviewer, and it does not withhold
-the secret.
+**C9.5 A privileged apply/deploy workflow is gated by whatever withholds its
+credential — an environment, or a ref-scoped federated identity — never by its
+trigger.** `workflow_dispatch` is an intentionality control, not an
+authorization one: triggering it needs write access — the same access that could
+merge to the branch a `push` trigger fires on. It adds no reviewer, and it does
+not withhold the secret.
 
 Put the privileged job in an environment. A job referencing one cannot access
 that environment's secrets until every protection rule passes, so an unapproved
@@ -460,8 +461,20 @@ reporting it for lacking an approver is a false finding.
 `references/infra-provisioning.md` → P15 says the same thing from the OIDC side
 and cites this rule, so the two have to agree: the environment is required, the
 *approval* protection rule is required where the project's policy calls for
-approval. What is always a finding is a privileged deployment with no
-environment at all, since then nothing gates the secret. Manual dispatch
+approval.
+
+The same care applies one step out, because "no environment" is not a finding
+on its own either — what has to be true is that *something* gates the
+credential. An environment gates it by withholding its secrets until the
+protection rules pass. A ref-scoped OIDC subject gates it at the identity
+provider instead: the role is assumable only from the named branch or tag, and
+there is no stored secret for an environment to withhold. P15 accepts that
+alternative explicitly, so requiring an environment on top would report a
+correctly federated unattended deployment as a defect. Ask which of the two the
+project relies on and check that one. What is always a finding is a privileged
+deployment where **neither** holds — a stored deploy secret reachable from any
+ref, with no environment and no ref-scoped federation in front of it. Manual
+dispatch
 on top of that is still useful, and a `dry_run` input defaulting to true is sound
 hygiene for a workflow whose failure mode is an unreachable target — but that is
 operational practice, not the security control.
