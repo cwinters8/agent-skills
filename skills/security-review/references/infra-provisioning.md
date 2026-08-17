@@ -135,6 +135,21 @@ descending order of preference:
    (package-managed). `apt-key` is removed as of Debian 13. The package manager
    then verifies every future upgrade too, which no one-shot download does.
 
+   **Where the key came from decides whether any of that is trust.** Fetching
+   the signing key over HTTPS from the same origin that serves the repository
+   buys ordinary TLS and nothing beyond it: whoever can serve a malicious
+   repository at that origin — a compromised vendor, a mis-issued certificate,
+   an intercepted first run — serves the matching key in the same breath, and
+   `signed-by` then verifies the attacker's signatures faithfully, as root, on
+   every upgrade from then on. The pin has to be anchored to something that
+   download cannot substitute: an expected fingerprint written into the reviewed
+   code and checked after fetching, a key shipped by a distribution keyring
+   package, or one obtained over a channel independent of the repository.
+   Record the fingerprint, verify it, and fail the run when it does not match
+   (P11). A `signed-by` entry whose key was fetched moments earlier from the
+   same host is trust-on-first-use wearing the ceremony of verification — worth
+   saying in the finding rather than crediting the entry as the fix.
+
    This item is **not a pure win**, and presenting it as one leaves the review
    incomplete. Unlike items 2 and 3 it permanently enlarges root-level trust:
    any package from that repository can run a maintainer-script command as root,
@@ -286,8 +301,16 @@ answer, and it distinguishes a considered fallback from an unexamined one.
   vendor CLIs accept a token only as a flag, so the exposure may be unavoidable;
   record it as a known limitation rather than leaving a reader to find it. An
   environment variable is materially better than `argv` — `/proc/<pid>/environ`
-  is `0400`, owner-only — but stdin is better than both, because the value never
-  lands in a readable kernel interface at all. Where a tool reads stdin, use it:
+  is `0400`, owner-only — but stdin is better than both, because the value is
+  never parked in an interface another process can read at leisure. Do not
+  upgrade that to "never readable". A peer process under the same uid can open
+  the victim's `/proc/<pid>/fd/0` and reach the pipe while the value is in
+  flight, and a same-uid peer can generally `ptrace` the process anyway. The
+  ranking still holds, and it is the useful part — `argv` is world-readable for
+  the whole call, `environ` is owner-readable for the life of the process, stdin
+  is a narrow window an attacker has to be present for — but grade it as a large
+  reduction in exposure rather than a boundary, and note that the boundary which
+  would actually hold is a separate identity. Where a tool reads stdin, use it:
   piping a password into the account-update command instead of passing it as an
   argument removes the exposure in one line, and a script that does this for one
   credential but not another has an inconsistency worth flagging.
@@ -355,6 +378,22 @@ that reports success while installing a grant that does not exist:
   include directory with the new file in place — and check that rather than the
   fragment. What is not a fix is dropping `-s`, which restores the
   exit-0-on-a-broken-grant hole this bullet opens with.
+
+  The staged tree carries one trap that makes it worse than skipping the check,
+  because it reports success. **`visudo -f` names the file to parse; it does not
+  relocate the paths written inside that file.** A copied `sudoers` still
+  reading `@includedir /etc/sudoers.d` therefore sends the validator to the
+  **live** directory — it parses the drop-ins already installed and never opens
+  the staged one. Demonstrated: a staged tree whose include directory holds a
+  deliberately corrupt drop-in reports `parsed OK` and exits `0`, naming files
+  from `/etc/sudoers.d` as it goes; rewriting that one directive to the staged
+  directory catches the same file with a syntax error and exits `1`. So the
+  staged tree is a remedy only once the copy's `@includedir` points at the
+  staged directory — or the check runs in an isolated root where the absolute
+  path resolves there. Check the include line, not merely that a temporary
+  directory exists: a green validation of the *old* policy, immediately before
+  installing a broken new fragment, is precisely the false pass this whole rule
+  exists to prevent.
 - **The destination filename is part of the contract.** `@includedir` skips any
   name containing a `.` or ending in `~`, so a drop-in installed as
   `50-proxy.sudoers` is never read and nothing anywhere reports it. The file is
@@ -394,10 +433,22 @@ can be enforced, because the format cannot express it.
 **P10. Allowlist the inbound paths before anything captures reachability.** Any
 step that changes how the machine can be reached — enabling a host firewall,
 connecting a VPN client whose kill switch captures the default route, restarting
-the SSH daemon under new config, changing the bind address — must have SSH, any
-second shell the project relies on, and any service port permitted *before* it
-takes effect. Reordering those strands the operator on a box reachable only
-through the provider console, mid-run, with the configuration half applied.
+the SSH daemon under new config, changing the bind address — must have the
+**access paths** permitted *before* it takes effect: SSH, and any second shell
+the project relies on. Reordering those strands the operator on a box reachable
+only through the provider console, mid-run, with the configuration half applied.
+
+**Application ports are the opposite case, and folding them into the same rule
+inverts it.** A package that starts its daemon on install starts it under the
+distribution's default configuration — before the run has written the
+credential, set the mode (P3), or applied whatever hardening the repository
+carries for it. Permitting that port up front "so nothing breaks later"
+publishes an unconfigured listener for the remainder of the run, which is the
+exposure the firewall was ordered early to prevent. So the ordering has two
+halves running opposite ways: management and recovery paths go **first**,
+because losing them ends the run and needs the console to recover; each service
+port goes **last**, once its listener is configured, authenticated and verified.
+"Everything permitted up front" reads as the cautious choice and is not one.
 
 Be careful what gets counted as that second shell, because the usual candidate
 is not independent of the first. A roaming shell such as mosh is genuinely

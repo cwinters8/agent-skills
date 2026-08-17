@@ -145,9 +145,20 @@ the per-run rule entirely — for the runs where the step never executed at all.
 `!cancelled()` is right for a step that must not run after a cancellation; it is
 wrong for every step that must.
 
-**Provider-side expiry does not exist anywhere; expressiveness varies a lot.**
-"Rules carry no timestamp" is overstated for AWS and *understated* for
-DigitalOcean:
+**No provider expires a raw firewall rule for you — but a managed just-in-time
+access product is a different thing, and rejecting one is a false positive.**
+Where a provider sells a time-bound access feature, expiry is the product's
+entire job: it opens the rule on approval, holds it for the requested window,
+restores the previous posture when the window closes, and records who asked. A
+project driving one has already solved what the rest of this rule is about, and
+prescribing a hand-rolled reaper on top would trade an audited managed control
+for another privileged job to maintain. So establish which of the two the
+automation drives — a managed JIT access feature, or raw rule writes through the
+firewall API — and apply what follows only to the second.
+
+For raw rules, expiry genuinely is the caller's problem, and expressiveness
+varies a lot. "Rules carry no timestamp" is overstated for AWS and *understated*
+for DigitalOcean:
 
 - **AWS** security group rules have a `securityGroupRuleId`, a `description` and
   tags, so "expire anything tagged past N minutes" is perfectly expressible — by
@@ -233,8 +244,24 @@ infrastructure any more.
 
 Analogues exist on the other providers and are stronger: an AWS security group
 can name **another security group** as a rule's source, and GCP supports source
-tags and source service accounts. Prefer those where they exist, because of what
-a tag actually is. The tag **is** a credential — anything wearing it gets in —
+tags and source service accounts.
+
+Those need a **path that carries the identity**, though, and swapping one in
+blind locks the deployment out. A security group named as a source matches
+traffic arriving over the private paths where the provider can still see which
+group the sender belongs to — the same VPC, or a peered one. A runner reaching
+the target through its *public* address, or sitting outside the VPC altogether,
+does not arrive carrying that membership, so the rule matches nothing and the
+access the JIT rule had been granting simply vanishes — a lockout produced by
+the very change meant to harden the path. Establish that runner and target share
+a private path before recommending the swap. Where they do not, either give them
+one — moving the runner into the VPC is usually the better answer regardless,
+since it removes the public exposure rather than restating it — or keep an
+address- or tag-based rule and accept that its source is a label rather than a
+membership.
+
+Prefer the identity-based forms where they do apply, because of what a tag
+actually is. The tag **is** a credential — anything wearing it gets in —
 but be precise about which kind: it is an *API-authorization* credential, no
 stronger than the IAM policy over who may apply that tag to a resource. Where
 the provider offers group-membership referencing rather than a free-text label,
@@ -345,9 +372,20 @@ Four things the rule needs, in descending severity:
    break-glass path requiring a password nobody ever set — or ever logged in
    with — is not a break-glass path. Log in through it once, deliberately,
    before relying on it.
-3. **Keep a second, independent ingress source**, so one provider's outage is
-   not a total lockout. A pinned address whose only fallback is that same
-   provider's console is one failure domain wearing two hats.
+3. **Keep a fallback that does not share a failure domain with the pinned
+   source** — and check whether one already exists before demanding another.
+   The wording matters, because the most common arrangement already satisfies
+   this and a categorical version rejects it: where ingress is pinned to a
+   dedicated address from a VPN provider and the break-glass path is the *cloud*
+   provider's serial or web console, that is two vendors, and the VPN outage
+   which kills the pinned source leaves the console working. Requiring a second
+   ingress source on top of that adds attack surface to cover a failure mode
+   already covered — and the cloud outage that removes the console generally
+   removes the machine too, so it is not the scenario to design against either.
+   What this item is actually for is the case where the two coincide: pinned
+   address and console behind one vendor, one account, or one payment
+   relationship (the lapsed-subscription case below). Name the shared dependency
+   you found, or record that you looked and found none.
 4. **Say where the provider API token lives during a recovery.** If the only
    copy is on the box you are locked out of, the recovery path is circular. It
    belongs wherever the project keeps secrets

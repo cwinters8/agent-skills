@@ -54,10 +54,24 @@ file: the linter sees a string where the runtime sees a boolean.
 Get the mechanism right, because the older version sends a reader to test the
 wrong thing and conclude the rule is false. The YAML parse produces a Python
 `False`. It is then the **argument-spec coercion in the tool** that renders it
-as the string `"False"`, when the receiving parameter is typed `str`. Ansible
-emits a warning at that point — but the warning is **non-fatal and suppressible
-by default** (`string_conversion_action`), which is the actual reason this gets
-missed: the run is green and the warning scrolls past.
+as the string `"False"`, when the receiving parameter is typed `str`.
+
+An older version of this rule credited a warning at that point, non-fatal and
+suppressible via `string_conversion_action`. **Do not look for either — the
+coercion is silent, and the setting is gone.** Tested against ansible-core
+2.19.12: a bare `off` given to a genuinely `str`-typed parameter is written
+through as `False`, the task reports `changed`, and no coercion warning is
+emitted at all; `ansible-config list` enumerates 216 settings and
+`STRING_CONVERSION_ACTION` is not among them. It does still exist in 2.18.6 —
+carrying its own deprecation note, *"This option is no longer used in the
+Ansible Core code base"* — so on neither version was that setting the reason the
+defect slips past. The reason is simpler and worse: **nothing reports it.**
+
+Which raises what this rule is worth rather than lowering it. The grep is not a
+convenience that saves reading a warning, it is the only thing standing between
+the playbook and a silently wrong value — so a review cannot discharge this
+check by observing that the run was green, and "we would have seen a warning" is
+not evidence of anything.
 
 Get the location right too. `command: foo off` is *not* an instance of this —
 that whole line is a single plain scalar containing a space, and no per-word
