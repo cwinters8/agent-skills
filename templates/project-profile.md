@@ -137,10 +137,15 @@ TODO
 
      | Path | Groups |
      | --- | --- |
-     | `provision/**` | authorization, client-data, supply-chain |
+     | `provision/**` | authorization, auth-session, secrets, client-data, supply-chain |
      | `firewall/**` | auth-session |
-     | `roles/*/templates/**` | client-data |
--->
+     | `roles/*/templates/**` | client-data, secrets |
+
+     A broad provisioning glob earns most of the groups, and that is not
+     padding: one script can add an account, install a key, write a credential
+     file, reorder the firewall and curl an installer. Narrow the paths if you
+     want narrower routing — a row that omits a group means that group never
+     runs for those files, and the report will look clean. -->
 
 TODO
 

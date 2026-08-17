@@ -323,11 +323,27 @@ take it: membership is an authorized attachment, while a label is a string that
 anyone with tag-write permission can forge onto their own instance. Say so where
 the tag is defined, and never reuse it for unrelated instances.
 
-**N4. Where an address must be discovered, read it from the provider metadata
-service — not from the interface, and not from an outbound request.** The valid
-kernel of this rule stands: with a kill switch on, an outbound "what is my IP"
-request reports the *tunnel's* exit rather than the host's own address, so
+**N4. Where an address must be discovered, do not read it from the interface and
+do not learn it from an outbound request — read it from the provider.** The
+valid kernel of this rule stands: with a kill switch on, an outbound "what is my
+IP" request reports the *tunnel's* exit rather than the host's own address, so
 pinning a firewall or publishing an endpoint on that value is silently wrong.
+
+**"From the provider" is the requirement; the metadata service is the usual way
+to satisfy it, not the only one.** Saying otherwise puts this rule at odds with
+`references/infra-provisioning.md` → P16, which lists disabling the metadata
+service outright as the strongest answer where a provider offers no protected
+metadata request — and with P11, which makes an address the run could not
+discover a fatal error rather than a warning. Taken together those three would
+make hardening the endpoint break the provisioning run. They compose once the
+requirement is stated at the right level: where the endpoint is enabled, read
+it; where it is disabled or absent, take the address from the provider's
+control plane — an API or CLI query against the instance, an output of the
+infrastructure layer that created it, or an explicit input recorded as
+supplied rather than discovered. All of those are the provider's answer to
+"what address is this instance reachable at", which is what the rule is for.
+What none of them may be is an outbound request to something that reports back
+what it saw.
 The remedy the rule used to give — read the address off the interface — is
 backwards on most providers:
 

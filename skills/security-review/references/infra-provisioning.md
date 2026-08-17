@@ -448,6 +448,19 @@ that reports success while installing a grant that does not exist:
   there, then rename it into place — and note the condition, since `mv` across
   filesystems degrades to copy-then-unlink and gives none of this back.
 
+  **On the destination's filesystem, not inside the included directory** — and
+  the bullet below is the reason. `@includedir` reads every file whose name has
+  no `.` and no trailing `~`, so an ordinary `mktemp` basename dropped in
+  `/etc/sudoers.d` is *already live* while it is being written, before its mode,
+  ownership or syntax have been checked. Staging there to keep the rename atomic
+  defeats the validate-before-install guarantee the rename was protecting. Two
+  ways out, and either works: stage in a directory on the same filesystem that
+  sudo does not include (`/etc/` itself, given `/etc/sudoers.d` lives there), or
+  stage in place under a name `@includedir` skips — a leading dot or a `.tmp`
+  suffix — and rename to the accepted name only after validation. The second is
+  the one to check for, because the same filename rule that makes it safe is the
+  rule that makes a careless temporary name dangerous.
+
   The general form of the trap is worth keeping in view: a check proves a
   property of the artifact it was handed, and what the consumer reads is a
   different artifact — different mode, different inode, or different content
@@ -500,9 +513,24 @@ replace-or-append helper plus a few one-off `sed` calls — comment these lines 
 append that directive if absent, delete and re-add the credential line — leaves
 the on-disk result a function of whatever the package shipped and every previous
 run. There is no drift detection, because there is nothing to compare against,
-and no reviewer can see the end state without building a box. A template
-rendering the whole file makes the end state reviewable, makes drift a diff, and
-makes a value the repo no longer sets actually disappear rather than linger.
+and no reviewer can see the end state without building a box. Rendering from a
+template makes the end state reviewable, makes drift a diff, and makes a value
+the repo no longer sets actually disappear rather than linger.
+
+**Render a drop-in where the consumer supports one, and the whole file only
+where it does not.** The distinction matters because whole-file replacement buys
+reviewability at a real price: the template freezes every upstream default that
+happened to be in the vendor's file on the day it was copied, so a later package
+upgrade that adds a directive or hardens a default never reaches the machine —
+and the run keeps reporting a clean, deterministic reconcile while the gap
+widens. Nothing in the repository shows it, because the file the repository
+renders is exactly what the repository says. A repository-owned drop-in in the
+service's include directory gets the same reviewable end state and the same
+drift-as-diff, while leaving the vendor's defaults live underneath. Reserve
+replacing the vendor's own file for formats with no composable mechanism at all,
+and where that is the case, say in the finding that upstream defaults are now
+pinned to the copy date — that is a maintenance obligation the repository has
+taken on, not a free win.
 
 The pattern also carries a direct injection bug: a value interpolated into a
 `sed` expression is code, not data. The substitution delimiter ends the

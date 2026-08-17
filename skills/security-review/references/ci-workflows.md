@@ -444,12 +444,24 @@ one: triggering it needs write access — the same access that could merge to th
 branch a `push` trigger fires on. It adds no reviewer, and it does not withhold
 the secret.
 
-Put the privileged job in an environment with **required reviewers** and
-**prevent self-review** enabled. A job referencing an environment cannot access
+Put the privileged job in an environment. A job referencing one cannot access
 that environment's secrets until every protection rule passes, so an unapproved
 run never reaches the credential — which is the property `workflow_dispatch`
 lacks entirely. Add branch or tag deployment restrictions so only the release ref
-can deploy, and prefer OIDC over a stored deploy secret (C9.2). Manual dispatch
+can deploy, and prefer OIDC over a stored deploy secret (C9.2).
+
+**Required reviewers** and **prevent self-review** are the protection rules to
+reach for where the deployment is meant to be approved by a human, and that is
+the common case for a privileged apply. Ask for them against the project's own
+policy rather than unconditionally: a deployment deliberately run unattended —
+a scheduled reconcile, an automated promotion gated on tests — is restricted by
+the branch and tag rules above and by the environment membership itself, and
+reporting it for lacking an approver is a false finding.
+`references/infra-provisioning.md` → P15 says the same thing from the OIDC side
+and cites this rule, so the two have to agree: the environment is required, the
+*approval* protection rule is required where the project's policy calls for
+approval. What is always a finding is a privileged deployment with no
+environment at all, since then nothing gates the secret. Manual dispatch
 on top of that is still useful, and a `dry_run` input defaulting to true is sound
 hygiene for a workflow whose failure mode is an unreachable target — but that is
 operational practice, not the security control.
