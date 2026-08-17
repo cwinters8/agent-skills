@@ -200,9 +200,13 @@ session has.
 ### `## Threat model` — required with `security-review`
 
 One paragraph: what ships to parties you do not control, and what the single real
-control is that keeps one user out of another's data. This is the most important
-section in the file, because it is what lets the skill rank findings by
-consequence instead of by category.
+control is that keeps an attacker out of what matters. On an application that is
+usually what keeps one user out of another's data. On infrastructure it is what
+keeps an outsider off the box — and off the provider account that box can reach,
+which is often the larger of the two. This is the most important section in the
+file, because it is what lets the skill rank findings by consequence instead of
+by category, and a machine-shaped project answering the application-shaped
+question invents facts rather than supplying them.
 
 Write it as a claim that could be wrong. "The anon key ships inside a public
 binary, so row-level security is the only thing standing between one user and
@@ -221,12 +225,21 @@ changed path matching a row runs that row's groups. The groups are:
 
 | Group | Covers |
 | --- | --- |
-| `authorization` | who can read or write which rows; server-enforced policy |
-| `auth-session` | login, tokens, session lifetime, redirect and deep-link surfaces |
+| `authorization` | who can read or write which rows; server-enforced policy — on a machine, which accounts exist, the sudo policy, and what identity each service runs as |
+| `auth-session` | login, tokens, session lifetime, redirect and deep-link surfaces — on a machine, the keys and credentials that grant access to it, and which sources may reach the ports those credentials front |
 | `secrets` | credential handling, what is public by design, what must never ship |
-| `client-data` | what the client stores, logs, and renders; injection surfaces |
-| `supply-chain` | dependencies, CI workflows, build and release scripts |
-| `release` | store or registry submission requirements |
+| `client-data` | what the client stores, logs, and renders; injection surfaces — on a machine, what the run writes to disk on the target, at what mode, and what it prints to a terminal or a job log |
+| `supply-chain` | dependencies, CI workflows, build and release scripts — on a machine, what the run downloads and executes as root |
+| `release` | store or registry submission requirements; usually empty for infrastructure, where a rebuild is the release |
+
+The clauses after each dash are there so an infrastructure project can map its
+paths at all: the group names are written from an application, and a repository
+whose product is a configured machine has no rows, no sessions and no client.
+They are deliberately short. The full translation — what each group name means
+on a machine, and why reachability is filed under `auth-session` rather than
+somewhere more obvious — lives in
+`skills/security-review/references/infra-provisioning.md`, and that module is
+the authority; this is only enough to write the table.
 
 Keep this table in one place — here. A skill that carried its own copy would
 drift from yours, and the row a stale copy drops is the one that mattered.
@@ -243,9 +256,43 @@ Which reference modules apply, from `skills/security-review/references/`:
 | `postgres-rls` | Postgres with row-level security, including Supabase / PostgREST |
 | `ci-workflows` | GitHub Actions |
 | `mobile-release` | shipping to the App Store or Play |
+| `infra-provisioning` | the product is a configured machine rather than an application — the ordering that keeps the operator able to reach the box, where infrastructure credentials live, and how a machine-scoped finding becomes account-scoped, plus the imperative shell run as root where a project still has one |
+| `cloud-network` | what can reach the machine is decided by a provider-managed layer — cloud firewalls, VPCs and network ACLs, or ingress pinned to particular addresses |
+| `config-as-code` | a declarative layer reconciles the machine or the infrastructure — configuration management, or infrastructure-as-code, whether or not it keeps a state file |
 
 List only what the project actually uses. Each module is depth about a stack, not
 about your project; naming one you don't use produces checks that cannot pass.
+
+**The three infrastructure modules are one exception, in one direction.** Name
+`infra-provisioning` whenever you name `cloud-network`, and whenever the
+declarative layer `config-as-code` describes manages a configured machine — even
+if no imperative shell survives in the repository. It is the base module of the
+three: it carries the translation of the six check-group names onto a machine,
+which the other two are written against and cite rather than copy, and its rules
+on reachability ordering, credential storage and blast radius apply to any
+infrastructure repository with a machine in it. Naming a declarative layer
+without it drops that translation and leaves the citations pointing at a file
+nobody loaded. The shell rules it also carries are the part that can go unused,
+and unused is all they are — a repository with no shell script has nothing for
+them to match, which costs a reviewer a section they skip rather than a check
+that cannot pass.
+
+**Where the declarative layer provisions no machine, name `config-as-code`
+alone.** An infrastructure-as-code repository whose resources are DNS records,
+object storage or a SaaS tenant's configuration has nothing for the machine
+translation to map onto, and adding `infra-provisioning` there asks account,
+disk and reachability questions the repository cannot answer — the "checks that
+cannot pass" this section opens by warning about, arrived at by following the
+exception rather than by ignoring it. That is a defined outcome rather than a
+missing dependency:
+`config-as-code` states what it does when the translation is not loaded — it
+applies its own rules and reports which group it filed each finding under. Name
+`infra-provisioning` as soon as any target is a machine. `cloud-network` has no
+equivalent case: its subject is what can reach a machine, so naming it already
+asserts there is one.
+
+The implication does not run the other way: a project with a provisioning script
+and no cloud firewall names `infra-provisioning` alone.
 
 *Missing:* no reference module loads and the review stays at the level of the
 generic checks.
@@ -254,11 +301,35 @@ generic checks.
 
 Read by `security-review`.
 
-How a user proves who they are, what key rows are owned by, and every redirect or
-deep-link surface that participates in auth. The deep-link surfaces matter more
-than they look: they are the part an attacker can reach from outside the app.
+How a principal proves who it is, and what that then reaches.
 
-*Missing:* the `auth-session` group reports as not configured.
+On an application: how a user authenticates, what key rows are owned by, and
+every redirect or deep-link surface that participates in auth. The deep-link
+surfaces matter more than they look: they are the part an attacker can reach from
+outside the app.
+
+On infrastructure: which keys and accounts grant access to the machine, what
+identity each service authenticates as, and which sources may reach the ports
+those credentials front. That last clause is not decoration — the infrastructure
+modules file reachability under `auth-session` precisely because a firewall rule
+and the credential behind it have to be reviewed together.
+
+Leaving this out reports the `auth-session` group as not configured. Where
+`## Stack` names `infra-provisioning` or `cloud-network` — or a `config-as-code`
+layer that manages a machine — the group still runs that module's reachability
+and machine-credential rules, and only the application identity half is reported
+unconfigured: a machine-only repository does not lose a core group for having no
+users. The condition is the *machine*, not the module list. A declarative layer
+that provisions nothing — DNS records, object storage, a SaaS tenant — has no
+ports, no host credentials and nothing for those rules to reach, so there the
+whole group reports as not configured, which is the no-machine path this file
+describes under `## Stack`.
+
+*Missing:* the `auth-session` group reports as not configured — except where the
+stack has a machine (`infra-provisioning`, `cloud-network`, or a
+`config-as-code` layer managing one), in which case that module's reachability
+and machine-credential rules still run and only the application identity half
+reports unconfigured.
 
 ### `## Secrets policy` — optional
 

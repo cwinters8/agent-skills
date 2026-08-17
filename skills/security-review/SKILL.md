@@ -3,9 +3,14 @@ name: security-review
 description: >
   Security review gate. Run when a change touches the project's trust boundary —
   data authorization, auth and session handling, secrets, client data handling,
-  CI and dependencies — and as a full sweep before any release or store
-  submission. Use when asked to "security review", "check RLS", "can users touch
-  each other's data", "audit auth", or "pre-launch security check".
+  CI and dependencies — or the infrastructure the project runs on: machine
+  provisioning, infrastructure as code, configuration management, cloud
+  firewalls, and what is reachable from the internet. Also run as a full sweep
+  before any release or store submission. Use when asked to "security review",
+  "check RLS", "can users touch each other's data", "audit auth", "review the
+  provisioning script", "audit our infrastructure as code", "check cloud
+  firewall exposure", "is this server hardened", "what is exposed to the
+  internet", or "pre-launch security check".
 ---
 
 # Security review
@@ -36,7 +41,7 @@ lets this review rank findings by consequence instead of by category.
 | `## Threat model` | ranking findings; the one control that matters |
 | `## Trust boundary` | which check groups a changed path triggers — **authoritative** |
 | `## Stack` | which `references/` modules to load |
-| `## Identity model` | auth flow, ownership key, redirect surfaces |
+| `## Identity model` | auth flow, ownership key, redirect surfaces — or, on infrastructure, what grants access to the machine and which sources reach the ports |
 | `## Secrets policy` | which values are public by design |
 | `## Probe policy` | whether authorization can be tested rather than only read |
 | `## Release targets` | whether the release group applies |
@@ -47,6 +52,17 @@ Load the `references/` modules `## Stack` names **before** working the groups.
 Most add depth to one group, but a module can also change how a group should be
 *read*, and a reviewer who meets it only from inside the group that happens to
 cite it has already worked the others on the wrong definitions.
+
+`## Stack` is the authority on which modules load, so never load one it does not
+name in order to cover something you noticed in the repository. Where the code
+plainly needs a module the profile omits — a repository provisioning its own CI
+runner while naming only `ci-workflows` is the case the modules call out — that
+is a **stale profile**, not a gap to paper over: grade what the named modules
+reach, say in the report which depth was therefore not graded, and hand off to
+`profile-refresh` to correct `## Stack`. If that skill is not vendored here, say
+the profile needs the entry and leave it to the maintainer. Quietly compensating
+hides the staleness and produces a report whose shape depends on what the
+reviewer happened to notice.
 
 **Without a profile, this skill cannot do its job.** Run the `secrets` and
 `supply-chain` groups over the diff, report every other group as *not
@@ -118,11 +134,77 @@ When `## Stack` names `postgres-rls`, read `references/postgres-rls.md` — it
 carries the RLS-specific rules, the live audit queries, and the two-account
 probe procedure, including the ways a probe passes while proving nothing.
 
+When `## Stack` names `infra-provisioning` or `cloud-network`, the translation
+of this group onto a machine applies: `authorization` there is which accounts
+exist, the sudo policy, and what identity each service runs as. A `## Stack`
+naming only `config-as-code` may have no machine to translate onto — a
+declarative repository managing DNS, object storage or a SaaS tenant. Do not
+read this group as written there. Most of it has no subject, and working
+"can one user reach another's data" through a repository with no application
+identities and no data path yields either an informal skip or a false
+missing-control finding. Take the module's own no-machine path instead, which
+`references/config-as-code.md` states and `references/infra-provisioning.md`
+points at: apply the D-series, file each finding against these group names by
+hand, and say in the report that no machine translation applied. For this group
+that splits in two — the provider IAM governing what the layer's own credential
+may change **is** authorization here and gets graded; application-user
+authorization has no subject and gets recorded as having none, rather than
+passed over in silence. With neither module loaded, ask the same two questions
+from that shape and say the mapping was improvised.
+Its concrete rule is P7: a privilege-granting file the change installs is
+validated before it lands, not after, and a defect in one fails loudly or
+silently depending on what is wrong with it. P7 owns which defect lands where,
+what to validate, and how to install it — do not restate any of that here, since
+a second copy is what leaves this group reporting an outcome the loaded module
+has since rejected. Without that module, still ask the same three things of any
+privilege-granting file the change installs — which accounts it grants, whether
+it was validated before it landed, and whether a defect in it fails loudly or
+silently — and say the rule-level detail was not graded.
+`references/infra-provisioning.md` carries the full six-group translation for
+all three, and the other two point at it. Groups 2 through 5 carry their own
+pointers as well, because that is where most of these modules' content lands.
+
 Whether you may probe at all is `## Probe policy`. Reading policy definitions is
 weaker evidence than testing them; when probing is forbidden, say in the report
 that the authorization finding rests on reading definitions only.
 
 ## Group 2 — Authentication and session handling
+
+The items below are app-shaped, and on a machine most of them have no subject at
+all — which does not empty the group. Where `## Stack` names
+`infra-provisioning` or `cloud-network`, `auth-session` is how an operator or
+client proves it may connect: SSH keys and the `authorized_keys` lines granting
+them, service credentials, and the reachability fronting them. Each half comes
+from the module that owns it: P10 and P11 of `references/infra-provisioning.md`
+for the ordering that decides whether the operator can still reach the box,
+which is as much a host-firewall question as a provider one, and N1–N5 of
+`references/cloud-network.md` **only where that module is named**, since those
+rules turn on a provider-managed layer a box behind a host firewall alone does
+not have. `config-as-code` → D2 belongs here too, wherever that layer manages a
+machine: a port number owned by one layer and a firewall rule owned by another
+can disagree with nothing raising an error anywhere, leaving a service that
+starts, a loopback check that passes, and a port no real client can reach. The
+first module's table carries the whole translation.
+
+**A missing `## Identity model` does not empty this group on a machine.** That
+section is written from an application's identities, so a machine-only
+repository may legitimately have nothing to put in it — and reporting the whole
+group unconfigured would retire SSH keys, service credentials and every
+reachability rule, which is most of what an infrastructure review is for. The
+condition is a **machine**, not the module list: where `## Stack` names
+`infra-provisioning` or `cloud-network`, or a `config-as-code` layer that
+manages a machine, run that module's reachability and machine-credential rules
+regardless and report only the application identity half as not configured. A
+declarative layer that provisions nothing — DNS, object storage, a SaaS tenant —
+has no ports and no host credentials for those rules to reach, so there, as
+where no such module is named at all, the group reports as not configured in
+full.
+With `cloud-network` unnamed, still work reachability from the rules as written,
+but assume no default for egress, for network-level filtering above the
+instance, or for the address family a rule covers: N1, N2 and N5 exist because
+those differ per provider, so a generic answer here invents a control the
+project may not have. With `infra-provisioning` unnamed, `cloud-network` states
+this reading in brief itself.
 
 1. **Credential-bearing callbacks.** Determine whether the auth flow puts real
    credentials in a URL. If it does, the channel carrying that URL matters
@@ -193,6 +275,35 @@ that the authorization finding rests on reading definitions only.
 5. **Anything reaching the client bundle is public**, including over-the-air
    update payloads. Treat every constant shipped to a device as readable.
 
+Where `## Stack` names `infra-provisioning`, P12–P16 of
+`references/infra-provisioning.md` is this group for a machine, and none of it
+is reachable from items 1–5: ranking by blast radius (an account-scoped provider
+token is not rotated by a rebuild), the three places a secret lands on a target,
+where the value lives at rest, short-lived and derived over stored, and the
+metadata endpoint as a credential surface. **P6 belongs to this group too**, and
+sits outside that range: a value the run generates, prints once and stores
+nowhere is a secrets problem rather than a written-file one, and it is the rule
+P12's rebuild-does-not-rotate caveat turns on, so routing the range without it
+splits one argument across two groups. Wherever `config-as-code` is named —
+machine or not — D5 adds the values a tool writes on the project's own behalf.
+
+D5 is not the whole of this group on a repository that provisions no machine,
+and assuming it is skips that repository's *principal* secret. Its provider
+credential is what the whole layer turns on, and it usually reaches the run
+through CI environment or backend authentication — so it lands in neither a
+state file nor a saved plan, and D5 never sees it. Ask of it what P12, P14 and
+P15 ask: what an account-scoped token reaches that a machine-scoped one does
+not, where the value lives at rest and whether that survives losing any one
+machine, and whether a short-lived federated credential could replace a stored
+one. Those questions do not need a machine — only a provider. Where
+`infra-provisioning` is unnamed, ask them from that shape and say the
+rule-level detail was not graded, rather than citing rules nobody loaded.
+
+Without `config-as-code`, still treat a tool-generated state or plan artifact
+as credential material until shown otherwise — such tools routinely persist
+values a reviewer assumed were hidden — and say the tool-specific remedies were
+not graded.
+
 ## Group 4 — Client and data handling
 
 1. **No credentials or PII in logs** on any path that survives into a release
@@ -208,6 +319,40 @@ that the authorization finding rests on reading definitions only.
 4. **Validate at the boundary that enforces at runtime.** Static types vanish at
    runtime; the database constraint or server-side validator is the real one.
    A new synced field needs the same treatment as the ones already there.
+
+Where `## Stack` names `infra-provisioning`, or a `config-as-code` layer that
+manages a machine, `client-data` has no client in it: it is what the run writes
+to disk on the target and what it prints. The written half is P3 — the mode and
+owner of a file the code has just put a credential into — with P4 where the
+platform can hand a credential to the consuming service directly, which makes
+that mode a fallback rather than the design; P9 where the config format cannot
+carry the credential's shape and mis-parses it silently; and P8 with
+`config-as-code` → D3 on why an in-place edit leaves an end state no reviewer
+can see, and why a value interpolated into a text-substitution expression is
+code rather than data. `config-as-code` → D1 belongs here as well: where the
+layer's own parser coerces a bare word, the file the run writes does not say
+what the repository appears to say, and D1 keeps its own no-subject answer for a
+stack that parses no such dialect. Those modules hold the mechanism, the ranking
+and the edge cases — this is routing, not a summary to keep in step. The printed
+half is P5 and D6, and item 1 above covers only that half.
+
+Where `config-as-code` is named for a layer that manages **no** machine — DNS,
+object storage, a SaaS tenant — there is no target to write to, so drop the P
+rules and the written half with them. What survives depends on what the layer
+actually produces. D3 applies where it renders a file; a layer that reconciles
+purely by API call renders nothing, and asking after a template there is a
+check that cannot pass. Separate the concern from the rule that discusses it,
+because they have different subjects and reporting them as one produces the
+contradiction. **The concern** — a credential reaching an operator's terminal or
+a job log — always has a subject, because a run's output exists either way, and
+it is P5's printed path and this group's own item regardless of tooling. **D6
+itself** is one tool's suppression mechanism and has no subject outside it; the
+module says so, and that is the answer to record for D6. So a layer other than
+the one D6 names reports the printed-credential concern as graded and D6 as not
+applicable, which is one outcome rather than two contradictory ones. Without either module,
+still read the group that way on such a repo — the mode and owner of any file
+the change writes a credential into, and any value that reaches a terminal or a
+job log — and say the rule-level detail was not graded.
 
 ## Group 5 — Supply chain and CI
 
@@ -285,6 +430,26 @@ that the authorization finding rests on reading definitions only.
    secret storage, is never echoed in logs, and that any channel repointing is
    deliberate and reverted after use.
 
+Where `## Stack` names `infra-provisioning`, `supply-chain` on a machine is what
+the run downloads and executes as root, and P2 of
+`references/infra-provisioning.md` ranks the shape that is usually such a repo's
+largest surface here — a remote installer piped to a root shell, unpinned and
+unverified. P1 is item 5's shape one layer down: a caller-controlled value
+landing in a root script's path, command or config line. Where `config-as-code`
+covers configuration management, D4 names a dependency manifest item 1 will
+otherwise not think to look for: whatever file that system's own check resolves
+against, and how much of the tree that check never reaches. Establish what the
+system in play actually uses before reporting a missing manifest — D4 has the
+mechanics, including which reference shapes a check follows and which it walks
+straight past, and reporting one system's manifest as absent from another is an
+invented finding. Where `config-as-code` covers infrastructure-as-code instead,
+there is no such manifest and D4's subject is the validate-and-plan sequence.
+Item 4 above and `ci-workflows` → C9 are the same runner asked about from the
+other side; reach the machine rules directly rather than through that hop.
+Without those modules, still ask what the change fetches and executes with
+privilege, and where the pin and the integrity check for it are — and say the
+rule-level detail was not graded.
+
 ## Group 6 — Release readiness
 
 Applies when `## Release targets` names somewhere this ships. Read
@@ -327,6 +492,43 @@ merged PR description is a finding that has been lost.
 | **High** | Account takeover path (token interception); a missing store- or platform-required control | Blocks the release. |
 | **Medium** | Defense-in-depth gap with a precondition — unencrypted token storage, an over-broad log | Fix before launch; may merge with a tracking issue. |
 | **Low** | Hardening with no known exploit path | Note it; don't block. |
+
+Those rows are written from an application's outcomes. Where `## Stack` names an
+infrastructure module the subject becomes a machine and an account, and the
+mapping has to be stated or the same finding gets ranked three tiers apart by
+two readers. Where the layer provisions no machine the subject is the account
+alone, and the machine rows below simply have no subject — say so rather than
+ranking against them. Same scale, same merge actions:
+
+| Outcome on infrastructure | Tier |
+| --- | --- |
+| An account-scoped credential exposed or reachable by an outsider — a provider API token, a platform token with administration scope, or a path that reaches an attached role's credentials at the metadata endpoint. Every resource under that account, and a rebuild does not revoke it | **Critical** |
+| Arbitrary code execution as root on the target, including unverified remote code fetched and executed by the provisioning run | **Critical** |
+| An **unauthenticated** service reachable from the internet, an authentication bypass on an administrative one, or another established path from an outsider to control of the box | **High** |
+| A machine-scoped credential exposed on a box that also holds an account-scoped one, where the pivot is plausible but not established | **High** |
+| A defense-in-depth gap on the machine with a precondition — a credential file wider than its reader needs, a secret in a job log of restricted visibility, or an ingress rule wider than the host requires in front of a service that still authenticates | **Medium** |
+| Hardening with no established path | **Low** |
+
+The line between those last two rows is **whether the exposure alone reaches an
+outcome**, and it has to be stated or the table reproduces the inconsistency it
+was added to remove. A service is not High for being administrative: SSH open to
+`0.0.0.0/0` while requiring a key the attacker does not have is over-exposed
+rather than compromised, and it ranks Medium with the width of the rule as the
+finding. It becomes High when the authentication is absent, bypassable, or
+something an attacker can supply. That is the group's own reachability argument
+read in the other direction — "the port is filtered" never upgrades a service
+with no credential, and equally, an open port never downgrades a credential the
+attacker cannot produce.
+
+Two rankings this table deliberately leaves to the module, because the module
+makes them and the answer moves the tier. Whether an attached role is
+account-scoped or machine-scoped is settled by reading its policy rather than
+assumed — that is P12, and a policy the review could not read is reported as
+*scope not established* instead of ranked at either end. And a safety control
+the run could not verify is not a finding with a severity at all: it is a failed
+run, which P11 states as `die` rather than `warn`. Where those modules are not
+loaded, rank from the outcomes above and say the rule-level ranking was not
+available.
 
 Report findings with the file and line, the concrete attack (who does what, and
 what they get), and the fix. "This could be unsafe" is not a finding — if

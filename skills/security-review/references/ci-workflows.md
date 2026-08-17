@@ -262,6 +262,25 @@ CI often runs a script that commits generated content. Two properties matter:
 A hosted runner is a fresh VM the platform throws away. A self-hosted runner is a
 machine someone owns, and every rule below follows from that difference.
 
+Where the project also provisions that machine, the provisioning modules carry
+the depth for it: `references/infra-provisioning.md` for the machine itself,
+`references/cloud-network.md` where a provider firewall decides what reaches the
+runner, `references/config-as-code.md` where the provisioning is declarative.
+Read each **only where `## Stack` names it** — the profile selects the modules,
+and a cross-reference that loads one it did not name applies checks the consumer
+never configured, on a stack this module cannot see.
+
+That gating matters most in the case it looks wrong in. A repository holding
+both workflows and runner-provisioning code, whose `## Stack` names
+`ci-workflows` alone, is not an invitation to load the other three anyway — it
+is a **stale profile**, and quietly compensating for one hides the staleness
+while a later reviewer keeps getting a report shaped by whichever module
+happened to load. Apply C9 from the runner side, say in the report that the
+repository provisions its own runner while the profile names no provisioning
+module and that the machine-side depth was therefore not graded, and follow
+`SKILL.md`'s stale-profile step, which is where the `profile-refresh`
+delegation and its not-vendored fallback are stated.
+
 **C9.1 Only private repositories may target the runner.** A fork PR on a
 **public** repo can run code on a self-hosted runner — GitHub's own words:
 "forks of your public repository can potentially run dangerous code on your
@@ -419,18 +438,49 @@ for the control, which is what it was ever offered as. A persistent runner that 
 infrastructure is a finding on its own; a nominally ephemeral runner on a
 recycled host is the same finding wearing a flag.
 
-**C9.5 A privileged apply/deploy workflow is gated by an environment, not by its
-trigger.** `workflow_dispatch` is an intentionality control, not an authorization
-one: triggering it needs write access — the same access that could merge to the
-branch a `push` trigger fires on. It adds no reviewer, and it does not withhold
-the secret.
+**C9.5 A privileged apply/deploy workflow is gated by whatever withholds its
+credential — an environment, or a ref-scoped federated identity — never by its
+trigger.** `workflow_dispatch` is an intentionality control, not an
+authorization one: triggering it needs write access — the same access that could
+merge to the branch a `push` trigger fires on. It adds no reviewer, and it does
+not withhold the secret.
 
-Put the privileged job in an environment with **required reviewers** and
-**prevent self-review** enabled. A job referencing an environment cannot access
-that environment's secrets until every protection rule passes, so an unapproved
-run never reaches the credential — which is the property `workflow_dispatch`
-lacks entirely. Add branch or tag deployment restrictions so only the release ref
-can deploy, and prefer OIDC over a stored deploy secret (C9.2). Manual dispatch
-on top of that is still useful, and a `dry_run` input defaulting to true is sound
-hygiene for a workflow whose failure mode is an unreachable target — but that is
-operational practice, not the security control.
+So ask one question of a privileged workflow: **what withholds the credential
+from a run that should not have it?** There are two answers that work, the
+project picks one, and the review checks the one it picked.
+
+- **An environment.** A job referencing one cannot reach that environment's
+  secrets until every protection rule passes, so an unapproved run never
+  touches the credential — the property `workflow_dispatch` lacks entirely.
+- **A ref-scoped federated identity.** With OIDC there is no stored secret for
+  an environment to withhold; the trust policy makes the role assumable only
+  from the named branch or tag, so the gate sits at the identity provider.
+  `references/infra-provisioning.md` → P15 is the same requirement written from
+  that side, and it accepts this shape on its own.
+
+**Do not require both.** Requiring an environment on top of a correctly
+ref-scoped federated deployment reports a valid unattended setup as a defect,
+and this rule and P15 have to agree on that or a consumer loading both modules
+gets a finding whichever way the project built it. Establish which mechanism is
+in play, then check *that* one: for an environment, that its protection rules
+and its branch or tag deployment restrictions actually bound who can deploy;
+for federation, that the subject is pinned to a ref rather than to the
+repository alone, which is P15's two-part pin.
+
+**The finding is a privileged deployment where neither holds** — a stored
+deploy secret reachable from any ref, with no environment and no ref-scoped
+federation in front of it. Where a stored secret is the mechanism, prefer
+replacing it with OIDC (C9.2) rather than only wrapping it.
+
+**Required reviewers** and **prevent self-review** are the protection rules to
+reach for where the deployment is meant to be approved by a human, which is the
+common case for a privileged apply — but ask for them against the project's own
+policy rather than unconditionally. A deployment deliberately run unattended, a
+scheduled reconcile or an automated promotion gated on tests, is bounded by the
+ref restriction above, and reporting it for lacking an approver is a false
+finding.
+
+Manual dispatch on top of any of this is still useful, and a `dry_run` input
+defaulting to true is sound hygiene for a workflow whose failure mode is an
+unreachable target — but that is operational practice, not the security
+control.

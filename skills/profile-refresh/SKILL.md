@@ -174,6 +174,17 @@ module for a stack **no longer used** (its checks cannot pass and read as
 failures), and a stack **adopted** since with no module named (that depth never
 loads, and the review stays generic without saying which depth was missing).
 
+Then check the **implication**, which neither direction catches. `cloud-network`
+and `config-as-code` are layers over `infra-provisioning`, so a profile naming
+either without it is stale even when every entry it does carry is accurate:
+`security-review` falls back to reviewing without the group translation those
+modules are written against, reports less depth, and nothing in the profile
+looks wrong. `check-profile` will not find this — it validates structure, not
+which module implies which. One exception, and confirm which case the repository
+is before proposing anything: a `config-as-code` layer that manages no machine
+at all — DNS, object storage, a SaaS tenant — correctly names itself alone, and
+that fallback is its intended path rather than drift.
+
 ### `## Known gaps`
 
 The drift here is an entry since **fixed**. Leaving a closed gap recorded is not
