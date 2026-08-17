@@ -337,10 +337,15 @@ object storage, a SaaS tenant — there is no target to write to, so drop the P
 rules and the written half with them. What survives depends on what the layer
 actually produces. D3 applies where it renders a file; a layer that reconciles
 purely by API call renders nothing, and asking after a template there is a
-check that cannot pass. A run's output exists either way, so the concern D6
-names — a credential reaching an operator's terminal or a job log — always has
-a subject, even where the specific suppression mechanism it discusses belongs
-to a tool this project does not use. Without either module,
+check that cannot pass. Separate the concern from the rule that discusses it,
+because they have different subjects and reporting them as one produces the
+contradiction. **The concern** — a credential reaching an operator's terminal or
+a job log — always has a subject, because a run's output exists either way, and
+it is P5's printed path and this group's own item regardless of tooling. **D6
+itself** is one tool's suppression mechanism and has no subject outside it; the
+module says so, and that is the answer to record for D6. So a non-Ansible layer
+reports the printed-credential concern as graded and D6 as not applicable, which
+is one outcome rather than two contradictory ones. Without either module,
 still read the group that way on such a repo — the mode and owner of any file
 the change writes a credential into, and any value that reaches a terminal or a
 job log — and say the rule-level detail was not graded.

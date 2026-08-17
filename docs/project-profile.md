@@ -225,12 +225,21 @@ changed path matching a row runs that row's groups. The groups are:
 
 | Group | Covers |
 | --- | --- |
-| `authorization` | who can read or write which rows; server-enforced policy |
-| `auth-session` | login, tokens, session lifetime, redirect and deep-link surfaces |
+| `authorization` | who can read or write which rows; server-enforced policy — on a machine, which accounts exist, the sudo policy, and what identity each service runs as |
+| `auth-session` | login, tokens, session lifetime, redirect and deep-link surfaces — on a machine, the keys and credentials that grant access to it, and which sources may reach the ports those credentials front |
 | `secrets` | credential handling, what is public by design, what must never ship |
-| `client-data` | what the client stores, logs, and renders; injection surfaces |
-| `supply-chain` | dependencies, CI workflows, build and release scripts |
-| `release` | store or registry submission requirements |
+| `client-data` | what the client stores, logs, and renders; injection surfaces — on a machine, what the run writes to disk on the target, at what mode, and what it prints to a terminal or a job log |
+| `supply-chain` | dependencies, CI workflows, build and release scripts — on a machine, what the run downloads and executes as root |
+| `release` | store or registry submission requirements; usually empty for infrastructure, where a rebuild is the release |
+
+The clauses after each dash are there so an infrastructure project can map its
+paths at all: the group names are written from an application, and a repository
+whose product is a configured machine has no rows, no sessions and no client.
+They are deliberately short. The full translation — what each group name means
+on a machine, and why reachability is filed under `auth-session` rather than
+somewhere more obvious — lives in
+`skills/security-review/references/infra-provisioning.md`, and that module is
+the authority; this is only enough to write the table.
 
 Keep this table in one place — here. A skill that carried its own copy would
 drift from yours, and the row a stale copy drops is the one that mattered.

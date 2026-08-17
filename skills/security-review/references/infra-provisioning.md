@@ -801,9 +801,22 @@ to read the policy for.
 What to require:
 
 - **Session-oriented metadata access.** On AWS, IMDSv2 — a session token
-  obtained by PUT and presented on every read. Require the equivalent on
-  whichever provider is in use; the providers demanding a specific header on the
-  request rely on the same property, that a naive proxied GET cannot produce it.
+  obtained by PUT and presented on every read. Require the equivalent **where
+  the provider has one** — several demand a specific header on the request,
+  relying on the same property, that a naive proxied GET cannot produce it.
+
+  Establish whether the provider offers anything of the kind before requiring
+  it, because not all do: some serve metadata to an ordinary unauthenticated
+  GET with no token, no required header and nothing to turn on, and a rule that
+  demands session-oriented access there produces a finding the project cannot
+  close. Where the provider has no such control, say so in the finding and move
+  the weight onto the controls that do exist: the egress boundary below, scoped
+  to the fetcher; whether the instance needs an attached role at all; and
+  whether the metadata service can be disabled outright, which some providers
+  allow and which is the strongest answer available when it is. "This provider
+  offers no protected metadata request, so the boundary and the absent role are
+  carrying it" is a complete answer; a demand for IMDSv2 on a provider that has
+  no such thing is not.
 
   **Keep IMDSv2's two halves apart, because they stop different attackers and
   conflating them approves a path neither one closed.** The **token

@@ -129,6 +129,17 @@ TODO
      | --- | --- |
      | `db/**` | authorization |
      | `.github/workflows/**` | supply-chain |
+
+     If your product is a configured machine rather than an application, the
+     group names still apply but map onto the box — accounts and sudo policy,
+     the keys and firewall rules that decide who reaches it, what the run
+     writes to the target and what it prints. Something like:
+
+     | Path | Groups |
+     | --- | --- |
+     | `provision/**` | authorization, client-data, supply-chain |
+     | `firewall/**` | auth-session |
+     | `roles/*/templates/**` | client-data |
 -->
 
 TODO

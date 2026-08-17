@@ -53,7 +53,14 @@ time, and record the ones with no subject *as* having none:
   exist. Establish whether the tool writes either before grading it. The
   group's separate point stands regardless: the layer's own provider credential
   is a secrets question, and D5 never covered it.
-- **D6** is Ansible's `no_log`. A layer that is not Ansible has no subject.
+- **D6** is Ansible's `no_log`, and a layer that is not Ansible has no subject
+  *for D6*. What is not retired with it is the concern underneath — a credential
+  reaching an operator's terminal or a job log — which belongs to
+  `SKILL.md`'s `client-data` group and to
+  `references/infra-provisioning.md` → P5's printed path, and which has a
+  subject on any run that produces output. Report D6 inapplicable and the
+  concern graded; reporting the concern inapplicable because D6 is would drop a
+  live check on a technicality of which tool names it.
 
 Saying which of these had no subject is part of the report rather than an
 omission from it. A group listing four rules as clean is making a different
