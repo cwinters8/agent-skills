@@ -52,15 +52,26 @@ points at package 1.0.0, which predates `init`, `skills-adopt`, and several
 other skills in the table above, so the bootstrap below exits with a usage error
 against it.
 
-Once you have adopted, pin the **full 40-character commit SHA** — not a tag. A
-tag is a movable pointer, and this repo's own `ci-workflows` module exists partly
-because of what happens when one moves: in March 2025 every tag of a widely-used
-action was retroactively repointed at code that dumped CI secrets. The same
-mechanism applies here — a repointed tag would vendor different skills into your
-repo on the next routine sync, with nothing in your diff to show for it. A tag is
-fine for *finding* the version you want; the object id is what you pin.
-`skills-adopt` phase 1 resolves and verifies it, and records it where a later
-bump can find it.
+Once you have adopted, pin a **commit SHA** — not a tag. A tag is a movable
+pointer, and this repo's own `ci-workflows` module exists partly because of what
+happens when one moves: in March 2025 every tag of a widely-used action was
+retroactively repointed at code that dumped CI secrets. The same mechanism
+applies here — a repointed tag would vendor different skills into your repo on
+the next routine sync, with nothing in your diff to show for it. A tag is fine
+for *finding* the version you want; the object id is what you pin.
+
+Pin the **7-character short SHA**, not the full 40-character one. Both name the
+same immutable commit, so the argument against a movable tag holds either way —
+but `npx`, the runner every invocation here uses, cannot fetch a `github:` spec
+pinned to a full-length SHA. npm's git fetcher has been broken this way since
+9.6.5 and still is in 10.9.7: a full SHA aborts with `GitFetcher requires an
+Arborist constructor to pack a tarball` before it touches the network, so it
+fails in a way that reads like a bad pin when the pin is fine, while the short
+prefix resolves normally ([npm/cli#6723](https://github.com/npm/cli/issues/6723)).
+The only cost of a prefix is that it could grow ambiguous as history piles up,
+and seven hex digits stay unique far past any size this repo will reach.
+`skills-adopt` phase 1 resolves and verifies the pin, and records it where a
+later bump can find it.
 
 **Hand it to an agent.** Filling in the profile is the whole job, and it is
 research: the answers have to come from the repo, not from a template. Paste
@@ -108,10 +119,11 @@ feature set on disk to choose from.
    README hands you an older schema than the template you just copied — and the
    validator then rejects a section the template told you to write.
    `agent-skills list` plus a `check-profile` against the freshly-copied
-   template surfaces the disagreement in one run. Pin the commit SHA it resolves
-   to — per the rule above, a tag is not a pin — and record why in your rules
-   source. Everything below uses that verified ref; `#main` appears only in the
-   bootstrap, the one place you have no verified ref yet.
+   template surfaces the disagreement in one run. Pin the 7-character commit SHA
+   it resolves to — per the rule above, a tag is not a pin and a full-length SHA
+   trips `npx` — and record why in your rules source. Everything below uses that
+   verified ref; `#main` appears only in the bootstrap, the one place you have no
+   verified ref yet.
 
 4. Run the sync and commit both the vendored skills and the updated lock:
 

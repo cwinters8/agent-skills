@@ -84,23 +84,26 @@ those becomes.
    "fix" it back to the tag. If they agree, the ref is current *and* you have
    checked it rather than assumed it.
 
-4. **Pin the full 40-character SHA; abbreviate only if your runner makes you.**
-   The full object id is unambiguous forever. An abbreviated SHA is a *prefix*
-   that git resolves only while it stays unique in the repository, so a pin that
-   works today can become ambiguous as the history grows — a slow failure in the
-   one field whose job is to never move.
+4. **Pin the abbreviated (7-character) commit SHA.** A commit object id is what
+   defeats a movable tag; pin the *short* form of it, not the full 40-character
+   one. `npx` — the runner every invocation in these skills uses — cannot fetch
+   a `github:` spec pinned to a full-length SHA: it aborts before anything is
+   fetched, complaining about its own internals rather than about the ref, which
+   reads like a bad pin and is not one. The abbreviated form resolves normally.
 
-   **Some package runners reject a full-length SHA in a git spec**, failing
-   before anything is fetched while the abbreviated form resolves normally. The
-   tell is a failure that never reaches the network and complains about the
-   runner's own internals rather than about the ref — which reads like a bad
-   pin and is not one. So try the full object id first. If it fails that way,
-   prefer upgrading or changing the runner; use the abbreviation only when you
-   cannot, and record in the consumer's rules source that it is a workaround,
-   for which runner and version, and what the failure was. That belongs there
-   and not here: it is a fact about one project's toolchain, it expires when
-   that toolchain moves, and written here it would send every other consumer
-   after a tool they may not even use.
+   The one real cost of a prefix is that git resolves it only while it stays
+   unique in the repository, so a pin that works today can in principle become
+   ambiguous as the history grows. Seven hex digits stay unique far past any
+   size these repos reach; if a fetch ever reports the prefix as ambiguous you
+   widen it — never fall back to a tag. Record in the consumer's rules source
+   which commit you pinned and why, so the next person does not "fix" it back to
+   a tag or to the full SHA.
+
+   Don't pin the version of the runner or its bug here: that a full-length SHA
+   fails is stable enough to act on, but *which* npm versions carry it moves,
+   and a version written into a skill every consumer vendors expires the moment
+   their toolchain does. The short pin is the durable answer; the version note
+   belongs in the consumer's own rules source if anywhere.
 
 ## Phase 2 — Survey the repo before writing a word of the profile
 
