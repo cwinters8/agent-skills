@@ -103,8 +103,9 @@ those becomes.
    npm — the download means it is *not* the network or bad-pin failure it reads
    like. So when a full SHA fails this way, upgrade npm and re-run with the full
    pin rather than shortening the SHA: `npm install -g npm@latest` (any npm ≥
-   11.4.2). npm ≥ 11.4.2 needs Node ≥ 20.17, so upgrade Node first if the runner
-   is older. Reach for the abbreviation only when you genuinely cannot move the
+   11.4.2). npm ≥ 11.4.2's engines allow only `^20.17.0 || >=22.9.0` — a disjoint
+   range that excludes Node 21 and 22.0–22.8 — so move Node onto a version inside
+   it first if the runner is outside that range. Reach for the abbreviation only when you genuinely cannot move the
    toolchain (a locked CI image on Node 18, say), and then record in the
    consumer's rules source that it is a workaround — for which runner and version,
    and what the failure was — so the next person restores the full pin once the

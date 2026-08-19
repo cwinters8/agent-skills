@@ -70,7 +70,9 @@ message on an affected npm, not by any network symptom, since it reads like a ba
 pin when the pin is fine ([npm/cli#6723](https://github.com/npm/cli/issues/6723)).
 **npm 11.4.2 fixes it**, so the remedy is to upgrade npm and pin the full SHA —
 not to shorten it. `npm install -g npm@latest` (any npm ≥ 11.4.2) does it, but
-npm ≥ 11.4.2 needs Node ≥ 20.17, so bump Node first if you are older. An
+npm ≥ 11.4.2 needs a Node its engines allow — `^20.17.0 || >=22.9.0`, a
+disjoint range that excludes Node 21 and 22.0–22.8 — so move Node onto a
+supported version first if yours is outside it. An
 abbreviated pin is a *prefix*, and npm resolves a ref of that name ahead of the
 object it abbreviates, so an upstream that can push a tag named like your seven
 characters vendors its commit instead — the exact substitution pinning the object
