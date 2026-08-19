@@ -63,17 +63,20 @@ fine for *finding* the version you want; the object id is what you pin.
 bump can find it.
 
 One runner wrinkle, and its fix: npm's git fetcher rejects a full-length SHA in a
-`github:` spec on **npm 9.6.5 through 10.x**, aborting with `GitFetcher requires
-an Arborist constructor to pack a tarball` before it touches the network — a
-failure that reads like a bad pin when the pin is fine
-([npm/cli#6723](https://github.com/npm/cli/issues/6723)). **npm 11.4.2 fixes it**,
-so the remedy is to run the invocation under npm ≥ 11.4.2 (or another runner) —
-not to shorten the SHA. An abbreviated pin is a *prefix*, and npm resolves a ref
-of that name ahead of the object it abbreviates, so an upstream that can push a
-tag named like your seven characters vendors its commit instead — the exact
-substitution pinning the object id exists to prevent, and trivial to do
-unnoticed. If a toolchain genuinely cannot leave the affected npm, record a short
-SHA as a per-repo workaround with that caveat, never as the default.
+`github:` spec on **every npm from 9.6.5 up to (but not including) 11.4.2**. It
+downloads the commit tarball and then aborts while packing it, with `GitFetcher
+requires an Arborist constructor to pack a tarball` — recognise the bug by that
+message on an affected npm, not by any network symptom, since it reads like a bad
+pin when the pin is fine ([npm/cli#6723](https://github.com/npm/cli/issues/6723)).
+**npm 11.4.2 fixes it**, so the remedy is to upgrade npm and pin the full SHA —
+not to shorten it. `npm install -g npm@latest` (any npm ≥ 11.4.2) does it, but
+npm ≥ 11.4.2 needs Node ≥ 20.17, so bump Node first if you are older. An
+abbreviated pin is a *prefix*, and npm resolves a ref of that name ahead of the
+object it abbreviates, so an upstream that can push a tag named like your seven
+characters vendors its commit instead — the exact substitution pinning the object
+id exists to prevent, and trivial to do unnoticed. So a short SHA is a per-repo
+last resort for a toolchain that genuinely cannot move (an old locked runner),
+recorded with that caveat — never the default.
 
 **Hand it to an agent.** Filling in the profile is the whole job, and it is
 research: the answers have to come from the repo, not from a template. Paste

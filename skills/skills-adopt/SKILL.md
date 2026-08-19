@@ -95,20 +95,21 @@ those becomes.
    to stop. So the abbreviation is a security downgrade, not just an ambiguity
    risk.
 
-   **Some package runners reject a full-length SHA in a git spec**, failing
-   before anything is fetched while the abbreviated form resolves normally. The
-   tell is a failure that never reaches the network and complains about the
-   runner's own internals rather than about the ref — which reads like a bad
-   pin and is not one. `npx` is the runner these instructions assume, and npm
-   carried exactly this bug from 9.6.5 through the 10.x line before fixing it in
-   **npm 11.4.2**. So when a full SHA fails this way, upgrade npm and re-run with
-   the full pin — `npm install -g npm@latest`, or any npm ≥ 11.4.2 — rather than
-   shortening the SHA. Reach for the abbreviation only when you genuinely cannot
-   move the runner (a locked CI image, say), and then record in the consumer's
-   rules source that it is a workaround — for which runner and version, and what
-   the failure was — so the next person restores the full pin once the toolchain
-   moves. That per-project record is where a version number belongs; the durable
-   instruction here is upgrade-then-full-pin.
+   **Some package runners reject a full-length SHA in a git spec.** `npx` is the
+   runner these instructions assume, and npm carried this bug on every version
+   from **9.6.5 up to (but not including) 11.4.2**: it downloads the commit
+   tarball and then aborts while packing it, with `GitFetcher requires an Arborist
+   constructor to pack a tarball`. Recognise it by that message on an affected
+   npm — the download means it is *not* the network or bad-pin failure it reads
+   like. So when a full SHA fails this way, upgrade npm and re-run with the full
+   pin rather than shortening the SHA: `npm install -g npm@latest` (any npm ≥
+   11.4.2). npm ≥ 11.4.2 needs Node ≥ 20.17, so upgrade Node first if the runner
+   is older. Reach for the abbreviation only when you genuinely cannot move the
+   toolchain (a locked CI image on Node 18, say), and then record in the
+   consumer's rules source that it is a workaround — for which runner and version,
+   and what the failure was — so the next person restores the full pin once the
+   toolchain moves. That per-project record is where a version number belongs; the
+   durable instruction here is upgrade-then-full-pin.
 
 ## Phase 2 — Survey the repo before writing a word of the profile
 
