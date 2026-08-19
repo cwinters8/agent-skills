@@ -99,13 +99,16 @@ those becomes.
    before anything is fetched while the abbreviated form resolves normally. The
    tell is a failure that never reaches the network and complains about the
    runner's own internals rather than about the ref — which reads like a bad
-   pin and is not one. So try the full object id first. If it fails that way,
-   prefer upgrading or changing the runner; use the abbreviation only when you
-   cannot, and record in the consumer's rules source that it is a workaround,
-   for which runner and version, and what the failure was. That belongs there
-   and not here: it is a fact about one project's toolchain, it expires when
-   that toolchain moves, and written here it would send every other consumer
-   after a tool they may not even use.
+   pin and is not one. `npx` is the runner these instructions assume, and npm
+   carried exactly this bug from 9.6.5 through the 10.x line before fixing it in
+   **npm 11.4.2**. So when a full SHA fails this way, upgrade npm and re-run with
+   the full pin — `npm install -g npm@latest`, or any npm ≥ 11.4.2 — rather than
+   shortening the SHA. Reach for the abbreviation only when you genuinely cannot
+   move the runner (a locked CI image, say), and then record in the consumer's
+   rules source that it is a workaround — for which runner and version, and what
+   the failure was — so the next person restores the full pin once the toolchain
+   moves. That per-project record is where a version number belongs; the durable
+   instruction here is upgrade-then-full-pin.
 
 ## Phase 2 — Survey the repo before writing a word of the profile
 
