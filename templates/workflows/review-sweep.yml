@@ -110,10 +110,26 @@ jobs:
       actions: read
       checks: read
       statuses: read
-    # Four things to keep out. Comments on plain issues, which are the same
-    # event as PR conversation comments and carry no PR to sweep. The agent's own
-    # replies, since the skill answers threads as it triages them and each reply
-    # is another comment event. And any other bot this repo has not named in
+    # Four things to keep out, and one to deliberately let back in.
+    #
+    # Out: comments on plain issues, which are the same event as PR conversation
+    # comments and carry no PR to sweep. And the agent's own replies, since the
+    # skill answers threads as it triages them and each reply is another comment
+    # event.
+    #
+    # Back in: a `### Code review` report that raises issues. Where a project has
+    # no separate bot account, `code-review` posts its PR-mode findings through
+    # this same identity, and `review-sweep` is explicit that those must be
+    # triaged like any other reviewer's — "the distinction is authorship intent,
+    # not identity". Excluding the identity wholesale would make this workflow
+    # unable to deliver the one event class that skill mandates handling, and a
+    # PR could be called ready with its own review's findings unresolved.
+    #
+    # The clean verdict (`### Code review` / `No issues found at <sha>`) is
+    # bookkeeping by that same skill's rule, so it stays out. The heading is what
+    # separates the two, and the self-loop stays closed because the sweep's own
+    # replies — `Fixed in <sha>`, `Declined:`, the review request — never carry
+    # it. And any other bot this repo has not named in
     # AGENT_SKILLS_REVIEW_BOTS — a dependency bot, a linter — because the action
     # rejects an unlisted bot actor by failing, so every one of their comments
     # would leave a red X here. Gate on the allowlist rather than on particular
@@ -141,12 +157,17 @@ jobs:
       github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'schedule' && vars.AGENT_SKILLS_SWEEP_SCHEDULE == 'on') ||
       ((github.event_name != 'issue_comment' || github.event.issue.pull_request) &&
-       github.actor != 'claude[bot]' &&
-       ((endsWith(github.actor, '[bot]') &&
-         contains(format(',{0},', vars.AGENT_SKILLS_REVIEW_BOTS), format(',{0},', github.actor))) ||
-        (!endsWith(github.actor, '[bot]') &&
-         contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'),
-                  github.event.comment.author_association || github.event.review.author_association))))
+       ((github.actor == 'claude[bot]' &&
+         contains(format('{0}{1}', github.event.comment.body, github.event.review.body),
+                  '### Code review') &&
+         !contains(format('{0}{1}', github.event.comment.body, github.event.review.body),
+                   'No issues found')) ||
+        (github.actor != 'claude[bot]' &&
+         ((endsWith(github.actor, '[bot]') &&
+           contains(format(',{0},', vars.AGENT_SKILLS_REVIEW_BOTS), format(',{0},', github.actor))) ||
+          (!endsWith(github.actor, '[bot]') &&
+           contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'),
+                    github.event.comment.author_association || github.event.review.author_association))))))
     uses: cwinters8/agent-skills/.github/workflows/review-sweep.yml@__AGENT_SKILLS_REF__
     with:
       # The event names the PR it happened on, so sweep that one rather than
