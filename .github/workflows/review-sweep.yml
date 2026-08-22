@@ -55,6 +55,39 @@ on:
         type: string
         required: false
         default: ubuntu-latest
+      # Workload identity federation, for a consumer who would rather store no
+      # credential at all. The runner exchanges its GitHub OIDC token for API
+      # access, so nothing here is secret and all three can come from repository
+      # or organization VARIABLES — which, unlike Actions secrets, an
+      # organization can share without a per-repository copy.
+      #
+      # These are named in this shared file rather than reached through some
+      # generic provider input because a reader of this workflow is by
+      # definition talking to the same API the action talks to. A third-party
+      # secrets manager is a different matter: it is one consumer's choice, the
+      # next consumer uses another, and GitHub forbids expressions in `uses:`,
+      # so a shared workflow cannot dispatch to whichever one a caller picked.
+      # Fetching from one of those belongs in a caller the consumer owns.
+      anthropic-federation-rule-id:
+        description: Federation rule ID (fdrl_...). Set this to authenticate without a stored token.
+        type: string
+        required: false
+        default: ''
+      anthropic-organization-id:
+        description: Anthropic organization ID, required alongside the federation rule.
+        type: string
+        required: false
+        default: ''
+      anthropic-service-account-id:
+        description: Service account ID (svac_...). Optional when the rule already targets one.
+        type: string
+        required: false
+        default: ''
+      anthropic-workspace-id:
+        description: Workspace ID (wrkspc_...). Optional when the rule targets a single workspace.
+        type: string
+        required: false
+        default: ''
     secrets:
       CLAUDE_CODE_OAUTH_TOKEN:
         description: Subscription token from `claude setup-token`.
@@ -97,6 +130,10 @@ jobs:
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          anthropic_federation_rule_id: ${{ inputs.anthropic-federation-rule-id }}
+          anthropic_organization_id: ${{ inputs.anthropic-organization-id }}
+          anthropic_service_account_id: ${{ inputs.anthropic-service-account-id }}
+          anthropic_workspace_id: ${{ inputs.anthropic-workspace-id }}
           allowed_bots: ${{ inputs.allowed-bots }}
           # The vendored skill, invoked by name. Everything project-specific it
           # needs comes from the caller's .claude/project-profile.md, which the

@@ -175,15 +175,70 @@ from your terminal is watched by nothing.
 The workflow caller closes that gap: GitHub events start the sweep, so it works
 the same whether the PR came from your terminal, the web, or a teammate.
 
-**Once per account**, not per repository:
+**Once per account:**
 
 1. Install the [Claude GitHub App](https://github.com/apps/claude) on the account
-   or organization. This is what delivers the webhooks; `/web-setup` grants
-   repository access but does **not** install the app.
-2. Run `claude setup-token` and store the result as an organization or
-   account-level Actions secret named `CLAUDE_CODE_OAUTH_TOKEN`. One secret
-   covers every repository. (`ANTHROPIC_API_KEY` works instead, and bills to the
-   API rather than your subscription.)
+   or organization, for all repositories. This is what delivers the webhooks;
+   `/web-setup` grants repository access but does **not** install the app.
+
+**Then the token — and how far one copy reaches depends on who owns the repos.**
+Actions secrets exist at repository, environment and organization scope only.
+There is no user-account-level Actions secret: the user-level secrets a personal
+account does have are for Codespaces and Dependabot, and neither is visible to
+Actions. So:
+
+- **Repositories under an organization**: set `CLAUDE_CODE_OAUTH_TOKEN` once as
+  an organization secret, grant it to the repositories that need it, and you are
+  done.
+- **Repositories under a personal account**: it is one repository secret each.
+  There is no shortcut, but it scripts:
+
+  ```sh
+  TOKEN=$(claude setup-token)
+  for repo in owner/one owner/two; do
+    gh secret set CLAUDE_CODE_OAUTH_TOKEN --repo "$repo" --body "$TOKEN"
+  done
+  ```
+
+  Rotation has the same shape — re-run the loop. If that becomes tiresome across
+  many repositories, moving them under an organization is the fix, and the only
+  one.
+
+`ANTHROPIC_API_KEY` works instead of the OAuth token, and bills to the API
+rather than your subscription. A token from `claude setup-token` is tied to the
+subscription of whoever ran it.
+
+### Or store no credential at all
+
+The action can authenticate by exchanging the runner's GitHub OIDC token, which
+removes the secret entirely. What replaces it is three *identifiers* — not
+secrets — so they can be set as **organization variables** and shared across
+every repository, which is the one way a personal account avoids a per-repository
+copy of anything:
+
+| Variable | Value |
+| --- | --- |
+| `ANTHROPIC_FEDERATION_RULE_ID` | `fdrl_...`, from the federation rule you create in the Claude Console |
+| `ANTHROPIC_ORGANIZATION_ID` | your Anthropic organization ID |
+| `ANTHROPIC_WORKSPACE_ID` | optional, `wrkspc_...`, when the rule targets more than one workspace |
+
+The tradeoff is billing, not security: federation authenticates a Console
+service account, so runs bill to the API rather than to a Claude subscription.
+The federation rule is also where you constrain which repositories may exchange
+a token — worth setting narrowly, since the workflow it authorizes runs with
+`contents: write`.
+
+**A third-party secrets manager is a different question.** Fetching the token
+from one at runtime works, and with that provider's own OIDC support it needs no
+stored credential either — but it cannot live in the shared workflow. GitHub
+forbids expressions in `uses:`, so a reusable workflow cannot dispatch to
+whichever provider a caller chose, and hardcoding one would make this file wrong
+for every consumer who picked a different one. A caller can't bridge the gap
+either: a job with `uses:` cannot have `steps:`, and passing a fetched secret
+between jobs as an output is unmasked. So that path means owning your caller —
+drop `review-sweep` from `workflows`, keep your own copy with the fetch step
+before the `uses:` line, and accept that loop changes no longer arrive by
+bumping a ref.
 
 **Per repository**, add the caller to `.claude/skills.json` and sync:
 

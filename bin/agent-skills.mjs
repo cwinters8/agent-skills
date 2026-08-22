@@ -792,7 +792,9 @@ if (workflowPlan.length) {
   console.log('agent-skills: wrote workflow callers. They stay red until this repo can reach Claude:');
   console.log('  - install the Claude GitHub App on the repo (or the whole account, once)');
   console.log('  - set CLAUDE_CODE_OAUTH_TOKEN as an Actions secret — `claude setup-token`');
-  console.log('    an organization or account-level secret covers every repo at once');
+  console.log('    a repository secret, or one organization secret shared across repos;');
+  console.log('    GitHub has no user-account-level Actions secret, so a personal account');
+  console.log('    sets it per repository: gh secret set CLAUDE_CODE_OAUTH_TOKEN --repo ...');
   console.log('  - optionally set the AGENT_SKILLS_REVIEW_BOTS variable to your review bot login');
 }
 

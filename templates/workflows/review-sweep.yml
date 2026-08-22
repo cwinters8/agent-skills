@@ -12,8 +12,19 @@
 #                              means human reviewers only.
 #   AGENT_SKILLS_REVIEW_MODEL  optional model override.
 #
-# Set CLAUDE_CODE_OAUTH_TOKEN once as an organization or account-level Actions
-# secret (`claude setup-token`), and it covers every repo that vendors this.
+# To store no credential at all, set these three variables instead of the secret
+# and the runner exchanges its GitHub OIDC token for API access. None of them is
+# secret, so an organization can share them as organization variables — which is
+# the one way to avoid a per-repository copy on a personal account:
+#
+#   ANTHROPIC_FEDERATION_RULE_ID   fdrl_...
+#   ANTHROPIC_ORGANIZATION_ID      your Anthropic organization ID
+#   ANTHROPIC_WORKSPACE_ID         optional, wrkspc_...
+#
+# Needs a CLAUDE_CODE_OAUTH_TOKEN Actions secret (`claude setup-token`). Actions
+# secrets are repository, environment or organization scoped — there is no
+# user-account-level one — so a repo owned by an organization can share a single
+# organization secret, and a repo owned by a personal account needs its own.
 #
 # If you need different triggers than these, drop "review-sweep" from the
 # "workflows" array in .claude/skills.json and keep your own copy. The sync will
@@ -52,4 +63,7 @@ jobs:
       pr: ${{ inputs.pr || '' }}
       allowed-bots: ${{ vars.AGENT_SKILLS_REVIEW_BOTS }}
       model: ${{ vars.AGENT_SKILLS_REVIEW_MODEL }}
+      anthropic-federation-rule-id: ${{ vars.ANTHROPIC_FEDERATION_RULE_ID }}
+      anthropic-organization-id: ${{ vars.ANTHROPIC_ORGANIZATION_ID }}
+      anthropic-workspace-id: ${{ vars.ANTHROPIC_WORKSPACE_ID }}
     secrets: inherit
