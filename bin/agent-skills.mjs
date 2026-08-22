@@ -619,7 +619,6 @@ for (const dupe of [...new Set((lock.workflows ?? []).filter((w, i) => lock.work
 }
 const nextWorkflows = {};
 const workflowPlan = [];
-const workflowGaps = [];
 
 // Guard whenever this run may touch that directory at all — which includes a
 // run that wants no callers but must remove one the lock still records.
@@ -653,17 +652,19 @@ for (const name of wantedWorkflows) {
   // The caller invokes the same-named skill by name. Vendoring one without the
   // other produces a workflow that fires on every review comment and then finds
   // no skill to run — a per-event failure whose cause is in a different file.
+  // Refuse, rather than warn and write anyway. Recording this as an ordinary
+  // problem was worse than either alternative: the sync wrote the caller and
+  // exited zero, and every later --check regenerated the same complaint and
+  // failed — a repo permanently out of date that no sync could repair, while
+  // review events invoked a skill that was never vendored. A refusal costs one
+  // edit and names both ways out.
   if (!lock.skills.includes(name)) {
-    // Both, deliberately. In `problems` so --check fails on it, since this is
-    // the kind of gap CI exists to catch. And kept separately because a
-    // successful sync prints only refusals — a gap left in `problems` alone
-    // would be counted in the file tally and never shown to the person who
-    // just caused it.
-    const gap =
-      `${workflowLabel(name)}: calls the "${name}" skill, which this repo does not vendor — ` +
-      'add it to "skills" or drop the workflow';
-    problems.push(gap);
-    workflowGaps.push(gap);
+    die(
+      `"workflows" lists "${name}", but "skills" does not vendor it.\n` +
+        `  The caller invokes that skill by name, so it would fire on every review\n` +
+        '  comment and find nothing to run.\n' +
+        `  Add "${name}" to "skills", or drop it from "workflows".`,
+    );
   }
 
   const body = renderWorkflow(name);
@@ -849,13 +850,6 @@ console.log(
 // without one is a red X on every review comment rather than an obvious error
 // at adoption time. Say it on every sync that writes one: it is cheap here, and
 // the alternative is discovering it from a notification.
-if (workflowGaps.length) {
-  console.log('');
-  console.log('agent-skills: a workflow caller has no skill to invoke:');
-  for (const gap of workflowGaps) console.log(`  - ${gap}`);
-  console.log('  Until then it runs on every review comment and finds nothing to do.');
-}
-
 if (workflowPlan.length) {
   console.log('');
   console.log('agent-skills: wrote workflow callers. They stay red until this repo can');
