@@ -203,6 +203,23 @@ jobs:
       # would notice. Resolve the head repository first and stop before the
       # checkout, since after it the untrusted code is already on disk.
       #
+      # One thing here is deliberately unsettled. Whether these events actually
+      # carry the repository's secrets on a FORK's pull request is disputed:
+      # `pull_request` from a fork is documented as running without them, but
+      # `issue_comment` and the review events run the workflow from the base
+      # repository's default branch, which is the whole basis of the privileged
+      # -checkout hazard above. GitHub's own wording — "secrets are not passed to
+      # the runner when a workflow is triggered from a forked repository" — never
+      # says which events count as triggered *from* a fork, and two reviews of
+      # this file reached opposite conclusions.
+      #
+      # It does not need settling for this guard to be right, which is why it has
+      # not been: if the secrets are there, this is what prevents the escalation;
+      # if they are withheld, this skips a run that would have failed anyway. The
+      # question only decides whether `allow-forks` does anything useful when
+      # switched on, and that path cannot push fixes regardless. Resolve it by
+      # observing one real run before relying on it.
+      #
       # Skips rather than fails: a refusal is not an error, and a red X on every
       # comment a fork PR receives would train everyone to ignore this workflow.
       # Uses only the job's own GITHUB_TOKEN — never the fetched credential —
