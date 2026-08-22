@@ -576,12 +576,20 @@ for (const skill of lock.skills) {
 // .github/workflows/ belongs to the consumer and holds their own workflows
 // beside ours. Nothing below enumerates that directory or removes anything from
 // it except a file this tool wrote and can still recognize by hash.
+// Refuse a malformed value rather than treating it as absent. Silently
+// ignoring `"workflows": "review-sweep"` — a plausible typo — would read as
+// "no callers wanted" and delete the one already vendored, reporting success.
+if (lock.workflows !== undefined && !Array.isArray(lock.workflows)) {
+  die('.claude/skills.json has a "workflows" field that is not an array — expected a list of names');
+}
 const wantedWorkflows = Array.isArray(lock.workflows) ? [...new Set(lock.workflows)] : [];
 const nextWorkflows = {};
 const workflowPlan = [];
 const workflowGaps = [];
 
-if (wantedWorkflows.length) {
+// Guard whenever this run may touch that directory at all — which includes a
+// run that wants no callers but must remove one the lock still records.
+if (wantedWorkflows.length || Object.keys(lock.workflowFiles ?? {}).length) {
   requireWritableDir(join(repoRoot, '.github'), '.github');
   requireWritableDir(workflowsDir, '.github/workflows');
 }
@@ -728,6 +736,13 @@ for (const key of removed) rmSync(join(skillsDir, key), { force: true });
 
 for (const { dest, body } of workflowPlan) {
   mkdirSync(dirname(dest), { recursive: true });
+  // Only --force reaches here with something already at the path, and the two
+  // shapes it can be are exactly the ones a plain write handles worst: a
+  // symlink, which writeFileSync follows to a target that need not be in this
+  // repository, and a directory, which throws EISDIR after the skills tree has
+  // been rewritten and before the lock is. Remove first so the write always
+  // lands on a path this tool owns.
+  rmSync(dest, { recursive: true, force: true });
   writeFileSync(dest, body);
 }
 for (const dest of removedWorkflows) rmSync(dest, { force: true });

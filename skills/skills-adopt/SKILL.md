@@ -161,8 +161,9 @@ The profile states facts a skill can act on. Derive every answer; guess none.
     resolve when GitHub runs them. That is not a second answer to a question the
     npx spec already answers — it is the only answer to a different one, asked
     on a runner long after any sync finished. Add them only if the repo wants
-    the GitHub-events feedback loop; the package README covers the account-level
-    app install and Actions secret that have to exist for it to do anything.
+    the GitHub-events feedback loop; the package README covers the app install
+    and the credential that have to exist for it to do anything — the install is
+    account-wide, the credential is not.
 
     `init` writes that file and a blank profile for you, and never overwrites
     either — so if you are reading this skill because a bootstrap sync put it on

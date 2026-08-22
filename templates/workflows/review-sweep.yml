@@ -11,6 +11,8 @@
 #                              start a sweep, e.g. your code-review bot. Unset
 #                              means human reviewers only.
 #   AGENT_SKILLS_REVIEW_MODEL  optional model override.
+#   AGENT_SKILLS_RUNNER        optional runner label, for self-hosted runners.
+#   AGENT_SKILLS_MAX_TURNS     optional turn ceiling per run (default 40).
 #
 # To store no credential at all, set these three variables instead of the secret
 # and the runner exchanges its GitHub OIDC token for API access. None of them is
@@ -22,17 +24,22 @@
 #   ANTHROPIC_WORKSPACE_ID         optional, wrkspc_...
 #
 # Or keep the credential in Doppler and let the run fetch it by OIDC, which
-# stores nothing in GitHub either. Set all three, and name the Doppler secret
-# CLAUDE_CODE_OAUTH_TOKEN (or ANTHROPIC_API_KEY):
+# stores nothing in GitHub either:
 #
 #   DOPPLER_IDENTITY_ID            service account identity UUID
 #   DOPPLER_PROJECT                project holding the credential
 #   DOPPLER_CONFIG                 config within that project
+#   DOPPLER_SECRET_NAME            optional; the Doppler secret holding a
+#                                  subscription token, if not named
+#                                  CLAUDE_CODE_OAUTH_TOKEN
+#   DOPPLER_API_KEY_NAME           optional; same, for an API key stored under
+#                                  a name other than ANTHROPIC_API_KEY
 #
-# Needs a CLAUDE_CODE_OAUTH_TOKEN Actions secret (`claude setup-token`). Actions
-# secrets are repository, environment or organization scoped — there is no
-# user-account-level one — so a repo owned by an organization can share a single
-# organization secret, and a repo owned by a personal account needs its own.
+# The run needs a credential, by exactly one of three routes. A stored Actions
+# secret named CLAUDE_CODE_OAUTH_TOKEN (`claude setup-token`) — those are
+# repository, environment or organization scoped, with no user-account-level
+# one, so an organization can share a single secret and a personal account needs
+# one per repo. Or either of the two routes below, which store nothing.
 #
 # If you need different triggers than these, drop "review-sweep" from the
 # "workflows" array in .claude/skills.json and keep your own copy. The sync will
@@ -55,6 +62,18 @@ on:
 
 jobs:
   sweep:
+    # A called workflow cannot hold more than its caller grants, and none of
+    # these are in the default token: without this block the nested job is
+    # refused before any step runs. They match the called workflow exactly —
+    # write to push review fixes, to reply and resolve threads, and to comment;
+    # id-token for the keyless auth routes; actions:read to see CI on the PRs
+    # being swept.
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+      actions: read
     # Two things to keep out. Comments on plain issues, which are the same event
     # as PR conversation comments and carry no PR to sweep. And the agent's own
     # replies: the skill answers threads as it triages them, and each reply is
@@ -68,13 +87,26 @@ jobs:
        github.actor != 'github-actions[bot]')
     uses: cwinters8/agent-skills/.github/workflows/review-sweep.yml@__AGENT_SKILLS_REF__
     with:
-      pr: ${{ inputs.pr || '' }}
+      # The event names the PR it happened on, so sweep that one rather than
+      # every open PR. Review events carry pull_request, PR conversation
+      # comments carry issue; a manual dispatch passes its own, and an empty
+      # value still means "sweep everything".
+      pr: >-
+        ${{ inputs.pr
+            || github.event.pull_request.number
+            || github.event.issue.number
+            || '' }}
       allowed-bots: ${{ vars.AGENT_SKILLS_REVIEW_BOTS }}
       model: ${{ vars.AGENT_SKILLS_REVIEW_MODEL }}
+      runs-on: ${{ vars.AGENT_SKILLS_RUNNER || 'ubuntu-latest' }}
+      max-turns: ${{ vars.AGENT_SKILLS_MAX_TURNS && fromJSON(vars.AGENT_SKILLS_MAX_TURNS) || 40 }}
       anthropic-federation-rule-id: ${{ vars.ANTHROPIC_FEDERATION_RULE_ID }}
       anthropic-organization-id: ${{ vars.ANTHROPIC_ORGANIZATION_ID }}
       anthropic-workspace-id: ${{ vars.ANTHROPIC_WORKSPACE_ID }}
+      anthropic-service-account-id: ${{ vars.ANTHROPIC_SERVICE_ACCOUNT_ID }}
       doppler-identity-id: ${{ vars.DOPPLER_IDENTITY_ID }}
       doppler-project: ${{ vars.DOPPLER_PROJECT }}
       doppler-config: ${{ vars.DOPPLER_CONFIG }}
+      doppler-oauth-token-name: ${{ vars.DOPPLER_SECRET_NAME || 'CLAUDE_CODE_OAUTH_TOKEN' }}
+      doppler-api-key-name: ${{ vars.DOPPLER_API_KEY_NAME || 'ANTHROPIC_API_KEY' }}
     secrets: inherit

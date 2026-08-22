@@ -232,17 +232,25 @@ a token — worth setting narrowly, since the workflow it authorizes runs with
 
 The workflow can pull the credential from Doppler at run time, authenticating by
 OIDC, so neither a Claude token nor a Doppler token is stored in GitHub. Set
-three repository or organization variables and name the Doppler secret exactly as
-you would name the Actions secret:
+these repository or organization variables:
 
 | Variable | Value |
 | --- | --- |
 | `DOPPLER_IDENTITY_ID` | service account identity UUID |
 | `DOPPLER_PROJECT` | project holding the credential |
 | `DOPPLER_CONFIG` | config within that project |
+| `DOPPLER_SECRET_NAME` | optional, when the Doppler secret is not named `CLAUDE_CODE_OAUTH_TOKEN` |
 
 The fetch step is skipped entirely when `DOPPLER_IDENTITY_ID` is unset, so this
 costs nothing if you don't use it.
+
+`CLAUDE_CODE_OAUTH_TOKEN` and `ANTHROPIC_API_KEY` are the conventional names —
+what Claude Code itself writes when it stores the credential as a repository
+secret — but Doppler exposes each secret under its own name, so the workflow has
+to read whichever you used. `DOPPLER_SECRET_NAME` says so without renaming
+anything in Doppler. The stored-Actions-secret path has no equivalent: `secrets:`
+on a reusable workflow is a static declaration, so only the declared names
+exist to read there.
 
 It lives in the shared workflow rather than in your caller because it has to:
 GitHub drops job outputs that look like secrets, so a fetch in one job cannot

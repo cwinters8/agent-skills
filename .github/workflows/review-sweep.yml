@@ -61,13 +61,9 @@ on:
       # or organization VARIABLES — which, unlike Actions secrets, an
       # organization can share without a per-repository copy.
       #
-      # These are named in this shared file rather than reached through some
-      # generic provider input because a reader of this workflow is by
-      # definition talking to the same API the action talks to. A third-party
-      # secrets manager is a different matter: it is one consumer's choice, the
-      # next consumer uses another, and GitHub forbids expressions in `uses:`,
-      # so a shared workflow cannot dispatch to whichever one a caller picked.
-      # Fetching from one of those belongs in a caller the consumer owns.
+      # One of three ways to authenticate, alongside a stored Actions secret and
+      # the Doppler fetch below. Each is opt-in and inert when its inputs are
+      # empty, which is what lets them coexist in one shared file.
       anthropic-federation-rule-id:
         description: Federation rule ID (fdrl_...). Set this to authenticate without a stored token.
         type: string
@@ -93,9 +89,10 @@ on:
       # Inert unless doppler-identity-id is set, so a consumer who does not use
       # Doppler never runs the step and needs none of these.
       #
-      # Name the secret in Doppler exactly as you would name the Actions secret
-      # — CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY — because the fetch
-      # exposes each secret under its own name.
+      # The fetch exposes each secret under its own name, so the Doppler-side
+      # name is what this workflow has to read. It defaults to the conventional
+      # names but does not impose them: a project already storing the credential
+      # as something else says so rather than renaming it.
       doppler-identity-id:
         description: Service account identity UUID. Setting this turns the Doppler fetch on.
         type: string
@@ -111,6 +108,18 @@ on:
         type: string
         required: false
         default: ''
+      doppler-oauth-token-name:
+        description: >
+          Name of the Doppler secret holding a subscription token. Defaults to
+          the conventional name; set it when your project uses another.
+        type: string
+        required: false
+        default: CLAUDE_CODE_OAUTH_TOKEN
+      doppler-api-key-name:
+        description: Name of the Doppler secret holding an API key.
+        type: string
+        required: false
+        default: ANTHROPIC_API_KEY
     secrets:
       CLAUDE_CODE_OAUTH_TOKEN:
         description: Subscription token from `claude setup-token`.
@@ -119,13 +128,21 @@ on:
         description: API key, as an alternative to the subscription token.
         required: false
 
-# One sweep at a time per repository. Review comments arrive in bursts — a
-# reviewer leaving six inline comments emits six events — and without this they
-# would become six concurrent runs racing to push to the same branch. Queue
-# rather than cancel: a cancelled sweep can leave a comment marked seen with
-# nothing done about it, which reads as handled forever after.
+# One sweep at a time per PR. Review comments arrive in bursts — a reviewer
+# leaving six inline comments emits six events — and without this they would
+# become six concurrent runs racing to push to the same branch.
+#
+# Grouping by PR rather than by repository so a burst on one PR does not queue
+# behind an unrelated one. `cancel-in-progress: false` protects the RUNNING
+# sweep, which is the one that could otherwise be killed mid-push; it does not
+# preserve every queued one, because GitHub holds at most one pending run per
+# group and drops an older pending run when a newer arrives. That is the right
+# trade here and not merely tolerable: a sweep is idempotent — the skill's
+# reaction markers record what it already handled — so the run that survives a
+# burst sees every comment the dropped ones would have, including the ones that
+# triggered them.
 concurrency:
-  group: review-sweep-${{ github.repository }}
+  group: review-sweep-${{ github.repository }}-${{ inputs.pr || 'all' }}
   cancel-in-progress: false
 
 jobs:
@@ -143,7 +160,14 @@ jobs:
       # Lets the run read CI results on the PRs it sweeps.
       actions: read
     steps:
-      - uses: actions/checkout@v6
+      # Every third-party reference in this file is pinned to a full commit SHA,
+      # with its version in the trailing comment. This file is published for
+      # other repositories to call and runs on the caller's permissions and
+      # secrets, so its callers cannot be enumerated and a moving major tag is a
+      # mutable ref pointing into someone else's credentials. Bumping one still
+      # means looking the current major up again — the SHA is which bytes, not
+      # which version.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # Full history: the skill pushes fixes to PR branches, and a depth-1
           # checkout of the default branch cannot check one out.
@@ -161,9 +185,7 @@ jobs:
       # fetch has to live in the same job as the step that consumes it, and so
       # in this workflow rather than in the caller.
       #
-      # Pinned by tag for consistency with the checkout above; a SHA is the
-      # stronger pin, and this is the step that handles the credential.
-      - uses: dopplerhq/secrets-fetch-action@v2
+      - uses: DopplerHQ/secrets-fetch-action@451892f16195f9ac360e1a5bcbf0b5fd0e957534 # v2.0.0
         id: doppler
         if: inputs.doppler-identity-id != ''
         with:
@@ -172,13 +194,19 @@ jobs:
           doppler-project: ${{ inputs.doppler-project }}
           doppler-config: ${{ inputs.doppler-config }}
 
-      - uses: anthropics/claude-code-action@v1
+      - uses: anthropics/claude-code-action@64bdc88bfe0b4c42a310e93abde02db8fb3b8956 # v1.0.199
         with:
           # Doppler first when it ran, the Actions secret otherwise. Three ways
           # in, and a repo needs exactly one: a fetched secret, a stored secret,
           # or federation below.
-          anthropic_api_key: ${{ steps.doppler.outputs.ANTHROPIC_API_KEY || secrets.ANTHROPIC_API_KEY }}
-          claude_code_oauth_token: ${{ steps.doppler.outputs.CLAUDE_CODE_OAUTH_TOKEN || secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # Index rather than property access, so the Doppler-side name is the
+          # caller's to choose. The Actions-secret fallbacks cannot be made
+          # configurable the same way: `secrets:` on a reusable workflow is a
+          # static declaration, so only a name declared below exists to read.
+          # A repo whose stored secret is named otherwise maps it in its own
+          # caller, or keeps it in Doppler where the name is free.
+          anthropic_api_key: ${{ steps.doppler.outputs[inputs.doppler-api-key-name] || secrets.ANTHROPIC_API_KEY }}
+          claude_code_oauth_token: ${{ steps.doppler.outputs[inputs.doppler-oauth-token-name] || secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           anthropic_federation_rule_id: ${{ inputs.anthropic-federation-rule-id }}
           anthropic_organization_id: ${{ inputs.anthropic-organization-id }}
           anthropic_service_account_id: ${{ inputs.anthropic-service-account-id }}

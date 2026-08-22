@@ -142,13 +142,26 @@ Three things follow, and all three are easy to get wrong:
   project that every other project then carries. That is what the grep guards,
   and it scans `SKILL.md` for exactly that reason. It is unchanged.
 
-  A workflow here is a different kind of artifact. It is maintained in this
-  repository and never copied anywhere — consumers point at it. So naming a tool
-  it integrates with is a maintenance decision, not a leak: this project's own
-  choice of secret store belongs in this project's own workflow, and an
-  integration that is **opt-in and inert when its input is empty** costs a
-  consumer who doesn't use it nothing but the lines they never read. Add them
-  when they earn their keep.
+  A workflow is a different kind of artifact: infrastructure, not content. The
+  reusable one is maintained here and only pointed at, so naming a tool it
+  integrates with is plainly a maintenance decision — this project's own choice
+  of secret store belongs in this project's own workflow. An integration that is
+  **opt-in and inert when its input is empty** costs a consumer who doesn't use
+  it nothing but lines they never read. Add them when they earn their keep.
+
+  The caller in `templates/workflows/` is the case that needs care, because it
+  *is* vendored into every consumer, and it does name a secret store. What
+  travels is a set of **variable keys, all optional and unset by default**. A key
+  offers a slot; it asserts nothing about the repository it lands in, and a
+  consumer who uses a different store leaves it empty and is unaffected. That is
+  categorically unlike a skill hardcoding a path or a command, which states
+  something false about every project that isn't the one it came from.
+
+  Note that the grep does not cover `templates/`, and should not start: it would
+  fire on exactly the lines above, which are deliberate. That makes this a
+  judgment for review rather than one the check enforces — so when adding a
+  provider here, confirm the keys are optional and default-empty, since nothing
+  mechanical will.
 
   What still may not be hardcoded is anything that *differs per consumer and
   cannot be defaulted*: a repository, a branch, a runner label, a review bot's
