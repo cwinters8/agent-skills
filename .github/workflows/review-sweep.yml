@@ -141,22 +141,22 @@ on:
 # leaving six inline comments emits six events — and without this they would
 # become six concurrent runs racing to push to the same branch.
 #
-# Repository-wide, deliberately, after trying it per-PR. A sweep with no `pr`
-# visits every open PR, so a per-PR group put that run in a group of its own
-# while targeted runs sat in theirs — and the two could then react, commit and
-# push to the same branch concurrently, which is the exact race the group exists
-# to prevent. One group is the only arrangement where "one sweep at a time"
-# is true of both shapes.
+# Per PR. Both groupings lose something, and this is the one that loses it
+# loudly.
 #
-# `cancel-in-progress: false` protects the RUNNING sweep, the one that could
-# otherwise be killed mid-push. It does not preserve every queued one: GitHub
-# holds at most one pending run per group and drops an older pending run when a
-# newer arrives. That is fine here for a reason worth stating rather than
-# glossing — a sweep is idempotent, since the skill's reaction markers record
-# what it already handled, so the run that survives a burst sees everything the
-# dropped ones would have, including the comments that triggered them.
+# Repository-wide was tried, and it drops work silently: with one group, an
+# event for PR A goes pending, an event for PR B replaces it, and the surviving
+# run carries B's number. A is never enumerated and its feedback goes unhandled
+# with nothing to show for it.
+#
+# Per-PR leaves one overlap instead — a sweep with no `pr` visits every PR, so it
+# can run beside a targeted sweep of one of them. Two runs pushing to one branch
+# is a non-fast-forward the skill sees and reports. A failed push is recoverable
+# and visible; a silently dropped run is neither. The all-PR shape is also the
+# rare one: every event-driven run names its PR, leaving only manual dispatch and
+# the scheduled backstop, both of which a maintainer starts.
 concurrency:
-  group: review-sweep-${{ github.repository }}
+  group: review-sweep-${{ github.repository }}-${{ inputs.pr || 'all' }}
   cancel-in-progress: false
 
 jobs:
@@ -191,37 +191,43 @@ jobs:
       #
       # Skips rather than fails: a refusal is not an error, and a red X on every
       # comment a fork PR receives would train everyone to ignore this workflow.
-      # Uses only the job's own GITHUB_TOKEN — never the fetched credential.
+      # Uses only the job's own GITHUB_TOKEN — never the fetched credential —
+      # and github-script rather than a shell so it carries no host dependency
+      # (`jq` is absent from a stock self-hosted runner, and `runs-on` exists
+      # precisely so consumers can use one).
       - id: guard
+        uses: actions/github-script@d746ffe35508b1917358783b479e04febd2b8f71 # v9.0.0
         env:
-          GH_TOKEN: ${{ github.token }}
           PR: ${{ inputs.pr }}
-          REPO: ${{ github.repository }}
           ALLOW: ${{ inputs.allow-forks }}
-        run: |
-          set -euo pipefail
-          api() { curl -sSf -H "Authorization: Bearer $GH_TOKEN" \
-                    -H "Accept: application/vnd.github+json" "$@"; }
-          if [ "$ALLOW" = "true" ]; then
-            echo "skip=false" >> "$GITHUB_OUTPUT"; exit 0
-          fi
-          if [ -n "$PR" ]; then
-            head=$(api "https://api.github.com/repos/$REPO/pulls/$PR" | jq -r '.head.repo.full_name // "unknown"')
-            if [ "$head" != "$REPO" ]; then
-              echo "::notice::PR #$PR comes from $head, not $REPO — skipping. Set allow-forks to sweep it."
-              echo "skip=true" >> "$GITHUB_OUTPUT"; exit 0
-            fi
-          else
-            # No PR named: this run would visit every open PR, forks included,
-            # and it cannot skip them individually from here. Fail closed.
-            forks=$(api "https://api.github.com/repos/$REPO/pulls?state=open&per_page=100" \
-                    | jq --arg r "$REPO" '[.[] | select(.head.repo.full_name != $r)] | length')
-            if [ "$forks" -gt 0 ]; then
-              echo "::notice::$forks open PR(s) from forks — skipping the all-PR sweep. Sweep by number, or set allow-forks."
-              echo "skip=true" >> "$GITHUB_OUTPUT"; exit 0
-            fi
-          fi
-          echo "skip=false" >> "$GITHUB_OUTPUT"
+        with:
+          script: |
+            if (process.env.ALLOW === 'true') return core.setOutput('skip', 'false')
+            const full = `${context.repo.owner}/${context.repo.repo}`
+            // A deleted fork leaves head.repo null. That is not this repository,
+            // so it must not compare equal to it.
+            const isFork = (pr) => pr.head.repo?.full_name !== full
+            if (process.env.PR) {
+              const { data } = await github.rest.pulls.get({
+                ...context.repo, pull_number: Number(process.env.PR),
+              })
+              if (isFork(data)) {
+                core.notice(`PR #${data.number} comes from a fork — skipping. Set allow-forks to sweep it.`)
+                return core.setOutput('skip', 'true')
+              }
+            } else {
+              // paginate, not a single page: a fork PR past the first hundred
+              // would otherwise pass unseen and reach the privileged checkout.
+              const open = await github.paginate(github.rest.pulls.list, {
+                ...context.repo, state: 'open', per_page: 100,
+              })
+              const forks = open.filter(isFork)
+              if (forks.length) {
+                core.notice(`${forks.length} open PR(s) from forks — skipping the all-PR sweep. Sweep by number, or set allow-forks.`)
+                return core.setOutput('skip', 'true')
+              }
+            }
+            core.setOutput('skip', 'false')
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: steps.guard.outputs.skip != 'true'

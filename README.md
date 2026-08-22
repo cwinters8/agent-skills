@@ -304,7 +304,8 @@ revert it. The caller reads:
 | `AGENT_SKILLS_REVIEW_BOTS` | Comma-separated bot logins whose comments start a sweep. The action ignores bot actors otherwise — which would ignore exactly the review bot you want answered. Unset means human reviewers only. |
 | `AGENT_SKILLS_REVIEW_MODEL` | Model override. Unset uses the action's default. |
 
-**Pull requests from forks are skipped** unless you opt in. A comment on a fork
+**Pull requests from forks are skipped** unless you set
+`AGENT_SKILLS_ALLOW_FORKS` to `true`. A comment on a fork
 PR fires `issue_comment` in your repository, so the sweep would run with your
 credential and write permission while checking out contributor-controlled code
 and running your project's own commands over it. The workflow resolves the head

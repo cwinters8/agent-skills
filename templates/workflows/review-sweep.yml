@@ -14,14 +14,20 @@
 #   AGENT_SKILLS_RUNNER        optional runner label, for self-hosted runners.
 #   AGENT_SKILLS_MAX_TURNS     optional turn ceiling per run (default 40).
 #   AGENT_SKILLS_SWEEP_SCHEDULE  set to "on" to enable the daily backstop sweep.
+#   AGENT_SKILLS_ALLOW_FORKS   set to "true" to sweep pull requests from forks.
+#                              Read what that means in the README first: the
+#                              sweep runs with this repo's credential and write
+#                              permission over contributor-controlled code.
 #
-# To store no credential at all, set these three variables instead of the secret
-# and the runner exchanges its GitHub OIDC token for API access. None of them is
-# secret, so an organization can share them as organization variables — which is
-# the one way to avoid a per-repository copy on a personal account:
+# To store no credential at all, set these instead of the secret and the runner
+# exchanges its GitHub OIDC token for API access. None of them is secret — but
+# variables are scoped exactly like secrets, so a repo under an organization can
+# share them there and a repo under a personal account still sets its own:
 #
 #   ANTHROPIC_FEDERATION_RULE_ID   fdrl_...
 #   ANTHROPIC_ORGANIZATION_ID      your Anthropic organization ID
+#   ANTHROPIC_SERVICE_ACCOUNT_ID   svac_..., required unless the federation rule
+#                                  already targets one service account
 #   ANTHROPIC_WORKSPACE_ID         optional, wrkspc_...
 #
 # Or keep the credential in Doppler and let the run fetch it by OIDC, which
@@ -83,19 +89,22 @@ jobs:
       issues: write
       id-token: write
       actions: read
-    # Two things to keep out. Comments on plain issues, which are the same event
-    # as PR conversation comments and carry no PR to sweep. And the agent's own
-    # replies: the skill answers threads as it triages them, and each reply is
-    # another comment event. The action would reject those runs itself, on its
-    # bot-actor check — but a rejected run is a failed run, so every reply the
-    # agent posts would leave a red X on the repo. Cheaper to not start.
+    # Three things to keep out. Comments on plain issues, which are the same
+    # event as PR conversation comments and carry no PR to sweep. The agent's own
+    # replies, since the skill answers threads as it triages them and each reply
+    # is another comment event. And any other bot this repo has not named in
+    # AGENT_SKILLS_REVIEW_BOTS — a dependency bot, a linter — because the action
+    # rejects an unlisted bot actor by failing, so every one of their comments
+    # would leave a red X here. Gate on the allowlist rather than on particular
+    # logins: which bots review is the consumer's fact, and a hardcoded name is
+    # wrong in both directions at once.
     if: >-
       github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'schedule' && vars.AGENT_SKILLS_SWEEP_SCHEDULE == 'on') ||
       ((github.event_name != 'issue_comment' || github.event.issue.pull_request) &&
        github.actor != 'claude[bot]' &&
-       (github.actor != 'github-actions[bot]' ||
-        contains(vars.AGENT_SKILLS_REVIEW_BOTS, 'github-actions[bot]')))
+       (!endsWith(github.actor, '[bot]') ||
+        contains(vars.AGENT_SKILLS_REVIEW_BOTS, github.actor)))
     uses: cwinters8/agent-skills/.github/workflows/review-sweep.yml@__AGENT_SKILLS_REF__
     with:
       # The event names the PR it happened on, so sweep that one rather than
@@ -120,6 +129,7 @@ jobs:
       doppler-config: ${{ vars.DOPPLER_CONFIG }}
       doppler-oauth-token-name: ${{ vars.DOPPLER_SECRET_NAME || 'CLAUDE_CODE_OAUTH_TOKEN' }}
       doppler-api-key-name: ${{ vars.DOPPLER_API_KEY_NAME || 'ANTHROPIC_API_KEY' }}
+      allow-forks: ${{ vars.AGENT_SKILLS_ALLOW_FORKS == 'true' }}
     # Named rather than `inherit`. Inheriting is documented as working for a
     # called workflow in the same organization or enterprise, and this one is in
     # neither for most consumers — a personal account is not an organization at
