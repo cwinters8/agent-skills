@@ -597,6 +597,12 @@ if (lock.workflows !== undefined && !Array.isArray(lock.workflows)) {
   die('.claude/skills.json has a "workflows" field that is not an array — expected a list of names');
 }
 const wantedWorkflows = Array.isArray(lock.workflows) ? [...new Set(lock.workflows)] : [];
+// Same reasoning as the skills array above: deduping in memory and saying
+// nothing would let --check certify a lock that a real sync then rewrites, so
+// CI would pass against a file that is not canonical.
+for (const dupe of [...new Set((lock.workflows ?? []).filter((w, i) => lock.workflows.indexOf(w) !== i))]) {
+  problems.push(`${dupe}: listed more than once in the "workflows" array — run a sync to rewrite the lock`);
+}
 const nextWorkflows = {};
 const workflowPlan = [];
 const workflowGaps = [];
@@ -829,13 +835,14 @@ if (workflowGaps.length) {
 
 if (workflowPlan.length) {
   console.log('');
-  console.log('agent-skills: wrote workflow callers. They stay red until this repo can reach Claude:');
-  console.log('  - install the Claude GitHub App on the repo (or the whole account, once)');
-  console.log('  - set CLAUDE_CODE_OAUTH_TOKEN as an Actions secret — `claude setup-token`');
-  console.log('    a repository secret, or one organization secret shared across repos;');
-  console.log('    GitHub has no user-account-level Actions secret, so a personal account');
-  console.log('    sets it per repository: gh secret set CLAUDE_CODE_OAUTH_TOKEN --repo ...');
-  console.log('  - optionally set the AGENT_SKILLS_REVIEW_BOTS variable to your review bot login');
+  console.log('agent-skills: wrote workflow callers. They stay red until this repo can');
+  console.log('reach Claude, which needs the Claude GitHub App installed and exactly ONE of:');
+  console.log('  - a CLAUDE_CODE_OAUTH_TOKEN Actions secret (`claude setup-token`)');
+  console.log('  - the ANTHROPIC_FEDERATION_RULE_ID / ANTHROPIC_ORGANIZATION_ID variables');
+  console.log('  - the DOPPLER_IDENTITY_ID / DOPPLER_PROJECT / DOPPLER_CONFIG variables');
+  console.log('The last two store no credential at all. See "Answering review feedback');
+  console.log('automatically" in the README for which to pick and what each costs.');
+  console.log('Also optional: AGENT_SKILLS_REVIEW_BOTS, naming your review bot login.');
 }
 
 // A vendored skill that hands off to a sibling degrades quietly when that

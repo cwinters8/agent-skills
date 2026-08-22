@@ -185,7 +185,10 @@ the same whether the PR came from your terminal, the web, or a teammate.
 Actions secrets exist at repository, environment and organization scope only.
 There is no user-account-level Actions secret: the user-level secrets a personal
 account does have are for Codespaces and Dependabot, and neither is visible to
-Actions. So:
+Actions. Of those three scopes the vendored caller can reach two — it selects no
+environment, and a job that calls a reusable workflow cannot, so an
+environment-scoped secret or variable resolves empty. Use repository or
+organization scope, or keep your own caller. So:
 
 - **Repositories under an organization**: set `CLAUDE_CODE_OAUTH_TOKEN` once as
   an organization secret, grant it to the repositories that need it, and you are
@@ -301,11 +304,16 @@ revert it. The caller reads:
 
 | Variable | Effect |
 | --- | --- |
-| `AGENT_SKILLS_REVIEW_BOTS` | Comma-separated bot logins whose comments start a sweep. The action ignores bot actors otherwise — which would ignore exactly the review bot you want answered. Unset means human reviewers only. |
+| `AGENT_SKILLS_REVIEW_BOTS` | Comma-separated bot logins whose comments start a sweep. The action ignores bot actors otherwise — which would ignore exactly the review bot you want answered. Unset means human reviewers only. **No spaces around the commas**: entries are matched whole, so `" x[bot]"` will not match `x[bot]`. |
 | `AGENT_SKILLS_REVIEW_MODEL` | Model override. Unset uses the action's default. |
 
 **Pull requests from forks are skipped** unless you set
-`AGENT_SKILLS_ALLOW_FORKS` to `true`. A comment on a fork
+`AGENT_SKILLS_ALLOW_FORKS` to `true` — and turning it on buys less than it
+looks like. The checkout credential is scoped to your repository, so the sweep
+can triage a fork PR, reply on its threads and decline feedback, but it **cannot
+push a fix**: the branch lives in the contributor's fork and this token cannot
+write there. Fixing one needs a credential that can, which this workflow does
+not ask for. A comment on a fork
 PR fires `issue_comment` in your repository, so the sweep would run with your
 credential and write permission while checking out contributor-controlled code
 and running your project's own commands over it. The workflow resolves the head
