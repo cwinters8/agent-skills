@@ -228,17 +228,28 @@ The federation rule is also where you constrain which repositories may exchange
 a token — worth setting narrowly, since the workflow it authorizes runs with
 `contents: write`.
 
-**A third-party secrets manager is a different question.** Fetching the token
-from one at runtime works, and with that provider's own OIDC support it needs no
-stored credential either — but it cannot live in the shared workflow. GitHub
-forbids expressions in `uses:`, so a reusable workflow cannot dispatch to
-whichever provider a caller chose, and hardcoding one would make this file wrong
-for every consumer who picked a different one. A caller can't bridge the gap
-either: a job with `uses:` cannot have `steps:`, and passing a fetched secret
-between jobs as an output is unmasked. So that path means owning your caller —
-drop `review-sweep` from `workflows`, keep your own copy with the fetch step
-before the `uses:` line, and accept that loop changes no longer arrive by
-bumping a ref.
+### Or fetch it from Doppler
+
+The workflow can pull the credential from Doppler at run time, authenticating by
+OIDC, so neither a Claude token nor a Doppler token is stored in GitHub. Set
+three repository or organization variables and name the Doppler secret exactly as
+you would name the Actions secret:
+
+| Variable | Value |
+| --- | --- |
+| `DOPPLER_IDENTITY_ID` | service account identity UUID |
+| `DOPPLER_PROJECT` | project holding the credential |
+| `DOPPLER_CONFIG` | config within that project |
+
+The fetch step is skipped entirely when `DOPPLER_IDENTITY_ID` is unset, so this
+costs nothing if you don't use it.
+
+It lives in the shared workflow rather than in your caller because it has to:
+GitHub drops job outputs that look like secrets, so a fetch in one job cannot
+hand a credential to another, and a job with `uses:` cannot have `steps:` of its
+own. The fetch must sit in the same job as the step consuming it — which is this
+one. Supporting another provider means adding it here the same way, opt-in and
+inert by default.
 
 **Per repository**, add the caller to `.claude/skills.json` and sync:
 

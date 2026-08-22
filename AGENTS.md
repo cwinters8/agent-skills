@@ -136,15 +136,28 @@ Three things follow, and all three are easy to get wrong:
   workflow breaks every consumer at once, with no diff in any of their repos.
   A consumer who pins `workflowRef` to a SHA is insulated from both, which is
   why the README recommends it and the CLI says so on every sync that doesn't.
-- **The one rule covers these files too.** A workflow may name GitHub's own
-  surface freely — `vars`, `secrets`, `actions/checkout` — because a reader of a
-  workflow is by definition on GitHub Actions. It may not name a consumer's
-  review bot, runner, or branch. Those arrive as inputs and variables, which is
-  why `allowed-bots` is an input with no default rather than a login. The
-  caller's own `uses:` line names this repository, under the same standing
-  exception that lets `skills-adopt` name its npx invocations: that is the
-  package identifying itself, which a pointer to it cannot avoid, and it is not
-  a consumer's fact leaking in.
+- **The one rule does not extend to these files, and it is worth being exact
+  about why.** The rule protects *skills*: portable content copied into a
+  consumer's repository, where a hardcoded path or command is a fact about one
+  project that every other project then carries. That is what the grep guards,
+  and it scans `SKILL.md` for exactly that reason. It is unchanged.
+
+  A workflow here is a different kind of artifact. It is maintained in this
+  repository and never copied anywhere — consumers point at it. So naming a tool
+  it integrates with is a maintenance decision, not a leak: this project's own
+  choice of secret store belongs in this project's own workflow, and an
+  integration that is **opt-in and inert when its input is empty** costs a
+  consumer who doesn't use it nothing but the lines they never read. Add them
+  when they earn their keep.
+
+  What still may not be hardcoded is anything that *differs per consumer and
+  cannot be defaulted*: a repository, a branch, a runner label, a review bot's
+  login. `allowed-bots` is an input with no default because there is no login
+  that is right for everyone — not because naming a product is forbidden.
+
+  The caller's `uses:` line names this repository, under the same standing
+  exception that lets `skills-adopt` name its npx invocations: the package
+  identifying itself, which a pointer to it cannot avoid.
 
 **The package ships the skills, so the invoked version is the vendored version.**
 There is no ref in a consumer's `.claude/skills.json` — the npx spec is the only

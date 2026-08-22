@@ -88,6 +88,29 @@ on:
         type: string
         required: false
         default: ''
+      # Fetch the credential from Doppler instead of storing it as an Actions
+      # secret, authenticating by OIDC so no Doppler token is stored either.
+      # Inert unless doppler-identity-id is set, so a consumer who does not use
+      # Doppler never runs the step and needs none of these.
+      #
+      # Name the secret in Doppler exactly as you would name the Actions secret
+      # — CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY — because the fetch
+      # exposes each secret under its own name.
+      doppler-identity-id:
+        description: Service account identity UUID. Setting this turns the Doppler fetch on.
+        type: string
+        required: false
+        default: ''
+      doppler-project:
+        description: Doppler project holding the credential. Required with doppler-identity-id.
+        type: string
+        required: false
+        default: ''
+      doppler-config:
+        description: Doppler config within the project. Required with doppler-identity-id.
+        type: string
+        required: false
+        default: ''
     secrets:
       CLAUDE_CODE_OAUTH_TOKEN:
         description: Subscription token from `claude setup-token`.
@@ -126,10 +149,36 @@ jobs:
           # checkout of the default branch cannot check one out.
           fetch-depth: 0
 
+      # Skipped entirely when the identity is unset. A skipped step still
+      # resolves its outputs as empty strings, which is what lets the fallbacks
+      # below read the same whether or not this ran.
+      #
+      # `id-token: write` above is what makes this keyless: the action trades
+      # GitHub's OIDC token for a short-lived Doppler one. Values come back
+      # masked, and as STEP outputs — which stay on the runner. That is the
+      # distinction that makes this work at all: job outputs crossing between
+      # jobs are dropped by GitHub when they look like secrets, which is why the
+      # fetch has to live in the same job as the step that consumes it, and so
+      # in this workflow rather than in the caller.
+      #
+      # Pinned by tag for consistency with the checkout above; a SHA is the
+      # stronger pin, and this is the step that handles the credential.
+      - uses: dopplerhq/secrets-fetch-action@v2
+        id: doppler
+        if: inputs.doppler-identity-id != ''
+        with:
+          auth-method: oidc
+          doppler-identity-id: ${{ inputs.doppler-identity-id }}
+          doppler-project: ${{ inputs.doppler-project }}
+          doppler-config: ${{ inputs.doppler-config }}
+
       - uses: anthropics/claude-code-action@v1
         with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # Doppler first when it ran, the Actions secret otherwise. Three ways
+          # in, and a repo needs exactly one: a fetched secret, a stored secret,
+          # or federation below.
+          anthropic_api_key: ${{ steps.doppler.outputs.ANTHROPIC_API_KEY || secrets.ANTHROPIC_API_KEY }}
+          claude_code_oauth_token: ${{ steps.doppler.outputs.CLAUDE_CODE_OAUTH_TOKEN || secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           anthropic_federation_rule_id: ${{ inputs.anthropic-federation-rule-id }}
           anthropic_organization_id: ${{ inputs.anthropic-organization-id }}
           anthropic_service_account_id: ${{ inputs.anthropic-service-account-id }}

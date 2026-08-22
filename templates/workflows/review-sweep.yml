@@ -21,6 +21,14 @@
 #   ANTHROPIC_ORGANIZATION_ID      your Anthropic organization ID
 #   ANTHROPIC_WORKSPACE_ID         optional, wrkspc_...
 #
+# Or keep the credential in Doppler and let the run fetch it by OIDC, which
+# stores nothing in GitHub either. Set all three, and name the Doppler secret
+# CLAUDE_CODE_OAUTH_TOKEN (or ANTHROPIC_API_KEY):
+#
+#   DOPPLER_IDENTITY_ID            service account identity UUID
+#   DOPPLER_PROJECT                project holding the credential
+#   DOPPLER_CONFIG                 config within that project
+#
 # Needs a CLAUDE_CODE_OAUTH_TOKEN Actions secret (`claude setup-token`). Actions
 # secrets are repository, environment or organization scoped — there is no
 # user-account-level one — so a repo owned by an organization can share a single
@@ -66,4 +74,7 @@ jobs:
       anthropic-federation-rule-id: ${{ vars.ANTHROPIC_FEDERATION_RULE_ID }}
       anthropic-organization-id: ${{ vars.ANTHROPIC_ORGANIZATION_ID }}
       anthropic-workspace-id: ${{ vars.ANTHROPIC_WORKSPACE_ID }}
+      doppler-identity-id: ${{ vars.DOPPLER_IDENTITY_ID }}
+      doppler-project: ${{ vars.DOPPLER_PROJECT }}
+      doppler-config: ${{ vars.DOPPLER_CONFIG }}
     secrets: inherit
