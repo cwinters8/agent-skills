@@ -267,6 +267,13 @@ jobs:
         if: steps.guard.outputs.skip != 'true' && inputs.doppler-identity-id != ''
         with:
           auth-method: oidc
+          # Explicit, though it is already the default: fetched secrets stay step
+          # outputs and are never exported into the environment. The Claude step
+          # below runs the project's own commands, so anything in the environment
+          # is readable by them — and a Doppler config holding more than this one
+          # credential would otherwise put all of it there. Naming it means a
+          # change to that default upstream cannot quietly widen this job.
+          inject-env-vars: false
           doppler-identity-id: ${{ inputs.doppler-identity-id }}
           doppler-project: ${{ inputs.doppler-project }}
           doppler-config: ${{ inputs.doppler-config }}
