@@ -129,13 +129,19 @@ Three things follow, and all three are easy to get wrong:
   a line in it. A file a consumer is tempted to edit is one that makes their
   next sync refuse, so anything configurable that is added must be added as a
   variable or an input, never as a value to hand-edit.
-- **Shipping a major means moving the `v<major>` tag.** The rendered caller
-  defaults to that tag, so consumers whose callers say `@v2` resolve to whatever
-  it points at. A major released without moving it leaves every default caller
-  pointing at the previous major; a tag moved to a commit that broke the
-  workflow breaks every consumer at once, with no diff in any of their repos.
-  A consumer who pins `workflowRef` to a SHA is insulated from both, which is
-  why the README recommends it and the CLI says so on every sync that doesn't.
+- **The caller's ref is the consumer's, and the tool renders no default.** It
+  was tempting to default it to `v<major>`, and that was wrong for a reason
+  worth keeping: this package moves a tag at release time, the consumer's sync
+  runs somewhere else entirely, and nothing connects the two — so a rendered ref
+  is a guess that fails at *event* time, in their repository, with no diff to
+  read. `sync` refuses instead, which costs one line of config and removes the
+  class.
+
+  If a `v<major>` tag is published anyway, it carries the usual cost of a
+  movable ref: moving it to a commit that broke the workflow breaks every
+  consumer pointing at it at once, again with no diff in any of their repos. A
+  SHA is insulated from that, which is why the README asks for one and `sync`
+  flags every ref that is not one.
 - **The one rule does not extend to these files, and it is worth being exact
   about why.** The rule protects *skills*: portable content copied into a
   consumer's repository, where a hardcoded path or command is a fact about one

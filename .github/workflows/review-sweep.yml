@@ -50,6 +50,15 @@ on:
         type: number
         required: false
         default: 40
+      allow-forks:
+        description: >
+          Sweep pull requests opened from forks. Off by default, and the default
+          is the safe one: this job holds the credential and write permission,
+          and sweeping a fork means checking out contributor-controlled code and
+          running the project's own commands over it in that job.
+        type: boolean
+        required: false
+        default: false
       runs-on:
         description: Runner label, for consumers on self-hosted runners.
         type: string
@@ -132,17 +141,22 @@ on:
 # leaving six inline comments emits six events — and without this they would
 # become six concurrent runs racing to push to the same branch.
 #
-# Grouping by PR rather than by repository so a burst on one PR does not queue
-# behind an unrelated one. `cancel-in-progress: false` protects the RUNNING
-# sweep, which is the one that could otherwise be killed mid-push; it does not
-# preserve every queued one, because GitHub holds at most one pending run per
-# group and drops an older pending run when a newer arrives. That is the right
-# trade here and not merely tolerable: a sweep is idempotent — the skill's
-# reaction markers record what it already handled — so the run that survives a
-# burst sees every comment the dropped ones would have, including the ones that
-# triggered them.
+# Repository-wide, deliberately, after trying it per-PR. A sweep with no `pr`
+# visits every open PR, so a per-PR group put that run in a group of its own
+# while targeted runs sat in theirs — and the two could then react, commit and
+# push to the same branch concurrently, which is the exact race the group exists
+# to prevent. One group is the only arrangement where "one sweep at a time"
+# is true of both shapes.
+#
+# `cancel-in-progress: false` protects the RUNNING sweep, the one that could
+# otherwise be killed mid-push. It does not preserve every queued one: GitHub
+# holds at most one pending run per group and drops an older pending run when a
+# newer arrives. That is fine here for a reason worth stating rather than
+# glossing — a sweep is idempotent, since the skill's reaction markers record
+# what it already handled, so the run that survives a burst sees everything the
+# dropped ones would have, including the comments that triggered them.
 concurrency:
-  group: review-sweep-${{ github.repository }}-${{ inputs.pr || 'all' }}
+  group: review-sweep-${{ github.repository }}
   cancel-in-progress: false
 
 jobs:
@@ -167,7 +181,50 @@ jobs:
       # mutable ref pointing into someone else's credentials. Bumping one still
       # means looking the current major up again — the SHA is which bytes, not
       # which version.
+      # A comment on a fork's pull request fires `issue_comment` in the BASE
+      # repository, so this job runs with the base repo's credential and write
+      # permission — and the sweep it starts checks out the contributor's branch
+      # and runs the project's own mechanical commands over it. That is the
+      # classic privileged-checkout escalation, and nothing later in this job
+      # would notice. Resolve the head repository first and stop before the
+      # checkout, since after it the untrusted code is already on disk.
+      #
+      # Skips rather than fails: a refusal is not an error, and a red X on every
+      # comment a fork PR receives would train everyone to ignore this workflow.
+      # Uses only the job's own GITHUB_TOKEN — never the fetched credential.
+      - id: guard
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ inputs.pr }}
+          REPO: ${{ github.repository }}
+          ALLOW: ${{ inputs.allow-forks }}
+        run: |
+          set -euo pipefail
+          api() { curl -sSf -H "Authorization: Bearer $GH_TOKEN" \
+                    -H "Accept: application/vnd.github+json" "$@"; }
+          if [ "$ALLOW" = "true" ]; then
+            echo "skip=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          if [ -n "$PR" ]; then
+            head=$(api "https://api.github.com/repos/$REPO/pulls/$PR" | jq -r '.head.repo.full_name // "unknown"')
+            if [ "$head" != "$REPO" ]; then
+              echo "::notice::PR #$PR comes from $head, not $REPO — skipping. Set allow-forks to sweep it."
+              echo "skip=true" >> "$GITHUB_OUTPUT"; exit 0
+            fi
+          else
+            # No PR named: this run would visit every open PR, forks included,
+            # and it cannot skip them individually from here. Fail closed.
+            forks=$(api "https://api.github.com/repos/$REPO/pulls?state=open&per_page=100" \
+                    | jq --arg r "$REPO" '[.[] | select(.head.repo.full_name != $r)] | length')
+            if [ "$forks" -gt 0 ]; then
+              echo "::notice::$forks open PR(s) from forks — skipping the all-PR sweep. Sweep by number, or set allow-forks."
+              echo "skip=true" >> "$GITHUB_OUTPUT"; exit 0
+            fi
+          fi
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: steps.guard.outputs.skip != 'true'
         with:
           # Full history: the skill pushes fixes to PR branches, and a depth-1
           # checkout of the default branch cannot check one out.
@@ -187,7 +244,7 @@ jobs:
       #
       - uses: DopplerHQ/secrets-fetch-action@451892f16195f9ac360e1a5bcbf0b5fd0e957534 # v2.0.0
         id: doppler
-        if: inputs.doppler-identity-id != ''
+        if: steps.guard.outputs.skip != 'true' && inputs.doppler-identity-id != ''
         with:
           auth-method: oidc
           doppler-identity-id: ${{ inputs.doppler-identity-id }}
@@ -195,6 +252,7 @@ jobs:
           doppler-config: ${{ inputs.doppler-config }}
 
       - uses: anthropics/claude-code-action@64bdc88bfe0b4c42a310e93abde02db8fb3b8956 # v1.0.199
+        if: steps.guard.outputs.skip != 'true'
         with:
           # Doppler first when it ran, the Actions secret otherwise. Three ways
           # in, and a repo needs exactly one: a fetched secret, a stored secret,

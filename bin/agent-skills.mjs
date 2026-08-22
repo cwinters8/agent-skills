@@ -188,8 +188,15 @@ const availableWorkflows = () =>
 // which ref was fetched), so rendering a SHA it cannot verify would be a
 // guarantee this tool has no way to keep. A consumer who wants the stronger
 // pin sets `workflowRef` to a SHA and gets exactly it — see README.
-const defaultWorkflowRef = `v${pkg.version.split('.')[0]}`;
-let workflowRef = defaultWorkflowRef;
+// Deliberately NOT defaulted. A rendered `v2` is a ref this tool cannot verify
+// exists: the tag is moved by a release here, the sync runs somewhere else, and
+// nothing connects the two. A default that is usually right produces a caller
+// that resolves nothing and fails at event time, in a consumer's repository,
+// with no diff to look at. Refusing at sync time costs one line of config and
+// removes the whole failure class — and it lands the consumer on a SHA, which
+// is the pin this project asks for everywhere else.
+const suggestedWorkflowRef = `v${pkg.version.split('.')[0]}`;
+let workflowRef = null;
 
 // The `agent-skills-` prefix is load-bearing: .github/workflows/ is a shared
 // namespace, and a bare `review-sweep.yml` is a name a consumer could plausibly
@@ -244,8 +251,8 @@ if (command === 'list') {
   if (workflows.length) {
     console.log('');
     console.log(`and workflow callers, written to .github/workflows/ when named in the`);
-    console.log(`"workflows" array of .claude/skills.json (calling ${defaultWorkflowRef} of this repo`);
-    console.log(`by default, or the "workflowRef" you set — a commit SHA is the stronger pin):`);
+    console.log(`"workflows" array of .claude/skills.json. Each needs a "workflowRef"`);
+    console.log(`naming the revision of this repo to call — a commit SHA, or ${suggestedWorkflowRef}:`);
     for (const name of workflows) console.log(`  ${name}`);
   }
   process.exit(0);
@@ -350,6 +357,13 @@ if (command === 'init') {
     console.log('  .claude/skills.json — sync will refuse to overwrite them either way.');
   }
   console.log('');
+  if (workflows.length) {
+    console.log('Also: set "workflowRef" in .claude/skills.json to the revision of');
+    console.log('  @cwinters8/agent-skills the caller should invoke — a commit SHA, or');
+    console.log(`  "${suggestedWorkflowRef}". The sync refuses until it is set, because a ref this`);
+    console.log('  tool guessed could name something that does not exist upstream.');
+    console.log('');
+  }
   console.log('Next: fill in .claude/project-profile.md — every TODO must be replaced.');
   console.log('Then: agent-skills sync    (validates the profile and vendors the skills)');
   console.log('');
@@ -594,6 +608,17 @@ if (wantedWorkflows.length || Object.keys(lock.workflowFiles ?? {}).length) {
   requireWritableDir(workflowsDir, '.github/workflows');
 }
 
+if (wantedWorkflows.length && workflowRef === null) {
+  die(
+    '.claude/skills.json lists "workflows" but sets no "workflowRef".\n' +
+      '  A caller names the revision of this package GitHub resolves when the workflow\n' +
+      '  fires, and this tool cannot pick one for you: it has no way to check that a ref\n' +
+      '  it renders exists upstream, and a caller pointing at a missing ref fails at event\n' +
+      '  time rather than here.\n' +
+      `  Set it to a commit SHA (preferred — see the README), or to "${suggestedWorkflowRef}".`,
+  );
+}
+
 for (const name of wantedWorkflows) {
   if (typeof name !== 'string' || !SKILL_NAME.test(name) || name.includes('..')) {
     die(`invalid workflow name ${JSON.stringify(name)} — expected a plain file name without .yml`);
@@ -786,7 +811,7 @@ console.log(
   `agent-skills: ${lock.skills.length} skills at ${pkg.version}` +
     (wantedWorkflows.length
       ? `, ${wantedWorkflows.length} workflow caller${wantedWorkflows.length === 1 ? '' : 's'} at ${workflowRef}` +
-        (workflowRef === defaultWorkflowRef ? ' (a movable tag — see README to pin a SHA)' : '')
+        (/^[0-9a-f]{40}$/.test(workflowRef) ? '' : ' (a movable ref — see README to pin a SHA)')
       : '') +
     (changed ? ` — ${changed} file${changed === 1 ? '' : 's'} updated` : ' — already current'),
 );

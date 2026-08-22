@@ -13,6 +13,7 @@
 #   AGENT_SKILLS_REVIEW_MODEL  optional model override.
 #   AGENT_SKILLS_RUNNER        optional runner label, for self-hosted runners.
 #   AGENT_SKILLS_MAX_TURNS     optional turn ceiling per run (default 40).
+#   AGENT_SKILLS_SWEEP_SCHEDULE  set to "on" to enable the daily backstop sweep.
 #
 # To store no credential at all, set these three variables instead of the secret
 # and the runner exchanges its GitHub OIDC token for API access. None of them is
@@ -59,6 +60,14 @@ on:
         description: PR number to sweep. Empty sweeps every open PR.
         type: string
         required: false
+  # A backstop for the states no event announces: a reviewer who signals with a
+  # reaction rather than a comment, or a webhook that never arrived. Inert
+  # unless AGENT_SKILLS_SWEEP_SCHEDULE is set to "on" — the cron fires and the
+  # job's condition declines it, which costs nothing. This is the project
+  # configuring a routine once, the supported way to get recurrence, rather than
+  # a session arming a poll for itself.
+  schedule:
+    - cron: "17 8 * * *"
 
 jobs:
   sweep:
@@ -82,9 +91,11 @@ jobs:
     # agent posts would leave a red X on the repo. Cheaper to not start.
     if: >-
       github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'schedule' && vars.AGENT_SKILLS_SWEEP_SCHEDULE == 'on') ||
       ((github.event_name != 'issue_comment' || github.event.issue.pull_request) &&
        github.actor != 'claude[bot]' &&
-       github.actor != 'github-actions[bot]')
+       (github.actor != 'github-actions[bot]' ||
+        contains(vars.AGENT_SKILLS_REVIEW_BOTS, 'github-actions[bot]')))
     uses: cwinters8/agent-skills/.github/workflows/review-sweep.yml@__AGENT_SKILLS_REF__
     with:
       # The event names the PR it happened on, so sweep that one rather than
@@ -109,4 +120,12 @@ jobs:
       doppler-config: ${{ vars.DOPPLER_CONFIG }}
       doppler-oauth-token-name: ${{ vars.DOPPLER_SECRET_NAME || 'CLAUDE_CODE_OAUTH_TOKEN' }}
       doppler-api-key-name: ${{ vars.DOPPLER_API_KEY_NAME || 'ANTHROPIC_API_KEY' }}
-    secrets: inherit
+    # Named rather than `inherit`. Inheriting is documented as working for a
+    # called workflow in the same organization or enterprise, and this one is in
+    # neither for most consumers — a personal account is not an organization at
+    # all — so `inherit` would silently pass nothing and the stored-secret route
+    # would fail with an empty credential. A secret that does not exist resolves
+    # to an empty string, which is what the other two routes already expect.
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}

@@ -211,16 +211,21 @@ subscription of whoever ran it.
 ### Or store no credential at all
 
 The action can authenticate by exchanging the runner's GitHub OIDC token, which
-removes the secret entirely. What replaces it is three *identifiers* — not
-secrets — so they can be set as **organization variables** and shared across
-every repository, which is the one way a personal account avoids a per-repository
-copy of anything:
+removes the secret entirely. What replaces it is *identifiers* rather than
+secrets:
 
 | Variable | Value |
 | --- | --- |
 | `ANTHROPIC_FEDERATION_RULE_ID` | `fdrl_...`, from the federation rule you create in the Claude Console |
 | `ANTHROPIC_ORGANIZATION_ID` | your Anthropic organization ID |
+| `ANTHROPIC_SERVICE_ACCOUNT_ID` | `svac_...`, required unless the federation rule already targets one service account |
 | `ANTHROPIC_WORKSPACE_ID` | optional, `wrkspc_...`, when the rule targets more than one workspace |
+
+Being variables rather than secrets buys convenience, not reach: **variables are
+scoped exactly like secrets** — repository, environment, or organization — and a
+personal account has no organization to hang them on. Repos under an
+organization set these once there; repos under a personal account still set them
+per repository. The gain is that nothing stored is sensitive.
 
 The tradeoff is billing, not security: federation authenticates a Console
 service account, so runs bill to the API rather than to a Claude subscription.
@@ -239,7 +244,8 @@ these repository or organization variables:
 | `DOPPLER_IDENTITY_ID` | service account identity UUID |
 | `DOPPLER_PROJECT` | project holding the credential |
 | `DOPPLER_CONFIG` | config within that project |
-| `DOPPLER_SECRET_NAME` | optional, when the Doppler secret is not named `CLAUDE_CODE_OAUTH_TOKEN` |
+| `DOPPLER_SECRET_NAME` | optional, when the **subscription token** is not named `CLAUDE_CODE_OAUTH_TOKEN` |
+| `DOPPLER_API_KEY_NAME` | optional, when the **API key** is not named `ANTHROPIC_API_KEY` |
 
 The fetch step is skipped entirely when `DOPPLER_IDENTITY_ID` is unset, so this
 costs nothing if you don't use it.
@@ -247,10 +253,11 @@ costs nothing if you don't use it.
 `CLAUDE_CODE_OAUTH_TOKEN` and `ANTHROPIC_API_KEY` are the conventional names —
 what Claude Code itself writes when it stores the credential as a repository
 secret — but Doppler exposes each secret under its own name, so the workflow has
-to read whichever you used. `DOPPLER_SECRET_NAME` says so without renaming
-anything in Doppler. The stored-Actions-secret path has no equivalent: `secrets:`
-on a reusable workflow is a static declaration, so only the declared names
-exist to read there.
+to read whichever you used. The two overrides are separate because they feed
+different inputs: `DOPPLER_SECRET_NAME` renames the subscription token only, and
+an API key under a custom name needs `DOPPLER_API_KEY_NAME`. The
+stored-Actions-secret path has no equivalent: `secrets:` on a reusable workflow
+is a static declaration, so only the declared names exist to read there.
 
 It lives in the shared workflow rather than in your caller because it has to:
 GitHub drops job outputs that look like secrets, so a fetch in one job cannot
@@ -275,14 +282,18 @@ whole job is to say *when* to sweep. The loop it calls lives in this repository,
 so a fix there reaches you when the ref moves — not as a pull request in every
 repo you own.
 
-**`workflowRef` is worth setting.** Without it the caller resolves a movable
-major tag, `v2`. The rule from the section above applies with more force here,
+**`workflowRef` is required**, and there is no default. It names the revision of
+this package that GitHub resolves when the workflow fires — on a runner, long
+after your sync finished. The tool will not guess one: it has no way to check
+that a ref it rendered exists upstream, and a caller pointing at a missing tag
+fails at event time in your repository rather than at sync time where you could
+see it.
+
+Use a commit SHA. The rule from the section above applies with more force here,
 not less: that workflow runs against your repository with `contents: write`, so
-whoever can move the tag can change what runs. The default is a tag only because
-this package cannot discover its own commit SHA from inside an npx checkout —
-it will not render a pin it has no way to verify. Set the SHA yourself and the
-caller gets exactly it; `sync` names the ref on every run so you can see which
-one you are on.
+whoever can move a tag can change what runs. A major tag like `v2` works and is
+the conventional choice for workflow refs, but it is movable, and `sync` says so
+on every run that uses one.
 
 **Configure it with repository variables, never by editing the file.** It is a
 vendored file like any other: an edit makes your next sync refuse until you
@@ -292,6 +303,20 @@ revert it. The caller reads:
 | --- | --- |
 | `AGENT_SKILLS_REVIEW_BOTS` | Comma-separated bot logins whose comments start a sweep. The action ignores bot actors otherwise — which would ignore exactly the review bot you want answered. Unset means human reviewers only. |
 | `AGENT_SKILLS_REVIEW_MODEL` | Model override. Unset uses the action's default. |
+
+**Pull requests from forks are skipped** unless you opt in. A comment on a fork
+PR fires `issue_comment` in your repository, so the sweep would run with your
+credential and write permission while checking out contributor-controlled code
+and running your project's own commands over it. The workflow resolves the head
+repository first and stops before the checkout, leaving a notice rather than a
+failure. An all-PR sweep is skipped entirely while any open PR comes from a
+fork, since it cannot decline them one at a time.
+
+Two more optional variables: `AGENT_SKILLS_RUNNER` and `AGENT_SKILLS_MAX_TURNS`
+override the runner label and the per-run turn ceiling, and setting
+`AGENT_SKILLS_SWEEP_SCHEDULE` to `on` enables a daily backstop sweep for the
+states no webhook announces — a reviewer who signals with a reaction rather than
+a comment, or an event that never arrived.
 
 If you need different triggers than the caller ships with, drop `review-sweep`
 from `workflows` and keep your own copy. The sync stops writing that file and
