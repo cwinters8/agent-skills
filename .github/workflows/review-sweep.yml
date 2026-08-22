@@ -1,0 +1,114 @@
+# The review-sweep loop, held once for every repository that vendors these
+# skills. Consumers do not copy this file: they commit a small caller that names
+# it with `uses:`, so a change here — a new trigger, a cost guard, an action
+# version bump — reaches every repo when its caller's ref moves, instead of
+# needing a pull request in each one.
+#
+# What makes one shared file enough: inside a reusable workflow,
+# actions/checkout defaults to the CALLING repository at the calling ref. So the
+# consumer's vendored .claude/skills/review-sweep/ and its
+# .claude/project-profile.md are on the runner with no per-repo configuration.
+# The skill is shared, the project facts are the caller's profile — the same
+# split the package itself runs on.
+#
+# Nothing here names a repository, a bot, or a branch. Everything a consumer
+# could reasonably have decided differently is an input.
+name: review-sweep
+
+on:
+  workflow_call:
+    inputs:
+      pr:
+        description: >
+          PR number to sweep. Empty sweeps every open PR, which is what the
+          skill does when invoked with no argument.
+        type: string
+        required: false
+        default: ''
+      allowed-bots:
+        description: >
+          Comma-separated bot logins whose activity may start a run. The action
+          rejects bot actors by default, which keeps Claude from triggering
+          itself — but it would also ignore exactly the review bots this loop
+          exists to answer. Name your own reviewer here. This package does not
+          know which one you use, and guessing would put one vendor's product
+          into every consumer's workflow.
+        type: string
+        required: false
+        default: ''
+      model:
+        description: Model for the run. Empty uses the action's default.
+        type: string
+        required: false
+        default: ''
+      max-turns:
+        description: >
+          Turn ceiling per run. A sweep that cannot finish inside it stops with
+          partial work rather than running unbounded on your subscription; the
+          skill's reaction markers mean the next run resumes where it stopped
+          rather than redoing what it already handled.
+        type: number
+        required: false
+        default: 40
+      runs-on:
+        description: Runner label, for consumers on self-hosted runners.
+        type: string
+        required: false
+        default: ubuntu-latest
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN:
+        description: Subscription token from `claude setup-token`.
+        required: false
+      ANTHROPIC_API_KEY:
+        description: API key, as an alternative to the subscription token.
+        required: false
+
+# One sweep at a time per repository. Review comments arrive in bursts — a
+# reviewer leaving six inline comments emits six events — and without this they
+# would become six concurrent runs racing to push to the same branch. Queue
+# rather than cancel: a cancelled sweep can leave a comment marked seen with
+# nothing done about it, which reads as handled forever after.
+concurrency:
+  group: review-sweep-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  sweep:
+    runs-on: ${{ inputs.runs-on }}
+    permissions:
+      # write: the skill pushes review fixes to the PR branch.
+      contents: write
+      # write: it replies on threads, reacts, and resolves them.
+      pull-requests: write
+      # PR conversation comments are issue comments to the API.
+      issues: write
+      # Required for the action's default GitHub App authentication.
+      id-token: write
+      # Lets the run read CI results on the PRs it sweeps.
+      actions: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          # Full history: the skill pushes fixes to PR branches, and a depth-1
+          # checkout of the default branch cannot check one out.
+          fetch-depth: 0
+
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          allowed_bots: ${{ inputs.allowed-bots }}
+          # The vendored skill, invoked by name. Everything project-specific it
+          # needs comes from the caller's .claude/project-profile.md, which the
+          # checkout above put on the runner.
+          prompt: "/review-sweep ${{ inputs.pr }}"
+          # --allowedTools has to name the GitHub MCP server explicitly: the
+          # action starts its MCP servers only for tools named here, and
+          # review-sweep does every GitHub read and write through them. The list
+          # lives in the workflow rather than in the skill's frontmatter,
+          # because it is a fact about running under Actions and the skill has
+          # to stay usable in a session that has no MCP server at all.
+          claude_args: |
+            --allowedTools "Bash,Edit,Write,Read,Glob,Grep,mcp__github,mcp__github_inline_comment__create_inline_comment"
+            --max-turns ${{ inputs.max-turns }}
+            ${{ inputs.model && format('--model {0}', inputs.model) || '' }}

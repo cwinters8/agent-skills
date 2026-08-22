@@ -153,15 +153,75 @@ earlier design had one, and it could silently disagree with the invocation:
 bumping the ignored pin looked exactly like an upstream with no changes. The tool
 now refuses to run if it finds one of those fields, rather than ignoring it.
 
-`.claude/skills.json` is therefore config plus lock: you write `skills`, and the
-tool writes `version` (what produced the current copies) and `files` (a hash per
-vendored file, so a hand-edit is detectable).
+`.claude/skills.json` is therefore config plus lock: you write `skills` (and
+optionally `workflows` and `workflowRef`, below), and the tool writes `version`
+(what produced the current copies), `files` (a hash per vendored file, so a
+hand-edit is detectable) and `workflowFiles` (the same, for workflow callers).
 
 ## Updating
 
 Bump the ref in your invocation — `#v2`, or a tag, or a commit SHA — re-run the
 sync, and commit the diff. Run `sync --check` in CI to be told when a vendored
 copy has fallen behind the version you invoke, or has been hand-edited.
+
+## Answering review feedback automatically
+
+`review-sweep` triages review comments on your open PRs — fixing what is worth
+fixing, declining the rest with a reason on the thread. Something has to *start*
+it. In a cloud session that is `subscribe_pr_activity`, but a terminal session
+on your laptop has no such tool and no listener once you close it, so a PR opened
+from your terminal is watched by nothing.
+
+The workflow caller closes that gap: GitHub events start the sweep, so it works
+the same whether the PR came from your terminal, the web, or a teammate.
+
+**Once per account**, not per repository:
+
+1. Install the [Claude GitHub App](https://github.com/apps/claude) on the account
+   or organization. This is what delivers the webhooks; `/web-setup` grants
+   repository access but does **not** install the app.
+2. Run `claude setup-token` and store the result as an organization or
+   account-level Actions secret named `CLAUDE_CODE_OAUTH_TOKEN`. One secret
+   covers every repository. (`ANTHROPIC_API_KEY` works instead, and bills to the
+   API rather than your subscription.)
+
+**Per repository**, add the caller to `.claude/skills.json` and sync:
+
+```json
+{
+  "skills": ["review-sweep", "pr-preflight"],
+  "workflows": ["review-sweep"],
+  "workflowRef": "<commit-sha>"
+}
+```
+
+`agent-skills init --with-workflows` writes the first two for you. The sync
+writes `.github/workflows/agent-skills-review-sweep.yml`, a short caller whose
+whole job is to say *when* to sweep. The loop it calls lives in this repository,
+so a fix there reaches you when the ref moves — not as a pull request in every
+repo you own.
+
+**`workflowRef` is worth setting.** Without it the caller resolves a movable
+major tag, `v2`. The rule from the section above applies with more force here,
+not less: that workflow runs against your repository with `contents: write`, so
+whoever can move the tag can change what runs. The default is a tag only because
+this package cannot discover its own commit SHA from inside an npx checkout —
+it will not render a pin it has no way to verify. Set the SHA yourself and the
+caller gets exactly it; `sync` names the ref on every run so you can see which
+one you are on.
+
+**Configure it with repository variables, never by editing the file.** It is a
+vendored file like any other: an edit makes your next sync refuse until you
+revert it. The caller reads:
+
+| Variable | Effect |
+| --- | --- |
+| `AGENT_SKILLS_REVIEW_BOTS` | Comma-separated bot logins whose comments start a sweep. The action ignores bot actors otherwise — which would ignore exactly the review bot you want answered. Unset means human reviewers only. |
+| `AGENT_SKILLS_REVIEW_MODEL` | Model override. Unset uses the action's default. |
+
+If you need different triggers than the caller ships with, drop `review-sweep`
+from `workflows` and keep your own copy. The sync stops writing that file and
+leaves yours alone.
 
 ## Editing a skill
 

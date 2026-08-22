@@ -75,9 +75,11 @@ any default posture that says to arm one after opening a PR or subscribing to
 its activity. Open the PR, call `subscribe_pr_activity`, and end the turn.
 
 The subscription is the mechanism — review comments arrive as webhook events in
-the session that opened the PR. There is no CI in this repo (no
-`.github/workflows`, no `scripts` in `package.json`), so the event class an
-hourly check-in mostly exists to poll for does not occur here at all. On a
+the session that opened the PR. Nothing runs CI on this repo's own commits:
+`.github/workflows/` holds one reusable workflow that is `workflow_call` only,
+so it fires on consumers' events and never on ours, and `package.json` has no
+`scripts`. The event class an hourly check-in mostly exists to poll for does not
+occur here at all. On a
 single-maintainer repo a dropped webhook costs a delay, not a missed failure,
 and a maintainer who wants a PR looked at sooner can say so directly.
 
@@ -104,9 +106,45 @@ package.json             `bin` + `files`; `files` decides what a consumer can ac
 profile-schema.json      canonical section list; the validator, template and docs all derive from it
 docs/project-profile.md  the schema reference consumers read
 templates/               the annotated blank consumers copy
+templates/workflows/     workflow callers `sync` writes into a consumer's .github/workflows/
+.github/workflows/       reusable workflows consumers CALL; never runs on this repo's events
 examples/                complete real profiles
 skills/<name>/SKILL.md   one skill; supporting files live alongside it
 ```
+
+## The workflow callers
+
+A skill is copied into the consumer. A workflow is not: `.github/workflows/`
+here holds the real thing, `workflow_call` only, and `sync` writes each consumer
+a short caller that names it with `uses:`. So a change to the loop — a trigger,
+a cost guard, an action bump — reaches every consumer by moving one ref, instead
+of a pull request in each repository. Inside a reusable workflow
+`actions/checkout` checks out the *caller*, which is why one shared file can
+find each consumer's own vendored skill and profile.
+
+Three things follow, and all three are easy to get wrong:
+
+- **The caller is a vendored file the consumer must never edit.** Everything a
+  consumer would want to change is a repository *variable* the caller reads, not
+  a line in it. A file a consumer is tempted to edit is one that makes their
+  next sync refuse, so anything configurable that is added must be added as a
+  variable or an input, never as a value to hand-edit.
+- **Shipping a major means moving the `v<major>` tag.** The rendered caller
+  defaults to that tag, so consumers whose callers say `@v2` resolve to whatever
+  it points at. A major released without moving it leaves every default caller
+  pointing at the previous major; a tag moved to a commit that broke the
+  workflow breaks every consumer at once, with no diff in any of their repos.
+  A consumer who pins `workflowRef` to a SHA is insulated from both, which is
+  why the README recommends it and the CLI says so on every sync that doesn't.
+- **The one rule covers these files too.** A workflow may name GitHub's own
+  surface freely — `vars`, `secrets`, `actions/checkout` — because a reader of a
+  workflow is by definition on GitHub Actions. It may not name a consumer's
+  review bot, runner, or branch. Those arrive as inputs and variables, which is
+  why `allowed-bots` is an input with no default rather than a login. The
+  caller's own `uses:` line names this repository, under the same standing
+  exception that lets `skills-adopt` name its npx invocations: that is the
+  package identifying itself, which a pointer to it cannot avoid, and it is not
+  a consumer's fact leaking in.
 
 **The package ships the skills, so the invoked version is the vendored version.**
 There is no ref in a consumer's `.claude/skills.json` — the npx spec is the only

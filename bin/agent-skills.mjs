@@ -42,6 +42,13 @@ const repoRoot = process.cwd();
 const lockPath = join(repoRoot, '.claude', 'skills.json');
 const skillsDir = join(repoRoot, '.claude', 'skills');
 const profilePath = join(repoRoot, '.claude', 'project-profile.md');
+// Workflow callers land outside .claude/ entirely, in a directory the consumer
+// owns and shares with workflows this package knows nothing about. Everything
+// below therefore writes named files there and never touches the directory as a
+// whole — the recursive rm that vendoring a skill relies on would be a
+// catastrophe here.
+const packageWorkflows = join(packageRoot, 'templates', 'workflows');
+const workflowsDir = join(repoRoot, '.github', 'workflows');
 
 const argv = process.argv.slice(2);
 const command = argv.find((a) => !a.startsWith('--')) ?? 'sync';
@@ -55,7 +62,7 @@ const die = (message) => {
 
 const usage = () => {
   console.error('usage: agent-skills sync [--check] [--force]');
-  console.error('       agent-skills init [skill...]');
+  console.error('       agent-skills init [skill...] [--with-workflows]');
   console.error('       agent-skills check-profile');
   console.error('       agent-skills list');
   process.exit(2);
@@ -146,6 +153,52 @@ const available = () =>
     .map((e) => e.name)
     .sort();
 
+const availableWorkflows = () =>
+  existsSync(packageWorkflows)
+    ? readdirSync(packageWorkflows, { withFileTypes: true })
+        .filter((e) => e.isFile() && e.name.endsWith('.yml'))
+        .map((e) => e.name.slice(0, -'.yml'.length))
+        .sort()
+    : [];
+
+// The caller names the shared workflow by MAJOR version tag, not by the exact
+// version, and the difference is deliberate.
+//
+// A skill is content: it is copied into the repo, so the npx spec that copied it
+// is the only pin it needs, and a second pin recorded anywhere else could
+// silently disagree — which is why .claude/skills.json rejects `ref` outright.
+// A workflow is not copied. The caller written here is a pointer, and what it
+// points at is resolved by GitHub at event time, on a machine no sync is
+// running on. It needs a ref that exists whether or not anyone re-synced, and
+// that keeps working when a consumer's npx spec says `#main` and this package's
+// version has moved on since. That is what a major tag is for, and it is the
+// convention every `uses:` line in every workflow already follows.
+//
+// The consumer still never types it: the ref is rendered from this package's
+// version, so a major bump changes the file, `sync --check` fails on the hash,
+// and the bump reaches consumers through the same review as everything else.
+// The release that ships a major must move the tag; see AGENTS.md.
+//
+// A major tag is the DEFAULT, not the recommendation. This project's rule for
+// skills is that a tag is not a pin, and the rule is not softer here — it is
+// sharper. A workflow runs with `contents: write` on the consumer's repository,
+// so a moved tag is a larger exposure than a moved skill, not a smaller one.
+// The default is a tag anyway because the alternative is worse in practice: the
+// package cannot learn its own commit SHA (nothing in an npx checkout tells it
+// which ref was fetched), so rendering a SHA it cannot verify would be a
+// guarantee this tool has no way to keep. A consumer who wants the stronger
+// pin sets `workflowRef` to a SHA and gets exactly it — see README.
+const defaultWorkflowRef = `v${pkg.version.split('.')[0]}`;
+let workflowRef = defaultWorkflowRef;
+
+// The `agent-skills-` prefix is load-bearing: .github/workflows/ is a shared
+// namespace, and a bare `review-sweep.yml` is a name a consumer could plausibly
+// have already used for a workflow of their own.
+const workflowPath = (name) => join(workflowsDir, `agent-skills-${name}.yml`);
+const workflowLabel = (name) => `.github/workflows/agent-skills-${name}.yml`;
+const renderWorkflow = (name) =>
+  readFileSync(join(packageWorkflows, `${name}.yml`), 'utf8').split('__AGENT_SKILLS_REF__').join(workflowRef);
+
 // The directories every write below goes through. Guarding the children is not
 // enough: if an ancestor is a symlink, mkdirSync follows it and succeeds, every
 // child path then resolves inside the link's target, and each per-file check
@@ -187,6 +240,14 @@ if (command === 'init' || command === 'sync') requireWritableDir(skillsDir, '.cl
 if (command === 'list') {
   console.log(`@cwinters8/agent-skills ${pkg.version} ships:`);
   for (const name of available()) console.log(`  ${name}`);
+  const workflows = availableWorkflows();
+  if (workflows.length) {
+    console.log('');
+    console.log(`and workflow callers, written to .github/workflows/ when named in the`);
+    console.log(`"workflows" array of .claude/skills.json (calling ${defaultWorkflowRef} of this repo`);
+    console.log(`by default, or the "workflowRef" you set — a commit SHA is the stronger pin):`);
+    for (const name of workflows) console.log(`  ${name}`);
+  }
   process.exit(0);
 }
 
@@ -245,8 +306,21 @@ if (command === 'init') {
     wrote.push(label);
   };
 
+  // A workflow caller is opt-in, and stays opt-in. It writes into a directory
+  // this package otherwise never touches, it consumes the consumer's Actions
+  // minutes, and it fails on every event until an Actions secret exists — so a
+  // repo that gets one without asking gets a broken red workflow, not a feature.
+  // Only offer a caller whose matching skill is actually being vendored: the
+  // caller invokes that skill by name, so without it the run has nothing to do.
+  const workflows = argv.includes('--with-workflows')
+    ? availableWorkflows().filter((w) => skills.includes(w))
+    : [];
+
   scaffold(lockPath, '.claude/skills.json', () =>
-    writeFileSync(lockPath, `${JSON.stringify({ skills }, null, 2)}\n`),
+    writeFileSync(
+      lockPath,
+      `${JSON.stringify(workflows.length ? { skills, workflows } : { skills }, null, 2)}\n`,
+    ),
   );
 
   // Warn where the adopter can still act on it: a directory already sitting
@@ -324,6 +398,21 @@ for (const stale of ['ref', 'source', 'commit']) {
         '  content pin. Remove the field to avoid two pins that can disagree.',
     );
   }
+}
+
+// `workflowRef` is the one ref this tool does write, and it is nothing like the
+// `ref` field rejected above. That one was a second pin on content the npx spec
+// already pins — two answers to one question. This one is the only answer to a
+// different question: which revision of this repository GitHub should resolve
+// when a workflow fires on a runner, long after any sync has finished.
+if (lock.workflowRef !== undefined) {
+  if (typeof lock.workflowRef !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9._/-]*$/.test(lock.workflowRef) || lock.workflowRef.includes('..')) {
+    die(
+      `.claude/skills.json has an unusable "workflowRef" — expected a branch, tag, or commit SHA, ` +
+        `got ${JSON.stringify(lock.workflowRef)}`,
+    );
+  }
+  workflowRef = lock.workflowRef;
 }
 
 if (command === 'check-profile') {
@@ -482,6 +571,105 @@ for (const skill of lock.skills) {
   }
 }
 
+// Workflow callers. Everything here is deliberately per-file: unlike a skill
+// directory, which this tool owns outright and replaces wholesale,
+// .github/workflows/ belongs to the consumer and holds their own workflows
+// beside ours. Nothing below enumerates that directory or removes anything from
+// it except a file this tool wrote and can still recognize by hash.
+const wantedWorkflows = Array.isArray(lock.workflows) ? [...new Set(lock.workflows)] : [];
+const nextWorkflows = {};
+const workflowPlan = [];
+const workflowGaps = [];
+
+if (wantedWorkflows.length) {
+  requireWritableDir(join(repoRoot, '.github'), '.github');
+  requireWritableDir(workflowsDir, '.github/workflows');
+}
+
+for (const name of wantedWorkflows) {
+  if (typeof name !== 'string' || !SKILL_NAME.test(name) || name.includes('..')) {
+    die(`invalid workflow name ${JSON.stringify(name)} — expected a plain file name without .yml`);
+  }
+  if (!availableWorkflows().includes(name)) {
+    die(
+      `"${name}" is not a workflow in @cwinters8/agent-skills ${pkg.version} — available: ${
+        availableWorkflows().join(', ') || 'none'
+      }`,
+    );
+  }
+  // The caller invokes the same-named skill by name. Vendoring one without the
+  // other produces a workflow that fires on every review comment and then finds
+  // no skill to run — a per-event failure whose cause is in a different file.
+  if (!lock.skills.includes(name)) {
+    // Both, deliberately. In `problems` so --check fails on it, since this is
+    // the kind of gap CI exists to catch. And kept separately because a
+    // successful sync prints only refusals — a gap left in `problems` alone
+    // would be counted in the file tally and never shown to the person who
+    // just caused it.
+    const gap =
+      `${workflowLabel(name)}: calls the "${name}" skill, which this repo does not vendor — ` +
+      'add it to "skills" or drop the workflow';
+    problems.push(gap);
+    workflowGaps.push(gap);
+  }
+
+  const body = renderWorkflow(name);
+  const upstreamHash = sha256(Buffer.from(body));
+  nextWorkflows[name] = upstreamHash;
+
+  const dest = workflowPath(name);
+  const label = workflowLabel(name);
+
+  // Type before content, for the same reason the skill walk checks it: this
+  // tool only ever writes regular files, so anything else at the path is the
+  // consumer's, whatever name it wears.
+  if (isSymlink(dest)) {
+    if (!force) {
+      problems.push(`${label}: a symlink, not a file this tool vendored — refusing to replace it`);
+      continue;
+    }
+  } else if (existsSync(dest) && !statSync(dest).isFile()) {
+    if (!force) {
+      problems.push(`${label}: exists but is not a regular file — refusing to replace it`);
+      continue;
+    }
+  }
+
+  const localHash = !isSymlink(dest) && existsSync(dest) && statSync(dest).isFile() ? sha256(readFileSync(dest)) : null;
+  if (localHash === upstreamHash) continue;
+
+  const lockedHash = lock.workflowFiles?.[name] ?? null;
+  if (localHash !== null && localHash !== lockedHash && !force) {
+    problems.push(
+      lockedHash === null
+        ? `${label}: present but not vendored by this tool — refusing to overwrite`
+        : `${label}: edited locally — this file is configured with repository variables rather ` +
+          'than by editing it; revert it, or pass --force to discard the edit',
+    );
+    continue;
+  }
+  problems.push(localHash === null ? `${label}: missing` : `${label}: out of date`);
+  workflowPlan.push({ dest, body });
+}
+
+// A caller dropped from the list. Remove it only when it still matches what
+// this tool last wrote: an edited file at that path is the consumer's now, and
+// deleting it because a name left an array would be the one destructive thing
+// this tool must never do outside its own directory.
+const removedWorkflows = [];
+for (const name of Object.keys(lock.workflowFiles ?? {})) {
+  if (wantedWorkflows.includes(name)) continue;
+  const dest = workflowPath(name);
+  if (isSymlink(dest) || !existsSync(dest) || !statSync(dest).isFile()) continue;
+  const label = workflowLabel(name);
+  if (sha256(readFileSync(dest)) !== lock.workflowFiles[name] && !force) {
+    problems.push(`${label}: no longer listed, but edited locally — refusing to delete it`);
+    continue;
+  }
+  problems.push(`${label}: no longer listed`);
+  removedWorkflows.push(dest);
+}
+
 // Files the lock knows about that this version no longer ships: a removed or
 // renamed skill file. Clean them up so a stale copy can't outlive its source.
 const removed = Object.keys(lock.files ?? {}).filter(
@@ -538,6 +726,12 @@ for (const { from, to, files } of plan) {
 }
 for (const key of removed) rmSync(join(skillsDir, key), { force: true });
 
+for (const { dest, body } of workflowPlan) {
+  mkdirSync(dirname(dest), { recursive: true });
+  writeFileSync(dest, body);
+}
+for (const dest of removedWorkflows) rmSync(dest, { force: true });
+
 for (const skill of lock.skills) {
   const skillFile = join(skillsDir, skill, 'SKILL.md');
   if (!existsSync(skillFile)) continue;
@@ -553,14 +747,54 @@ for (const skill of lock.skills) {
 
 writeFileSync(
   lockPath,
-  `${JSON.stringify({ skills: lock.skills, version: pkg.version, files: nextFiles }, null, 2)}\n`,
+  `${JSON.stringify(
+    {
+      skills: lock.skills,
+      // Omit these keys entirely when no caller is wanted, so a repo that never
+      // asked for one does not carry an empty array it has to reason about.
+      ...(wantedWorkflows.length ? { workflows: wantedWorkflows } : {}),
+      // Consumer-authored, so it is carried through verbatim rather than
+      // rewritten — dropping it here would silently downgrade a SHA pin to the
+      // default tag on the next routine sync.
+      ...(lock.workflowRef !== undefined ? { workflowRef: lock.workflowRef } : {}),
+      version: pkg.version,
+      files: nextFiles,
+      ...(wantedWorkflows.length ? { workflowFiles: nextWorkflows } : {}),
+    },
+    null,
+    2,
+  )}\n`,
 );
 
 const changed = problems.length;
 console.log(
   `agent-skills: ${lock.skills.length} skills at ${pkg.version}` +
+    (wantedWorkflows.length
+      ? `, ${wantedWorkflows.length} workflow caller${wantedWorkflows.length === 1 ? '' : 's'} at ${workflowRef}` +
+        (workflowRef === defaultWorkflowRef ? ' (a movable tag — see README to pin a SHA)' : '')
+      : '') +
     (changed ? ` — ${changed} file${changed === 1 ? '' : 's'} updated` : ' — already current'),
 );
+
+// The caller is inert until an Actions secret exists, and the failure mode
+// without one is a red X on every review comment rather than an obvious error
+// at adoption time. Say it on every sync that writes one: it is cheap here, and
+// the alternative is discovering it from a notification.
+if (workflowGaps.length) {
+  console.log('');
+  console.log('agent-skills: a workflow caller has no skill to invoke:');
+  for (const gap of workflowGaps) console.log(`  - ${gap}`);
+  console.log('  Until then it runs on every review comment and finds nothing to do.');
+}
+
+if (workflowPlan.length) {
+  console.log('');
+  console.log('agent-skills: wrote workflow callers. They stay red until this repo can reach Claude:');
+  console.log('  - install the Claude GitHub App on the repo (or the whole account, once)');
+  console.log('  - set CLAUDE_CODE_OAUTH_TOKEN as an Actions secret — `claude setup-token`');
+  console.log('    an organization or account-level secret covers every repo at once');
+  console.log('  - optionally set the AGENT_SKILLS_REVIEW_BOTS variable to your review bot login');
+}
 
 // A vendored skill that hands off to a sibling degrades quietly when that
 // sibling isn't listed: the step is skipped and only the run's own report says

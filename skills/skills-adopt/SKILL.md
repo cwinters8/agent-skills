@@ -150,10 +150,19 @@ The profile states facts a skill can act on. Derive every answer; guess none.
 
 10. **Write `.claude/skills.json` before running anything.** It must exist
     first: the CLI refuses to run without it and prints a starter naming the
-    skills that version ships. It carries only a `skills` array — no ref,
+    skills that version ships. It carries a `skills` array — and no ref,
     source, or commit field. The tool hard-fails on those rather than ignoring
     them, because a second pin can silently disagree with the npx spec, and
     bumping the ignored one looks exactly like an upstream with no changes.
+
+    Two optional keys are not that, and the difference is worth holding on to.
+    `workflows` names the workflow callers to write into `.github/workflows/`,
+    and `workflowRef` says which revision of this repository those callers
+    resolve when GitHub runs them. That is not a second answer to a question the
+    npx spec already answers — it is the only answer to a different one, asked
+    on a runner long after any sync finished. Add them only if the repo wants
+    the GitHub-events feedback loop; the package README covers the account-level
+    app install and Actions secret that have to exist for it to do anything.
 
     `init` writes that file and a blank profile for you, and never overwrites
     either — so if you are reading this skill because a bootstrap sync put it on
