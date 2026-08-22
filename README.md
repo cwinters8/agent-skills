@@ -327,9 +327,19 @@ override the runner label and the per-run turn ceiling, and setting
 states no webhook announces — a reviewer who signals with a reaction rather than
 a comment, or an event that never arrived.
 
-If you need different triggers than the caller ships with, drop `review-sweep`
-from `workflows` and keep your own copy. The sync stops writing that file and
-leaves yours alone.
+If you need different triggers than the caller ships with, take ownership of a
+copy — in this order, because the obvious order does not work:
+
+```sh
+cp .github/workflows/agent-skills-review-sweep.yml .github/workflows/my-review-sweep.yml
+# then drop "review-sweep" from the "workflows" array, and:
+npx -y github:cwinters8/agent-skills#<verified-ref> sync
+```
+
+The sync removes the file it vendored and never touches yours, because yours has
+a name it does not own. Doing it the other way round fails both ways: editing the
+vendored file first makes every later sync refuse it as locally edited, and
+dropping the name first deletes the copy you were about to base yours on.
 
 ## Editing a skill
 

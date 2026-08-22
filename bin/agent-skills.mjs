@@ -201,7 +201,21 @@ let workflowRef = null;
 // The `agent-skills-` prefix is load-bearing: .github/workflows/ is a shared
 // namespace, and a bare `review-sweep.yml` is a name a consumer could plausibly
 // have already used for a workflow of their own.
-const workflowPath = (name) => join(workflowsDir, `agent-skills-${name}.yml`);
+const workflowPath = (name) => {
+  const path = join(workflowsDir, `agent-skills-${name}.yml`);
+  // Belt and braces, because this path is handed to rmSync. Names reaching here
+  // come from two places and only one of them was validated: the `workflows`
+  // array is checked before use, but the KEYS of `workflowFiles` were not, and
+  // they drive the removal loop. `x/../../../docker-compose` builds a path that
+  // normalizes to <repo>/docker-compose.yml — outside the directory this tool
+  // owns, and under --force deleted without a hash ever matching. The names are
+  // validated at both call sites now; this makes the containment a property of
+  // the constructor, so a third caller cannot reintroduce the hole.
+  if (dirname(resolve(path)) !== resolve(workflowsDir)) {
+    die(`refusing to build a workflow path outside .github/workflows/ from ${JSON.stringify(name)}`);
+  }
+  return path;
+};
 const workflowLabel = (name) => `.github/workflows/agent-skills-${name}.yml`;
 const renderWorkflow = (name) =>
   readFileSync(join(packageWorkflows, `${name}.yml`), 'utf8').split('__AGENT_SKILLS_REF__').join(workflowRef);
@@ -698,6 +712,15 @@ for (const name of wantedWorkflows) {
 const removedWorkflows = [];
 for (const name of Object.keys(lock.workflowFiles ?? {})) {
   if (wantedWorkflows.includes(name)) continue;
+  // The lock is a file in the repo like any other, so its keys are input. A key
+  // this tool could never have written is not something to act on: refuse it
+  // rather than resolve it into a path and delete whatever lands there.
+  if (!SKILL_NAME.test(name) || name.includes('..')) {
+    problems.push(
+      `"${name}": not a name this tool could have vendored, in "workflowFiles" — refusing to act on it`,
+    );
+    continue;
+  }
   const dest = workflowPath(name);
   if (isSymlink(dest) || !existsSync(dest) || !statSync(dest).isFile()) continue;
   const label = workflowLabel(name);

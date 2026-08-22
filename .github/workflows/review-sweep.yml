@@ -179,8 +179,14 @@ jobs:
       issues: write
       # Required for the action's default GitHub App authentication.
       id-token: write
-      # Lets the run read CI results on the PRs it sweeps.
+      # Reading CI takes all three: actions:read covers workflow runs, and the
+      # results the sweep actually judges readiness on arrive through the Checks
+      # and Commit Statuses APIs, which it does not cover. An explicit
+      # permissions block disables everything it does not name, so a missing one
+      # here reads as "no CI reported" rather than as an error.
       actions: read
+      checks: read
+      statuses: read
     steps:
       # Every third-party reference in this file is pinned to a full commit SHA,
       # with its version in the trailing comment. This file is published for
