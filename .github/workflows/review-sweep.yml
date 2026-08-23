@@ -163,8 +163,20 @@ on:
 # and visible; a silently dropped run is neither. The all-PR shape is also the
 # rare one: every event-driven run names its PR, leaving only manual dispatch and
 # the scheduled backstop, both of which a maintainer starts.
+#
+# The key falls back through the event's own identity before reaching 'all'. CI
+# completions arrive with no PR number — the caller cannot extract one, since a
+# suite may cover several and a status names only a commit — so without this they
+# would all share one group, and a completion for PR B would displace a pending
+# one for PR A while resolving only its own suite. A's CI would then be green
+# with nothing ever looking at it. Both events carry the commit they concern, and
+# that is per-PR in practice.
 concurrency:
-  group: review-sweep-${{ github.repository }}-${{ inputs.pr || 'all' }}
+  group: >-
+    review-sweep-${{ github.repository }}-${{ inputs.pr
+      || github.event.check_suite.head_sha
+      || github.event.sha
+      || 'all' }}
   cancel-in-progress: false
 
 jobs:
@@ -252,12 +264,27 @@ jobs:
             // Bound the fan-out, and say so rather than truncating in silence: a
             // run that quietly covered less than it was asked to reads exactly
             // like one that covered everything.
+            //
+            // Rotate the window rather than always taking the same end of the
+            // list. Slicing the highest-numbered 50 every time meant older pull
+            // requests were never swept at all while newer ones stayed open — so
+            // the backstop could not recover a missed event for exactly the PRs
+            // most likely to have one, and telling the reader to "re-run" was
+            // advice that could not work. Offsetting by the run number walks the
+            // whole list across successive runs.
             const CAP = 50
-            const numbers = eligible.map((pr) => pr.number).sort((a, b) => b - a)
+            const numbers = eligible.map((pr) => pr.number).sort((a, b) => a - b)
+            let window = numbers
             if (numbers.length > CAP) {
-              core.notice(`${numbers.length} pull requests eligible; sweeping the ${CAP} highest-numbered this run. The rest are NOT swept — sweep them by number, or re-run.`)
+              const start = (context.runNumber * CAP) % numbers.length
+              window = [...numbers.slice(start), ...numbers.slice(0, start)].slice(0, CAP)
+              core.notice(
+                `${numbers.length} pull requests eligible, more than the ${CAP} one run sweeps. ` +
+                  `This run takes #${window[0]} onward; later runs continue from where this one stopped, ` +
+                  `so the whole list is covered over several. Sweep by number if one cannot wait.`,
+              )
             }
-            core.setOutput('prs', JSON.stringify(numbers.slice(0, CAP)))
+            core.setOutput('prs', JSON.stringify(window))
 
   # One job per verified pull request. The matrix is the plan's output, so this
   # job never decides for itself what to sweep and never sees a PR the plan did

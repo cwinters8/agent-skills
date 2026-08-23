@@ -385,8 +385,9 @@ work already done, waiting for a reviewer to say something else.
 
 Each run resolves the pull requests it may sweep before anything privileged
 happens, and sweeps them **one job per pull request**. A run that finds more than
-50 eligible sweeps the 50 highest-numbered and says so in its log rather than
-truncating silently.
+50 eligible sweeps a rotating window of 50 and says so in its log rather than
+truncating silently — successive runs continue where the last stopped, so the
+whole list is covered over several rather than the same end of it every time.
 
 | `AGENT_SKILLS_ALLOW_FORKS` | Set to `true` to sweep pull requests from forks. Read the section below first |
 
