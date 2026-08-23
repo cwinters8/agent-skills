@@ -78,7 +78,11 @@ on:
   pull_request_review_comment:
     types: [created]
   pull_request_review:
-    types: [submitted]
+    # `edited` as well as `submitted`: `review-sweep` treats a review's summary
+    # body as first-class feedback, so a reviewer who submits an empty or
+    # informational summary and then edits substance into it has left feedback
+    # that `submitted` already fired for and carried nothing.
+    types: [submitted, edited]
   issue_comment:
     types: [created]
   # CI finishing is a readiness input with no other event behind it. A sweep that
@@ -86,11 +90,24 @@ on:
   # them green — so without these the PR waits for a reviewer to say something
   # else, and if nobody does, it stays unmarked with the work already done.
   #
-  # Both, because CI reports one of two ways and a repository may use either.
-  # Check runs emit check_suite; the older Commit Status API emits `status` and
-  # no check_suite at all, which is why `statuses: read` is granted below. Taking
-  # only the first would leave every consumer on commit statuses with no
-  # CI-completion trigger, silently.
+  # Both, because CI reports one of two ways and a repository may use either:
+  # third-party CI apps create check suites, while the older Commit Status API
+  # emits `status` and no suite at all, which is why `statuses: read` is granted
+  # below.
+  #
+  # KNOWN GAP, and it is the common case rather than a corner: GitHub documents
+  # that `check_suite` "does not trigger workflows if the check suite was created
+  # by GitHub Actions", to prevent recursion. So a repository whose CI is Actions
+  # — most of them — gets no event here when its checks finish, and a sweep that
+  # pushed a fix will not be woken by that fix going green.
+  #
+  # There is no fix available to this file. The event that does fire is
+  # `workflow_run`, and it requires naming the workflows to watch, which differ
+  # per repository and cannot come from a variable because triggers do not
+  # evaluate expressions. Two ways out, both yours: set
+  # AGENT_SKILLS_SWEEP_SCHEDULE to "on" so the daily backstop closes it, or take
+  # ownership of this file (see the end of this comment) and add a `workflow_run`
+  # trigger naming your own CI workflows.
   #
   # Neither event names a PR the caller can extract — a suite may cover several,
   # and a status names only a commit — so the called workflow resolves them.

@@ -377,9 +377,17 @@ revert it. Every knob is a variable for that reason.
 | `AGENT_SKILLS_MAX_TURNS` | Turn ceiling per run. Default 40. A sweep that hits it stops with partial work; the skill's reaction markers mean the next run resumes rather than redoing |
 | `AGENT_SKILLS_SWEEP_SCHEDULE` | Set to `on` for a daily backstop sweep, covering states no webhook announces — a reviewer who signals with a reaction rather than a comment, or an event that never arrived |
 
-The caller also sweeps when **CI finishes** — both `check_suite` for check runs
-and `status` for the older Commit Status API, since a repository may report
-either way. Readiness needs green CI, and a sweep that just pushed a fix sees the
+The caller also sweeps when **CI finishes** — `check_suite` for third-party CI
+apps and `status` for the older Commit Status API.
+
+**If your CI is GitHub Actions, neither fires.** GitHub suppresses `check_suite`
+for suites Actions created, to prevent recursion, and the event that does fire —
+`workflow_run` — has to name the workflows it watches, which differ per
+repository and cannot come from a variable, because triggers do not evaluate
+expressions. So a vendored caller cannot subscribe to your CI. Either set
+`AGENT_SKILLS_SWEEP_SCHEDULE` to `on` and let the daily backstop close it, or
+take ownership of the caller and add a `workflow_run` trigger naming your own CI
+workflows. This is the one place where leaving the schedule off has a real cost. Readiness needs green CI, and a sweep that just pushed a fix sees the
 new head's checks still pending; without these a PR could sit unmarked with the
 work already done, waiting for a reviewer to say something else.
 
@@ -400,8 +408,9 @@ A comment on a fork's PR fires `issue_comment` in *your* repository, so the swee
 would run with your credential and write permission while checking out
 contributor-controlled code and running your project's own commands over it. The
 workflow resolves the head repository first and stops before the checkout,
-leaving a notice rather than a failure. An all-PR sweep is skipped entirely while
-any open PR comes from a fork, since it cannot decline them one at a time.
+leaving a notice rather than a failure. An all-PR sweep drops the fork
+pull requests and sweeps the rest, naming how many it left out — so leaving this
+off costs you coverage of forks only, never of your own pull requests.
 
 With the flag on, the sweep can triage a fork PR, reply on its threads and
 decline feedback — but it **cannot push a fix**. The checkout credential is

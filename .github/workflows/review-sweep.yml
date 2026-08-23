@@ -149,36 +149,6 @@ on:
 # leaving six inline comments emits six events — and without this they would
 # become six concurrent runs racing to push to the same branch.
 #
-# Per PR. Both groupings lose something, and this is the one that loses it
-# loudly.
-#
-# Repository-wide was tried, and it drops work silently: with one group, an
-# event for PR A goes pending, an event for PR B replaces it, and the surviving
-# run carries B's number. A is never enumerated and its feedback goes unhandled
-# with nothing to show for it.
-#
-# Per-PR leaves one overlap instead — a sweep with no `pr` visits every PR, so it
-# can run beside a targeted sweep of one of them. Two runs pushing to one branch
-# is a non-fast-forward the skill sees and reports. A failed push is recoverable
-# and visible; a silently dropped run is neither. The all-PR shape is also the
-# rare one: every event-driven run names its PR, leaving only manual dispatch and
-# the scheduled backstop, both of which a maintainer starts.
-#
-# The key falls back through the event's own identity before reaching 'all'. CI
-# completions arrive with no PR number — the caller cannot extract one, since a
-# suite may cover several and a status names only a commit — so without this they
-# would all share one group, and a completion for PR B would displace a pending
-# one for PR A while resolving only its own suite. A's CI would then be green
-# with nothing ever looking at it. Both events carry the commit they concern, and
-# that is per-PR in practice.
-concurrency:
-  group: >-
-    review-sweep-${{ github.repository }}-${{ inputs.pr
-      || github.event.check_suite.head_sha
-      || github.event.sha
-      || 'all' }}
-  cancel-in-progress: false
-
 jobs:
   # Resolve WHICH pull requests this run may sweep, before anything privileged
   # happens, and hand the sweep a list of numbers rather than a yes/no.
@@ -269,14 +239,22 @@ jobs:
             // list. Slicing the highest-numbered 50 every time meant older pull
             // requests were never swept at all while newer ones stayed open — so
             // the backstop could not recover a missed event for exactly the PRs
-            // most likely to have one, and telling the reader to "re-run" was
-            // advice that could not work. Offsetting by the run number walks the
-            // whole list across successive runs.
+            // most likely to have one.
+            //
+            // Rotate on the DAY, not the run number. The run number counts every
+            // invocation of this workflow, targeted ones included, so a repo with
+            // any comment traffic advances it unpredictably between backstop
+            // runs — and at 100 eligible PRs with one targeted run a day, the
+            // daily sweep lands on `(n * 50) % 100 === 0` every time and never
+            // reaches the other half. The day advances once per day no matter
+            // how many runs happen, which is the cadence the backstop actually
+            // has.
             const CAP = 50
             const numbers = eligible.map((pr) => pr.number).sort((a, b) => a - b)
             let window = numbers
             if (numbers.length > CAP) {
-              const start = (context.runNumber * CAP) % numbers.length
+              const day = Math.floor(Date.now() / 86400000)
+              const start = (day * CAP) % numbers.length
               window = [...numbers.slice(start), ...numbers.slice(0, start)].slice(0, CAP)
               core.notice(
                 `${numbers.length} pull requests eligible, more than the ${CAP} one run sweeps. ` +
@@ -297,6 +275,22 @@ jobs:
       matrix:
         pr: ${{ fromJSON(needs.plan.outputs.prs) }}
     runs-on: ${{ inputs.runs-on }}
+    # Keyed on the RESOLVED pull request, which is the only key that works for
+    # every trigger. At workflow level it could only use what the event carried:
+    # review and comment runs had a PR number, CI completions had a commit, and
+    # the two never collided — so a check suite finishing could sweep the same
+    # pull request a feedback run was already sweeping, both triaging comments
+    # and pushing to one branch at once. That is the race the group exists to
+    # stop, and it survived two attempts at fixing it upstream of `plan`.
+    #
+    # `cancel-in-progress: false` protects the running sweep, the one that could
+    # otherwise be killed mid-push. GitHub keeps at most one pending run per
+    # group and drops an older pending one, which is fine here: a sweep is
+    # idempotent — the skill's reaction markers record what it already handled —
+    # so the survivor sees everything the dropped one would have.
+    concurrency:
+      group: review-sweep-${{ github.repository }}-${{ matrix.pr }}
+      cancel-in-progress: false
     permissions:
       # write: the skill pushes review fixes to the PR branch.
       contents: write
