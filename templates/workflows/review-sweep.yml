@@ -75,6 +75,18 @@
 name: review sweep
 
 on:
+  # The opening of a pull request is the first thing that needs sweeping, and
+  # until now nothing here fired for it. That is the exact gap this caller exists
+  # to close: a PR opened from a terminal session has no listener, and if no
+  # reviewer comments on their own, none of the other triggers ever happens — so
+  # the sweep that would request the first reviewer verdict never ran, and the
+  # draft sat untouched.
+  #
+  # `ready_for_review` as well as `opened`, since a draft opened and later marked
+  # ready has had its `opened` event already. Fork PRs reach the called workflow
+  # and are filtered there, as with every other trigger.
+  pull_request:
+    types: [opened, reopened, ready_for_review]
   pull_request_review_comment:
     # `edited` too, for the same reason as review summaries below: feedback added
     # by editing an existing comment emits only `edited`, and `created` already
@@ -85,7 +97,10 @@ on:
     # body as first-class feedback, so a reviewer who submits an empty or
     # informational summary and then edits substance into it has left feedback
     # that `submitted` already fired for and carried nothing.
-    types: [submitted, edited]
+    # `dismissed` too: dismissing a stale CHANGES_REQUESTED review is the only
+    # state change that can make a PR satisfy readiness, and it emits no other
+    # event. Without it the PR stays blocked on a review that no longer applies.
+    types: [submitted, edited, dismissed]
   issue_comment:
     types: [created, edited]
   # CI finishing is a readiness input with no other event behind it. A sweep that
@@ -110,7 +125,10 @@ on:
   # evaluate expressions. Two ways out, both yours: set
   # AGENT_SKILLS_SWEEP_SCHEDULE to "on" so the daily backstop closes it, or take
   # ownership of this file (see the end of this comment) and add a `workflow_run`
-  # trigger naming your own CI workflows.
+  # trigger naming your own CI workflows. The job's condition below already
+  # accepts `workflow_run`, so adding the trigger is the only edit needed — a
+  # `workflow_run` payload carries no author_association and would otherwise fall
+  # through the human gate and never start.
   #
   # Neither event names a PR the caller can extract — a suite may cover several,
   # and a status names only a commit — so the called workflow resolves them.
@@ -206,6 +224,7 @@ jobs:
       (github.event_name == 'schedule' && vars.AGENT_SKILLS_SWEEP_SCHEDULE == 'on') ||
       (github.event_name == 'check_suite' && github.event.check_suite.pull_requests[0] != null) ||
       (github.event_name == 'status' && github.event.state != 'pending') ||
+      github.event_name == 'workflow_run' ||
       ((github.event_name != 'issue_comment' || github.event.issue.pull_request) &&
        ((github.actor == 'claude[bot]' &&
          contains(format('{0}{1}', github.event.comment.body, github.event.review.body),
@@ -215,7 +234,9 @@ jobs:
            contains(format(',{0},', vars.AGENT_SKILLS_REVIEW_BOTS), format(',{0},', github.actor))) ||
           (!endsWith(github.actor, '[bot]') &&
            contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'),
-                    github.event.comment.author_association || github.event.review.author_association))))))
+                    github.event.comment.author_association
+                    || github.event.review.author_association
+                    || github.event.pull_request.author_association))))))
     uses: cwinters8/agent-skills/.github/workflows/review-sweep.yml@__AGENT_SKILLS_REF__
     with:
       # The event names the PR it happened on, so sweep that one rather than

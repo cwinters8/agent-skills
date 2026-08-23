@@ -173,7 +173,10 @@ your laptop has no such tool and no listener once you close it, so a PR opened
 from your terminal is watched by nothing.
 
 The workflow caller closes that gap: GitHub events start the sweep, so it works
-the same whether the PR came from your terminal, the web, or a teammate.
+the same whether the PR came from your terminal, the web, or a teammate. It
+sweeps when a pull request opens or is marked ready, when a reviewer comments or
+submits, edits or dismisses a review, and when CI finishes — so the first sweep
+does not wait for someone else to speak first.
 
 Setup is four steps, and only the third involves a choice:
 

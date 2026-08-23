@@ -434,7 +434,23 @@ for (const stale of ['ref', 'source', 'commit']) {
 // different question: which revision of this repository GitHub should resolve
 // when a workflow fires on a runner, long after any sync has finished.
 if (lock.workflowRef !== undefined) {
-  if (typeof lock.workflowRef !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9._/-]*$/.test(lock.workflowRef) || lock.workflowRef.includes('..')) {
+  // Git's own ref-name rules, not just "looks like a ref". The earlier pattern
+  // accepted `release/`, `release.`, `release.lock` and `release//next`, each of
+  // which `git check-ref-format` rejects — so the sync wrote a caller naming a
+  // ref GitHub cannot resolve, and the failure surfaced at event time in the
+  // consumer's repository rather than here. This is the one value in the lock
+  // that the tool cannot verify against anything real, so the syntax is all the
+  // checking there is.
+  const usableRef = (ref) =>
+    typeof ref === 'string' &&
+    /^[A-Za-z0-9][A-Za-z0-9._/-]*$/.test(ref) &&
+    !ref.includes('..') &&
+    !ref.includes('//') &&
+    !ref.endsWith('/') &&
+    !ref.endsWith('.') &&
+    !ref.endsWith('.lock') &&
+    !ref.split('/').some((part) => part === '' || part.endsWith('.lock'));
+  if (!usableRef(lock.workflowRef)) {
     die(
       `.claude/skills.json has an unusable "workflowRef" — expected a branch, tag, or commit SHA, ` +
         `got ${JSON.stringify(lock.workflowRef)}`,
