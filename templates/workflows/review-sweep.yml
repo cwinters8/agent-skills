@@ -76,6 +76,13 @@ on:
     types: [submitted]
   issue_comment:
     types: [created]
+  # CI finishing is a readiness input with no other event behind it. A sweep that
+  # pushes a fix sees the new head's checks still pending, and readiness needs
+  # them green — so without this the PR waits for a reviewer to say something
+  # else, and if nobody does, it stays unmarked with the work already done. Fires
+  # once per completed check suite, and only for suites attached to a PR.
+  check_suite:
+    types: [completed]
   workflow_dispatch:
     inputs:
       pr:
@@ -163,6 +170,7 @@ jobs:
     if: >-
       github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'schedule' && vars.AGENT_SKILLS_SWEEP_SCHEDULE == 'on') ||
+      (github.event_name == 'check_suite' && github.event.check_suite.pull_requests[0] != null) ||
       ((github.event_name != 'issue_comment' || github.event.issue.pull_request) &&
        ((github.actor == 'claude[bot]' &&
          contains(format('{0}{1}', github.event.comment.body, github.event.review.body),
@@ -177,12 +185,14 @@ jobs:
     with:
       # The event names the PR it happened on, so sweep that one rather than
       # every open PR. Review events carry pull_request, PR conversation
-      # comments carry issue; a manual dispatch passes its own, and an empty
-      # value still means "sweep everything".
+      # comments carry issue, a completed check suite carries the PRs its head
+      # belongs to; a manual dispatch passes its own, and an empty value still
+      # means "sweep everything".
       pr: >-
         ${{ inputs.pr
             || github.event.pull_request.number
             || github.event.issue.number
+            || github.event.check_suite.pull_requests[0].number
             || '' }}
       allowed-bots: ${{ vars.AGENT_SKILLS_REVIEW_BOTS }}
       model: ${{ vars.AGENT_SKILLS_REVIEW_MODEL }}

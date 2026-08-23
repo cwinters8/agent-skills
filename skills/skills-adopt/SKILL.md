@@ -157,8 +157,12 @@ The profile states facts a skill can act on. Derive every answer; guess none.
 
     Two optional keys are not that, and the difference is worth holding on to.
     `workflows` names the workflow callers to write into `.github/workflows/`,
-    and `workflowRef` says which revision of this repository those callers
-    resolve when GitHub runs them. That is not a second answer to a question the
+    and `workflowRef` says which revision **of the package** — the repository
+    the npx spec points at, not the one being configured — those callers resolve
+    when GitHub runs them. That distinction is the whole trap here: everywhere
+    else in this skill "this repository" means the consumer, so a SHA from the
+    consumer's own history looks right, passes the syntax check, and then fails
+    at every event because it names nothing in the called repository. That is not a second answer to a question the
     npx spec already answers — it is the only answer to a different one, asked
     on a runner long after any sync finished. Add them only if the repo wants
     the GitHub-events feedback loop; the package README covers the app install

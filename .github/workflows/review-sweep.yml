@@ -206,9 +206,14 @@ jobs:
       # One thing here is deliberately unsettled. Whether these events actually
       # carry the repository's secrets on a FORK's pull request is disputed:
       # `pull_request` from a fork is documented as running without them, but
-      # `issue_comment` and the review events run the workflow from the base
-      # repository's default branch, which is the whole basis of the privileged
-      # -checkout hazard above. GitHub's own wording — "secrets are not passed to
+      # `issue_comment` and the review events run in the BASE repository's
+      # context rather than the fork's, which is the whole basis of the
+      # privileged-checkout hazard above. (Which ref they run on differs by
+      # event and is a separate matter: `issue_comment` gets the default branch,
+      # while the two review events get `refs/pull/<n>/merge` — so on those, a
+      # checkout with no explicit ref lands on the contributor's merged code by
+      # default. The guard above runs before any checkout, so that is bounded,
+      # but it is why the guard has to come first rather than merely early.) GitHub's own wording — "secrets are not passed to
       # the runner when a workflow is triggered from a forked repository" — never
       # says which events count as triggered *from* a fork, and two reviews of
       # this file reached opposite conclusions.

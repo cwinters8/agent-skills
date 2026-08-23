@@ -185,8 +185,14 @@ Setup is four steps, and only the third involves a choice:
 ### 1. Install the Claude GitHub App
 
 Install the [Claude GitHub App](https://github.com/apps/claude) on the account or
-organization, for all repositories. This is what delivers the webhooks;
-`/web-setup` grants repository access but does **not** install the app.
+organization, **selecting only the repositories that will run this workflow**.
+Installing across everything is one click less and grants the app access to
+repositories that have no use for it, which widens what an app-token or
+configuration compromise reaches. You can add repositories later as you adopt
+them.
+
+This is what delivers the webhooks; `/web-setup` grants repository access but
+does **not** install the app.
 
 ### 2. Vendor the caller
 
@@ -307,12 +313,23 @@ OIDC, so neither a Claude token nor a Doppler token is stored in GitHub.
    and GitHub uses [several formats depending on
    context](https://docs.github.com/en/actions/concepts/security/openid-connect),
    so match the shape your repository actually emits rather than a remembered
-   one. One thing works in your favour here: every trigger this caller uses runs
-   the workflow from the base repository's **default branch**, so the subject is
-   stable rather than varying per pull request. Doppler's own guidance points at
-   the [secrets-fetch-action
+   one.
+
+   **This caller emits two shapes, and configuring only one is the likely way to
+   get this wrong.** The ref in the subject follows the triggering event:
+
+   | Trigger | Ref in the subject |
+   | --- | --- |
+   | `issue_comment` (PR conversation comments), `check_suite`, `schedule`, `workflow_dispatch` | the default branch |
+   | `pull_request_review`, `pull_request_review_comment` | `refs/pull/<n>/merge` |
+
+   So an identity configured only for the default-branch subject authenticates
+   for conversation comments and the backstop, and fails for submitted reviews
+   and inline review comments — the two that matter most. Either configure a
+   claim that matches both, or add the second as an additional subject on the
+   same identity. Doppler's own guidance points at the [secrets-fetch-action
    README](https://github.com/DopplerHQ/secrets-fetch-action) for the exact
-   formats.
+   formats it accepts.
 6. Copy the identity's UUID — that is `DOPPLER_IDENTITY_ID`.
 
 **Then in GitHub**, set these repository or organization variables:
@@ -359,6 +376,12 @@ revert it. Every knob is a variable for that reason.
 | `AGENT_SKILLS_RUNNER` | Runner label, for self-hosted runners. Default `ubuntu-latest` |
 | `AGENT_SKILLS_MAX_TURNS` | Turn ceiling per run. Default 40. A sweep that hits it stops with partial work; the skill's reaction markers mean the next run resumes rather than redoing |
 | `AGENT_SKILLS_SWEEP_SCHEDULE` | Set to `on` for a daily backstop sweep, covering states no webhook announces — a reviewer who signals with a reaction rather than a comment, or an event that never arrived |
+
+The caller also sweeps when a **check suite completes** on a PR, since readiness
+needs green CI and a sweep that just pushed a fix sees the new head's checks
+still pending. Without it a PR could sit unmarked with the work already done,
+waiting for a reviewer to say something else.
+
 | `AGENT_SKILLS_ALLOW_FORKS` | Set to `true` to sweep pull requests from forks. Read the section below first |
 
 ### Pull requests from forks
