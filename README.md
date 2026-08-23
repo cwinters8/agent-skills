@@ -289,13 +289,19 @@ OIDC, so neither a Claude token nor a Doppler token is stored in GitHub.
 1. Put the credential in the project and config you intend to use, named
    `CLAUDE_CODE_OAUTH_TOKEN` (or `ANTHROPIC_API_KEY`). Any other name works too —
    see the overrides in the table below.
-2. Use a service account that can read that project and config. The identity in
-   the next step authenticates *as* that service account, so its access is the
-   access the workflow gets. Scope it to this project and config only: it is
-   reachable from a workflow that runs the repository's own commands.
-3. On that service account's page, under **Service Account Identities**, create a
+2. **Create a service account** for this, at **Team → Service Accounts → `+`**.
+   Doppler service accounts are machine users that live at the workspace level
+   and are then granted access to individual projects. Make a new one rather than
+   reusing a broad existing account: the identity in step 4 authenticates *as*
+   this account, so whatever it can read is what a workflow running your
+   repository's own commands can reach.
+3. **Grant it access to only the project holding the credential.** Open that
+   project, choose **Members**, add the service account, and give it read access
+   to just the environment this config lives in. This is the step that bounds the
+   blast radius — everything after it inherits whatever you grant here.
+4. On the service account's page, under **Service Account Identities**, create a
    new identity and select GitHub as the provider.
-4. Configure the two required claims — **audience** and **subject**. The audience
+5. Configure the two required claims — **audience** and **subject**. The audience
    is what the runner asks GitHub to mint the token for; the fetch action requests
    `https://github.com/<owner>`. The subject is GitHub's `sub` claim for the run,
    and GitHub uses [several formats depending on
@@ -307,13 +313,13 @@ OIDC, so neither a Claude token nor a Doppler token is stored in GitHub.
    the [secrets-fetch-action
    README](https://github.com/DopplerHQ/secrets-fetch-action) for the exact
    formats.
-5. Copy the identity's UUID — that is `DOPPLER_IDENTITY_ID`.
+6. Copy the identity's UUID — that is `DOPPLER_IDENTITY_ID`.
 
 **Then in GitHub**, set these repository or organization variables:
 
 | Variable | Value |
 | --- | --- |
-| `DOPPLER_IDENTITY_ID` | service account identity UUID, from step 5. Setting this turns the fetch on |
+| `DOPPLER_IDENTITY_ID` | service account identity UUID, from step 6. Setting this turns the fetch on |
 | `DOPPLER_PROJECT` | project holding the credential |
 | `DOPPLER_CONFIG` | config within that project |
 | `DOPPLER_SECRET_NAME` | optional, when the **subscription token** is not named `CLAUDE_CODE_OAUTH_TOKEN` |
