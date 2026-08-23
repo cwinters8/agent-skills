@@ -269,8 +269,9 @@ jobs:
               window = [...numbers.slice(start), ...numbers.slice(0, start)].slice(0, CAP)
               core.notice(
                 `${numbers.length} pull requests eligible, more than the ${CAP} one run sweeps. ` +
-                  `This run takes #${window[0]} onward; later runs continue from where this one stopped, ` +
-                  `so the whole list is covered over several. Sweep by number if one cannot wait.`,
+                  `This run takes #${window[0]} onward. The window advances by DAY, not by run: ` +
+                  `re-running today sweeps this same set, and tomorrow's run continues from where ` +
+                  `this one stopped. Sweep by number if one cannot wait for its turn.`,
               )
             }
             core.setOutput('prs', JSON.stringify(window))

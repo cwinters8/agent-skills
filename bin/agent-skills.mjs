@@ -449,7 +449,7 @@ if (lock.workflowRef !== undefined) {
     !ref.endsWith('/') &&
     !ref.endsWith('.') &&
     !ref.endsWith('.lock') &&
-    !ref.split('/').some((part) => part === '' || part.endsWith('.lock'));
+    !ref.split('/').some((part) => part === '' || part.startsWith('.') || part.endsWith('.lock'));
   if (!usableRef(lock.workflowRef)) {
     die(
       `.claude/skills.json has an unusable "workflowRef" — expected a branch, tag, or commit SHA, ` +
@@ -752,7 +752,21 @@ for (const name of Object.keys(lock.workflowFiles ?? {})) {
   }
   const dest = workflowPath(name);
   const label = workflowLabel(name);
-  if (isSymlink(dest) || !existsSync(dest) || !statSync(dest).isFile()) {
+  // A symlink is not "already gone". Treating it as gone dropped the lock entry
+  // while leaving the link in place — and the entry is the only record that this
+  // path was ever ours, so the next run cannot tell the link from a file the
+  // consumer put there and the path becomes unremovable. Refuse instead, which
+  // keeps the record until someone decides; --force unlinks it.
+  if (isSymlink(dest)) {
+    if (!force) {
+      problems.push(`${label}: no longer listed, but a symlink now sits at that path — refusing to drop the lock entry while it is there`);
+      continue;
+    }
+    problems.push(`${label}: no longer listed, replaced by a symlink — removing it`);
+    removedWorkflows.push(dest);
+    continue;
+  }
+  if (!existsSync(dest) || !statSync(dest).isFile()) {
     // Nothing to delete, but the lock still claims ownership of a path that no
     // longer holds our file. A real sync drops that entry, so staying quiet let
     // --check certify a repository whose lock a sync would rewrite — the same

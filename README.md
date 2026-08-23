@@ -318,8 +318,8 @@ OIDC, so neither a Claude token nor a Doppler token is stored in GitHub.
    so match the shape your repository actually emits rather than a remembered
    one.
 
-   **This caller emits two shapes, and configuring only one is the likely way to
-   get this wrong.** The ref in the subject follows the triggering event:
+   **This caller emits three shapes, and configuring fewer is the likely way to
+   get this wrong.** The subject follows the triggering event:
 
    | Trigger | Subject |
    | --- | --- |
@@ -330,9 +330,8 @@ OIDC, so neither a Claude token nor a Doppler token is stored in GitHub.
    So an identity configured only for the default-branch subject authenticates
    for conversation comments and the backstop, and fails for submitted reviews,
    inline review comments, and the first sweep when a pull request opens — which
-   between them are most of what this does. Either configure a
-   claim that matches both, or add the second as an additional subject on the
-   same identity. Doppler's own guidance points at the [secrets-fetch-action
+   between them are most of what this does. Configure a claim that matches all
+   three, or add each as an additional subject on the same identity. Doppler's own guidance points at the [secrets-fetch-action
    README](https://github.com/DopplerHQ/secrets-fetch-action) for the exact
    formats it accepts.
 6. Copy the identity's UUID — that is `DOPPLER_IDENTITY_ID`.
@@ -399,8 +398,10 @@ work already done, waiting for a reviewer to say something else.
 Each run resolves the pull requests it may sweep before anything privileged
 happens, and sweeps them **one job per pull request**. A run that finds more than
 50 eligible sweeps a rotating window of 50 and says so in its log rather than
-truncating silently — successive runs continue where the last stopped, so the
-whole list is covered over several rather than the same end of it every time.
+truncating silently. The window advances by **day**, so successive days cover the
+whole list rather than the same end of it every time — but re-running on the same
+day sweeps the same window. Sweep a specific pull request by number if it cannot
+wait for its turn.
 
 | `AGENT_SKILLS_ALLOW_FORKS` | Set to `true` to sweep pull requests from forks. Read the section below first |
 
