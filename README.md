@@ -168,108 +168,29 @@ copy has fallen behind the version you invoke, or has been hand-edited.
 
 `review-sweep` triages review comments on your open PRs — fixing what is worth
 fixing, declining the rest with a reason on the thread. Something has to *start*
-it. In a cloud session that is `subscribe_pr_activity`, but a terminal session
-on your laptop has no such tool and no listener once you close it, so a PR opened
+it. In a cloud session that is `subscribe_pr_activity`, but a terminal session on
+your laptop has no such tool and no listener once you close it, so a PR opened
 from your terminal is watched by nothing.
 
 The workflow caller closes that gap: GitHub events start the sweep, so it works
 the same whether the PR came from your terminal, the web, or a teammate.
 
-**Once per account:**
+Setup is four steps, and only the third involves a choice:
 
-1. Install the [Claude GitHub App](https://github.com/apps/claude) on the account
-   or organization, for all repositories. This is what delivers the webhooks;
-   `/web-setup` grants repository access but does **not** install the app.
+1. **Install the Claude GitHub App** — once per account.
+2. **Vendor the caller** — per repository.
+3. **Give the run a credential** — one of three routes.
+4. **Tune it** — all optional.
 
-**Then the token — and how far one copy reaches depends on who owns the repos.**
-Actions secrets exist at repository, environment and organization scope only.
-There is no user-account-level Actions secret: the user-level secrets a personal
-account does have are for Codespaces and Dependabot, and neither is visible to
-Actions. Of those three scopes the vendored caller can reach two — it selects no
-environment, and a job that calls a reusable workflow cannot, so an
-environment-scoped secret or variable resolves empty. Use repository or
-organization scope, or keep your own caller. So:
+### 1. Install the Claude GitHub App
 
-- **Repositories under an organization**: set `CLAUDE_CODE_OAUTH_TOKEN` once as
-  an organization secret, grant it to the repositories that need it, and you are
-  done.
-- **Repositories under a personal account**: it is one repository secret each.
-  There is no shortcut, but it scripts:
+Install the [Claude GitHub App](https://github.com/apps/claude) on the account or
+organization, for all repositories. This is what delivers the webhooks;
+`/web-setup` grants repository access but does **not** install the app.
 
-  ```sh
-  TOKEN=$(claude setup-token)
-  for repo in owner/one owner/two; do
-    gh secret set CLAUDE_CODE_OAUTH_TOKEN --repo "$repo" --body "$TOKEN"
-  done
-  ```
+### 2. Vendor the caller
 
-  Rotation has the same shape — re-run the loop. If that becomes tiresome across
-  many repositories, moving them under an organization is the fix, and the only
-  one.
-
-`ANTHROPIC_API_KEY` works instead of the OAuth token, and bills to the API
-rather than your subscription. A token from `claude setup-token` is tied to the
-subscription of whoever ran it.
-
-### Or store no credential at all
-
-The action can authenticate by exchanging the runner's GitHub OIDC token, which
-removes the secret entirely. What replaces it is *identifiers* rather than
-secrets:
-
-| Variable | Value |
-| --- | --- |
-| `ANTHROPIC_FEDERATION_RULE_ID` | `fdrl_...`, from the federation rule you create in the Claude Console |
-| `ANTHROPIC_ORGANIZATION_ID` | your Anthropic organization ID |
-| `ANTHROPIC_SERVICE_ACCOUNT_ID` | `svac_...`, required unless the federation rule already targets one service account |
-| `ANTHROPIC_WORKSPACE_ID` | optional, `wrkspc_...`, when the rule targets more than one workspace |
-
-Being variables rather than secrets buys convenience, not reach: **variables are
-scoped exactly like secrets** — repository, environment, or organization — and a
-personal account has no organization to hang them on. Repos under an
-organization set these once there; repos under a personal account still set them
-per repository. The gain is that nothing stored is sensitive.
-
-The tradeoff is billing, not security: federation authenticates a Console
-service account, so runs bill to the API rather than to a Claude subscription.
-The federation rule is also where you constrain which repositories may exchange
-a token — worth setting narrowly, since the workflow it authorizes runs with
-`contents: write`.
-
-### Or fetch it from Doppler
-
-The workflow can pull the credential from Doppler at run time, authenticating by
-OIDC, so neither a Claude token nor a Doppler token is stored in GitHub. Set
-these repository or organization variables:
-
-| Variable | Value |
-| --- | --- |
-| `DOPPLER_IDENTITY_ID` | service account identity UUID |
-| `DOPPLER_PROJECT` | project holding the credential |
-| `DOPPLER_CONFIG` | config within that project |
-| `DOPPLER_SECRET_NAME` | optional, when the **subscription token** is not named `CLAUDE_CODE_OAUTH_TOKEN` |
-| `DOPPLER_API_KEY_NAME` | optional, when the **API key** is not named `ANTHROPIC_API_KEY` |
-
-The fetch step is skipped entirely when `DOPPLER_IDENTITY_ID` is unset, so this
-costs nothing if you don't use it.
-
-`CLAUDE_CODE_OAUTH_TOKEN` and `ANTHROPIC_API_KEY` are the conventional names —
-what Claude Code itself writes when it stores the credential as a repository
-secret — but Doppler exposes each secret under its own name, so the workflow has
-to read whichever you used. The two overrides are separate because they feed
-different inputs: `DOPPLER_SECRET_NAME` renames the subscription token only, and
-an API key under a custom name needs `DOPPLER_API_KEY_NAME`. The
-stored-Actions-secret path has no equivalent: `secrets:` on a reusable workflow
-is a static declaration, so only the declared names exist to read there.
-
-It lives in the shared workflow rather than in your caller because it has to:
-GitHub drops job outputs that look like secrets, so a fetch in one job cannot
-hand a credential to another, and a job with `uses:` cannot have `steps:` of its
-own. The fetch must sit in the same job as the step consuming it — which is this
-one. Supporting another provider means adding it here the same way, opt-in and
-inert by default.
-
-**Per repository**, add the caller to `.claude/skills.json` and sync:
+Add it to `.claude/skills.json` and sync:
 
 ```json
 {
@@ -285,6 +206,10 @@ whole job is to say *when* to sweep. The loop it calls lives in this repository,
 so a fix there reaches you when the ref moves — not as a pull request in every
 repo you own.
 
+The `review-sweep` skill must be in `skills` as well, since the caller invokes it
+by name; the sync refuses the pairing rather than writing a caller with nothing
+to run.
+
 **`workflowRef` is required**, and there is no default. It names the revision of
 this package that GitHub resolves when the workflow fires — on a runner, long
 after your sync finished. The tool will not guess one: it has no way to check
@@ -292,43 +217,166 @@ that a ref it rendered exists upstream, and a caller pointing at a missing tag
 fails at event time in your repository rather than at sync time where you could
 see it.
 
-Use a commit SHA. The rule from the section above applies with more force here,
-not less: that workflow runs against your repository with `contents: write`, so
-whoever can move a tag can change what runs. A major tag like `v2` works and is
-the conventional choice for workflow refs, but it is movable, and `sync` says so
-on every run that uses one.
+Use a commit SHA. The pinning rule from the section above applies with more
+force here, not less: that workflow runs against your repository with
+`contents: write`, so whoever can move a tag can change what runs. A major tag
+like `v2` works and is the conventional choice for workflow refs, but it is
+movable, and `sync` says so on every run that uses one.
 
-**Configure it with repository variables, never by editing the file.** It is a
-vendored file like any other: an edit makes your next sync refuse until you
-revert it. The caller reads:
+### 3. Give the run a credential
+
+Pick one of the three routes below. The caller reads all three and uses whichever
+is configured, so a repository needs exactly one.
+
+**Where a value can live at all.** Actions secrets exist at repository,
+environment and organization scope only. There is no user-account-level Actions
+secret — the user-level secrets a personal account does have are for Codespaces
+and Dependabot, and Actions can see neither. Of those three scopes the vendored
+caller can reach two: it selects no environment, and a job that calls a reusable
+workflow cannot, so an environment-scoped secret or variable resolves empty.
+Variables are scoped identically, so being non-secret buys convenience, not
+reach. Repositories under an organization can share one copy there; repositories
+under a personal account need their own.
+
+#### Route A — a stored Actions secret
+
+The simplest, and the only one that bills to a Claude subscription rather than
+the API.
+
+- **Under an organization**: set `CLAUDE_CODE_OAUTH_TOKEN` once as an
+  organization secret and grant it to the repositories that need it.
+- **Under a personal account**: one repository secret each. No shortcut, but it
+  scripts, and rotation is the same loop:
+
+  ```sh
+  TOKEN=$(claude setup-token)
+  for repo in owner/one owner/two; do
+    gh secret set CLAUDE_CODE_OAUTH_TOKEN --repo "$repo" --body "$TOKEN"
+  done
+  ```
+
+  If that becomes tiresome across many repositories, moving them under an
+  organization is the fix, and the only one.
+
+`ANTHROPIC_API_KEY` works instead and bills to the API. A token from
+`claude setup-token` is tied to the subscription of whoever ran it.
+
+#### Route B — Anthropic OIDC federation, storing nothing
+
+The action exchanges the runner's GitHub OIDC token for API access, so no
+credential is stored. What replaces it is identifiers:
+
+| Variable | Value |
+| --- | --- |
+| `ANTHROPIC_FEDERATION_RULE_ID` | `fdrl_...`, from the federation rule you create in the Claude Console |
+| `ANTHROPIC_ORGANIZATION_ID` | your Anthropic organization ID |
+| `ANTHROPIC_SERVICE_ACCOUNT_ID` | `svac_...`, required unless the federation rule already targets one service account |
+| `ANTHROPIC_WORKSPACE_ID` | optional, `wrkspc_...`, when the rule targets more than one workspace |
+
+The tradeoff is billing, not security: federation authenticates a Console service
+account, so runs bill to the API rather than to a Claude subscription. The
+federation rule is also where you constrain which repositories may exchange a
+token — worth setting narrowly, since the workflow it authorizes runs with
+`contents: write`.
+
+#### Route C — Doppler, fetched by OIDC
+
+The credential stays in Doppler and is fetched at run time, authenticating by
+OIDC, so neither a Claude token nor a Doppler token is stored in GitHub.
+
+**In Doppler**, before setting anything in GitHub:
+
+1. Put the credential in the project and config you intend to use, named
+   `CLAUDE_CODE_OAUTH_TOKEN` (or `ANTHROPIC_API_KEY`). Any other name works too —
+   see the overrides in the table below.
+2. Use a service account that can read that project and config. The identity in
+   the next step authenticates *as* that service account, so its access is the
+   access the workflow gets. Scope it to this project and config only: it is
+   reachable from a workflow that runs the repository's own commands.
+3. On that service account's page, under **Service Account Identities**, create a
+   new identity and select GitHub as the provider.
+4. Configure the two required claims — **audience** and **subject**. The audience
+   is what the runner asks GitHub to mint the token for; the fetch action requests
+   `https://github.com/<owner>`. The subject is GitHub's `sub` claim for the run,
+   and GitHub uses [several formats depending on
+   context](https://docs.github.com/en/actions/concepts/security/openid-connect),
+   so match the shape your repository actually emits rather than a remembered
+   one. One thing works in your favour here: every trigger this caller uses runs
+   the workflow from the base repository's **default branch**, so the subject is
+   stable rather than varying per pull request. Doppler's own guidance points at
+   the [secrets-fetch-action
+   README](https://github.com/DopplerHQ/secrets-fetch-action) for the exact
+   formats.
+5. Copy the identity's UUID — that is `DOPPLER_IDENTITY_ID`.
+
+**Then in GitHub**, set these repository or organization variables:
+
+| Variable | Value |
+| --- | --- |
+| `DOPPLER_IDENTITY_ID` | service account identity UUID, from step 5. Setting this turns the fetch on |
+| `DOPPLER_PROJECT` | project holding the credential |
+| `DOPPLER_CONFIG` | config within that project |
+| `DOPPLER_SECRET_NAME` | optional, when the **subscription token** is not named `CLAUDE_CODE_OAUTH_TOKEN` |
+| `DOPPLER_API_KEY_NAME` | optional, when the **API key** is not named `ANTHROPIC_API_KEY` |
+
+The fetch step is skipped entirely when `DOPPLER_IDENTITY_ID` is unset, so this
+route costs nothing if you don't use it.
+
+`CLAUDE_CODE_OAUTH_TOKEN` and `ANTHROPIC_API_KEY` are the conventional names —
+what Claude Code itself writes when it stores the credential as a repository
+secret — but Doppler exposes each secret under its own name, so the workflow has
+to read whichever you used. The two overrides are separate because they feed
+different inputs. The stored-secret route has no equivalent: `secrets:` on a
+reusable workflow is a static declaration, so only the declared names exist to
+read there.
+
+Fetched values stay step outputs and are never exported into the environment
+(`inject-env-vars: false`, set explicitly), because the step that follows runs
+the project's own commands and anything in the environment is readable by them.
+
+The fetch lives in the shared workflow rather than in your caller because it has
+to: GitHub drops job outputs that look like secrets, so a fetch in one job cannot
+hand a credential to another, and a job with `uses:` cannot have `steps:` of its
+own. It must sit in the same job as the step consuming it. Supporting another
+provider means adding it there the same way, opt-in and inert by default.
+
+### 4. Optional tuning
+
+**Configure the caller with repository variables, never by editing the file.** It
+is a vendored file like any other: an edit makes your next sync refuse until you
+revert it. Every knob is a variable for that reason.
 
 | Variable | Effect |
 | --- | --- |
-| `AGENT_SKILLS_REVIEW_BOTS` | Comma-separated bot logins whose comments start a sweep. The action ignores bot actors otherwise — which would ignore exactly the review bot you want answered. Unset means human reviewers only. **No spaces around the commas**: entries are matched whole, so `" x[bot]"` will not match `x[bot]`. |
-| `AGENT_SKILLS_REVIEW_MODEL` | Model override. Unset uses the action's default. |
+| `AGENT_SKILLS_REVIEW_BOTS` | Comma-separated bot logins whose comments start a sweep. Bot actors are ignored otherwise — which would ignore exactly the review bot you want answered. Unset means human reviewers only. **No spaces around the commas**: entries are matched whole, so `" x[bot]"` will not match `x[bot]` |
+| `AGENT_SKILLS_REVIEW_MODEL` | Model override. Unset uses the action's default |
+| `AGENT_SKILLS_RUNNER` | Runner label, for self-hosted runners. Default `ubuntu-latest` |
+| `AGENT_SKILLS_MAX_TURNS` | Turn ceiling per run. Default 40. A sweep that hits it stops with partial work; the skill's reaction markers mean the next run resumes rather than redoing |
+| `AGENT_SKILLS_SWEEP_SCHEDULE` | Set to `on` for a daily backstop sweep, covering states no webhook announces — a reviewer who signals with a reaction rather than a comment, or an event that never arrived |
+| `AGENT_SKILLS_ALLOW_FORKS` | Set to `true` to sweep pull requests from forks. Read the section below first |
 
-**Pull requests from forks are skipped** unless you set
-`AGENT_SKILLS_ALLOW_FORKS` to `true` — and turning it on buys less than it
-looks like. The checkout credential is scoped to your repository, so the sweep
-can triage a fork PR, reply on its threads and decline feedback, but it **cannot
-push a fix**: the branch lives in the contributor's fork and this token cannot
-write there. Fixing one needs a credential that can, which this workflow does
-not ask for. A comment on a fork
-PR fires `issue_comment` in your repository, so the sweep would run with your
-credential and write permission while checking out contributor-controlled code
-and running your project's own commands over it. The workflow resolves the head
-repository first and stops before the checkout, leaving a notice rather than a
-failure. An all-PR sweep is skipped entirely while any open PR comes from a
-fork, since it cannot decline them one at a time.
+### Pull requests from forks
 
-Two more optional variables: `AGENT_SKILLS_RUNNER` and `AGENT_SKILLS_MAX_TURNS`
-override the runner label and the per-run turn ceiling, and setting
-`AGENT_SKILLS_SWEEP_SCHEDULE` to `on` enables a daily backstop sweep for the
-states no webhook announces — a reviewer who signals with a reaction rather than
-a comment, or an event that never arrived.
+**Skipped unless you set `AGENT_SKILLS_ALLOW_FORKS` to `true`**, and turning it
+on buys less than it looks like.
 
-If you need different triggers than the caller ships with, take ownership of a
-copy — in this order, because the obvious order does not work:
+A comment on a fork's PR fires `issue_comment` in *your* repository, so the sweep
+would run with your credential and write permission while checking out
+contributor-controlled code and running your project's own commands over it. The
+workflow resolves the head repository first and stops before the checkout,
+leaving a notice rather than a failure. An all-PR sweep is skipped entirely while
+any open PR comes from a fork, since it cannot decline them one at a time.
+
+With the flag on, the sweep can triage a fork PR, reply on its threads and
+decline feedback — but it **cannot push a fix**. The checkout credential is
+scoped to your repository, the branch lives in the contributor's fork, and a side
+PR cannot target a branch that exists only there. Fixing one needs a credential
+that can write to the fork, which this workflow does not ask for.
+
+### Taking ownership of the caller
+
+If you need different triggers than the caller ships with, copy it — in this
+order, because the obvious order does not work:
 
 ```sh
 cp .github/workflows/agent-skills-review-sweep.yml .github/workflows/my-review-sweep.yml
