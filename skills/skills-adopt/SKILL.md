@@ -150,10 +150,27 @@ The profile states facts a skill can act on. Derive every answer; guess none.
 
 10. **Write `.claude/skills.json` before running anything.** It must exist
     first: the CLI refuses to run without it and prints a starter naming the
-    skills that version ships. It carries only a `skills` array — no ref,
+    skills that version ships. It carries a `skills` array — and no ref,
     source, or commit field. The tool hard-fails on those rather than ignoring
     them, because a second pin can silently disagree with the npx spec, and
     bumping the ignored one looks exactly like an upstream with no changes.
+
+    Two optional keys are not that, and the difference is worth holding on to.
+    `workflows` names the workflow callers to write into `.github/workflows/`,
+    and `workflowRef` says which revision **of the package** — the repository
+    the npx spec points at, not the one being configured — those callers resolve
+    when GitHub runs them. That distinction is the whole trap here: everywhere
+    else in this skill "this repository" means the consumer, so a SHA from the
+    consumer's own history looks right, passes the syntax check, and then fails
+    at every event because it names nothing in the called repository. That is not a second answer to a question the
+    npx spec already answers — it is the only answer to a different one, asked
+    on a runner long after any sync finished. Add them only if the repo wants
+    the GitHub-events feedback loop; the package README covers the app install
+    and the credential that have to exist for it to do anything. Follow it rather
+    than summarizing it here: both have scope decisions with consequences — the
+    app should be installed on the repositories that run the workflow rather than
+    account-wide, and the credential's reach depends on who owns the repo — and a
+    second copy of that guidance is one that will be wrong before it is noticed.
 
     `init` writes that file and a blank profile for you, and never overwrites
     either — so if you are reading this skill because a bootstrap sync put it on

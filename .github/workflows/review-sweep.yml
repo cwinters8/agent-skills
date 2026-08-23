@@ -1,0 +1,432 @@
+# The review-sweep loop, held once for every repository that vendors these
+# skills. Consumers do not copy this file: they commit a small caller that names
+# it with `uses:`, so a change here — a new trigger, a cost guard, an action
+# version bump — reaches every repo when its caller's ref moves, instead of
+# needing a pull request in each one.
+#
+# What makes one shared file enough: inside a reusable workflow,
+# actions/checkout defaults to the CALLING repository at the calling ref. So the
+# consumer's vendored .claude/skills/review-sweep/ and its
+# .claude/project-profile.md are on the runner with no per-repo configuration.
+# The skill is shared, the project facts are the caller's profile — the same
+# split the package itself runs on.
+#
+# Nothing here names a repository, a bot, or a branch. Everything a consumer
+# could reasonably have decided differently is an input.
+name: review-sweep
+
+on:
+  workflow_call:
+    inputs:
+      pr:
+        description: >
+          PR number to sweep. Empty sweeps every open PR, which is what the
+          skill does when invoked with no argument.
+        type: string
+        required: false
+        default: ''
+      allowed-bots:
+        description: >
+          Comma-separated bot logins whose activity may start a run. The action
+          rejects bot actors by default, which keeps Claude from triggering
+          itself — but it would also ignore exactly the review bots this loop
+          exists to answer. Name your own reviewer here. This package does not
+          know which one you use, and guessing would put one vendor's product
+          into every consumer's workflow.
+        type: string
+        required: false
+        default: ''
+      model:
+        description: Model for the run. Empty uses the action's default.
+        type: string
+        required: false
+        default: ''
+      max-turns:
+        description: >
+          Turn ceiling per run. A sweep that cannot finish inside it stops with
+          partial work rather than running unbounded on your subscription; the
+          skill's reaction markers mean the next run resumes where it stopped
+          rather than redoing what it already handled.
+        type: number
+        required: false
+        default: 40
+      allow-forks:
+        description: >
+          Sweep pull requests opened from forks. Off by default, and the default
+          is the safe one: this job holds the credential and write permission,
+          and sweeping a fork means checking out contributor-controlled code and
+          running the project's own commands over it in that job.
+
+          It is worse than that phrasing suggests, and worth reading before
+          turning this on. The skill checks out the pull request branch into the
+          working tree it is already running in, which replaces `.claude/` with
+          that branch's copy — so any skill it invokes afterwards loads
+          instructions the fork supplied, inside a job holding the credential and
+          write permission. Pinning the initial checkout does not prevent that.
+          With forks skipped the branch always belongs to someone who already has
+          write access; with this on, it does not.
+
+          Note also what it can and cannot do when on. The checkout credential is
+          scoped to this repository, so the sweep can triage a fork PR, reply on
+          its threads and decline feedback — but it cannot push a fix, because
+          the branch lives in someone else's fork and this token cannot write
+          there. A side PR is no help either: it would have to target a branch
+          that exists only in the fork. Fixing a fork PR needs a credential that
+          can write to it, which this workflow deliberately does not ask for.
+        type: boolean
+        required: false
+        default: false
+      runs-on:
+        description: Runner label, for consumers on self-hosted runners.
+        type: string
+        required: false
+        default: ubuntu-latest
+      # Workload identity federation, for a consumer who would rather store no
+      # credential at all. The runner exchanges its GitHub OIDC token for API
+      # access, so nothing here is secret and all three can come from repository
+      # or organization VARIABLES — which, unlike Actions secrets, an
+      # organization can share without a per-repository copy.
+      #
+      # One of three ways to authenticate, alongside a stored Actions secret and
+      # the Doppler fetch below. Each is opt-in and inert when its inputs are
+      # empty, which is what lets them coexist in one shared file.
+      anthropic-federation-rule-id:
+        description: Federation rule ID (fdrl_...). Set this to authenticate without a stored token.
+        type: string
+        required: false
+        default: ''
+      anthropic-organization-id:
+        description: Anthropic organization ID, required alongside the federation rule.
+        type: string
+        required: false
+        default: ''
+      anthropic-service-account-id:
+        description: Service account ID (svac_...). Optional when the rule already targets one.
+        type: string
+        required: false
+        default: ''
+      anthropic-workspace-id:
+        description: Workspace ID (wrkspc_...). Optional when the rule targets a single workspace.
+        type: string
+        required: false
+        default: ''
+      # Fetch the credential from Doppler instead of storing it as an Actions
+      # secret, authenticating by OIDC so no Doppler token is stored either.
+      # Inert unless doppler-identity-id is set, so a consumer who does not use
+      # Doppler never runs the step and needs none of these.
+      #
+      # The fetch exposes each secret under its own name, so the Doppler-side
+      # name is what this workflow has to read. It defaults to the conventional
+      # names but does not impose them: a project already storing the credential
+      # as something else says so rather than renaming it.
+      doppler-identity-id:
+        description: Service account identity UUID. Setting this turns the Doppler fetch on.
+        type: string
+        required: false
+        default: ''
+      doppler-project:
+        description: Doppler project holding the credential. Required with doppler-identity-id.
+        type: string
+        required: false
+        default: ''
+      doppler-config:
+        description: Doppler config within the project. Required with doppler-identity-id.
+        type: string
+        required: false
+        default: ''
+      doppler-oauth-token-name:
+        description: >
+          Name of the Doppler secret holding a subscription token. Defaults to
+          the conventional name; set it when your project uses another.
+        type: string
+        required: false
+        default: CLAUDE_CODE_OAUTH_TOKEN
+      doppler-api-key-name:
+        description: Name of the Doppler secret holding an API key.
+        type: string
+        required: false
+        default: ANTHROPIC_API_KEY
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN:
+        description: Subscription token from `claude setup-token`.
+        required: false
+      ANTHROPIC_API_KEY:
+        description: API key, as an alternative to the subscription token.
+        required: false
+
+# One sweep at a time per PR. Review comments arrive in bursts — a reviewer
+# leaving six inline comments emits six events — and without this they would
+# become six concurrent runs racing to push to the same branch.
+#
+jobs:
+  # Resolve WHICH pull requests this run may sweep, before anything privileged
+  # happens, and hand the sweep a list of numbers rather than a yes/no.
+  #
+  # The yes/no version had a race that pagination could not close: it checked the
+  # open PRs, said "no forks", and the skill then enumerated open PRs again a
+  # minute later — so a fork PR opened in between was swept, checked out and run
+  # in the credentialed job. The scheduled sweep made that worse by publishing
+  # the exact minute to aim at. Naming the PRs closes it, because a pull
+  # request's head repository is fixed when it is created: a number verified here
+  # cannot become a fork later, and one created after this job cannot enter the
+  # matrix.
+  #
+  # Uses only the job's own GITHUB_TOKEN, and github-script rather than a shell
+  # so it carries no host dependency (`jq` is absent from a stock self-hosted
+  # runner, and `runs-on` exists precisely so consumers can use one). PR numbers
+  # are not secrets, so passing them between jobs as outputs is fine — unlike a
+  # credential, which GitHub would drop.
+  plan:
+    runs-on: ${{ inputs.runs-on }}
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      prs: ${{ steps.plan.outputs.prs }}
+    steps:
+      - id: plan
+        uses: actions/github-script@d746ffe35508b1917358783b479e04febd2b8f71 # v9.0.0
+        env:
+          PR: ${{ inputs.pr }}
+          ALLOW: ${{ inputs.allow-forks }}
+        with:
+          script: |
+            const full = `${context.repo.owner}/${context.repo.repo}`
+            const allow = process.env.ALLOW === 'true'
+            // A deleted fork leaves head.repo null. That is not this repository,
+            // so it must not compare equal to it.
+            const sameRepo = (pr) => pr.head.repo?.full_name === full
+
+            // Where the candidates come from depends on how this run started.
+            // Two events name their PRs in the payload or by commit, and the
+            // caller cannot extract those itself — check_suite may cover more
+            // than one PR, and a commit status names no PR at all.
+            let candidates = []
+            let alreadyFull = false
+            if (context.eventName === 'check_suite') {
+              candidates = (context.payload.check_suite.pull_requests || []).map((p) => p.number)
+            } else if (context.eventName === 'workflow_run') {
+              candidates = (context.payload.workflow_run.pull_requests || []).map((p) => p.number)
+            } else if (context.eventName === 'status') {
+              const { data } = await github.rest.repos.listPullRequestsAssociatedWithCommit({
+                ...context.repo, commit_sha: context.payload.sha,
+              })
+              candidates = data.map((p) => p.number)
+            } else if (process.env.PR) {
+              candidates = [Number(process.env.PR)]
+            } else {
+              // paginate, not a single page: a fork PR past the first hundred
+              // would otherwise pass unseen into the privileged job.
+              candidates = await github.paginate(github.rest.pulls.list, {
+                ...context.repo, state: 'open', per_page: 100,
+              })
+              alreadyFull = true
+            }
+
+            const resolved = alreadyFull ? candidates : (await Promise.all(
+              candidates.map((n) =>
+                github.rest.pulls
+                  .get({ ...context.repo, pull_number: n })
+                  .then((r) => r.data)
+                  .catch(() => {
+                    core.notice(`PR #${n} could not be read — not swept.`)
+                    return null
+                  }),
+              ),
+            )).filter(Boolean)
+
+            const open = resolved.filter((pr) => pr.state === 'open')
+            const eligible = open.filter((pr) => allow || sameRepo(pr))
+            const forks = open.length - eligible.length
+            if (forks) {
+              core.notice(`${forks} pull request(s) from forks not swept. Set allow-forks to include them.`)
+            }
+
+            // Bound the fan-out, and say so rather than truncating in silence: a
+            // run that quietly covered less than it was asked to reads exactly
+            // like one that covered everything.
+            //
+            // Rotate the window rather than always taking the same end of the
+            // list. Slicing the highest-numbered 50 every time meant older pull
+            // requests were never swept at all while newer ones stayed open — so
+            // the backstop could not recover a missed event for exactly the PRs
+            // most likely to have one.
+            //
+            // Rotate on the DAY, not the run number. The run number counts every
+            // invocation of this workflow, targeted ones included, so a repo with
+            // any comment traffic advances it unpredictably between backstop
+            // runs — and at 100 eligible PRs with one targeted run a day, the
+            // daily sweep lands on `(n * 50) % 100 === 0` every time and never
+            // reaches the other half. The day advances once per day no matter
+            // how many runs happen, which is the cadence the backstop actually
+            // has.
+            const CAP = 50
+            const numbers = eligible.map((pr) => pr.number).sort((a, b) => a - b)
+            let window = numbers
+            if (numbers.length > CAP) {
+              const day = Math.floor(Date.now() / 86400000)
+              const start = (day * CAP) % numbers.length
+              window = [...numbers.slice(start), ...numbers.slice(0, start)].slice(0, CAP)
+              core.notice(
+                `${numbers.length} pull requests eligible, more than the ${CAP} one run sweeps. ` +
+                  `This run takes #${window[0]} onward. The window advances by DAY, not by run: ` +
+                  `re-running today sweeps this same set, and tomorrow's run continues from where ` +
+                  `this one stopped. Sweep by number if one cannot wait for its turn.`,
+              )
+            }
+            core.setOutput('prs', JSON.stringify(window))
+
+  # One job per verified pull request. The matrix is the plan's output, so this
+  # job never decides for itself what to sweep and never sees a PR the plan did
+  # not clear.
+  sweep:
+    needs: plan
+    if: needs.plan.outputs.prs != '[]'
+    strategy:
+      fail-fast: false
+      matrix:
+        pr: ${{ fromJSON(needs.plan.outputs.prs) }}
+    runs-on: ${{ inputs.runs-on }}
+    # Keyed on the RESOLVED pull request, which is the only key that works for
+    # every trigger. At workflow level it could only use what the event carried:
+    # review and comment runs had a PR number, CI completions had a commit, and
+    # the two never collided — so a check suite finishing could sweep the same
+    # pull request a feedback run was already sweeping, both triaging comments
+    # and pushing to one branch at once. That is the race the group exists to
+    # stop, and it survived two attempts at fixing it upstream of `plan`.
+    #
+    # `cancel-in-progress: false` protects the running sweep, the one that could
+    # otherwise be killed mid-push. GitHub keeps at most one pending run per
+    # group and drops an older pending one, which is fine here: a sweep is
+    # idempotent — the skill's reaction markers record what it already handled —
+    # so the survivor sees everything the dropped one would have.
+    concurrency:
+      group: review-sweep-${{ github.repository }}-${{ matrix.pr }}
+      cancel-in-progress: false
+    permissions:
+      # write: the skill pushes review fixes to the PR branch.
+      contents: write
+      # write: it replies on threads, reacts, and resolves them.
+      pull-requests: write
+      # PR conversation comments are issue comments to the API.
+      issues: write
+      # Required for the action's default GitHub App authentication.
+      id-token: write
+      # Reading CI takes all three: actions:read covers workflow runs, and the
+      # results the sweep actually judges readiness on arrive through the Checks
+      # and Commit Statuses APIs, which it does not cover. An explicit
+      # permissions block disables everything it does not name, so a missing one
+      # here reads as "no CI reported" rather than as an error.
+      actions: read
+      checks: read
+      statuses: read
+    steps:
+      # Every third-party reference in this file is pinned to a full commit SHA,
+      # with its version in the trailing comment. This file is published for
+      # other repositories to call and runs on the caller's permissions and
+      # secrets, so its callers cannot be enumerated and a moving major tag is a
+      # mutable ref pointing into someone else's credentials. Bumping one still
+      # means looking the current major up again — the SHA is which bytes, not
+      # which version.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Pin the ref, rather than taking whatever the event supplies. On
+          # `pull_request_review` and `pull_request_review_comment` that default
+          # is `refs/pull/<n>/merge` — the pull request's own content — and what
+          # this job then loads from disk is not ordinary code but the agent's
+          # INSTRUCTIONS: the vendored `review-sweep` skill, the project profile,
+          # and the repository's rules file. Running those from an unmerged
+          # branch hands whoever opened it the credential, write permission and
+          # an unrestricted shell, without any of it passing review. The fork
+          # guard does not cover this: a same-repository pull request from
+          # someone who clears the actor gate is exactly the case it lets
+          # through.
+          #
+          # The default branch is the trusted copy, and it is what the skill
+          # expects anyway — it checks out pull request branches itself when it
+          # needs to push a fix.
+          ref: ${{ github.event.repository.default_branch || github.ref_name }}
+          # Full history: the skill pushes fixes to PR branches, and a depth-1
+          # checkout cannot check one out.
+          fetch-depth: 0
+
+          # Residual, and it is larger than "the project's commands run over PR
+          # code". The skill checks out the pull request branch in this same
+          # worktree, which replaces `.claude/` with that branch's copy — so a
+          # skill invoked AFTER that point resolves to instructions the pull
+          # request supplied, even though this checkout was trusted. Pinning the
+          # ref fixes the first load, not every later one.
+          #
+          # With the default settings that is defence in depth rather than a
+          # hole: forks are skipped, so the branch belongs to someone who already
+          # has write access and could change these files on the default branch
+          # anyway. With `allow-forks` on it is a real escalation, which is why
+          # that input's description says so and the README recommends against
+          # it.
+          #
+          # Closing it properly means the skill checking out pull request
+          # branches into a separate worktree, leaving the control files it
+          # loaded in place. That is a change to `review-sweep` itself, affecting
+          # how it pushes and how it runs project checks, and it is not something
+          # this workflow can impose from outside.
+
+      # Skipped entirely when the identity is unset. A skipped step still
+      # resolves its outputs as empty strings, which is what lets the fallbacks
+      # below read the same whether or not this ran.
+      #
+      # `id-token: write` above is what makes this keyless: the action trades
+      # GitHub's OIDC token for a short-lived Doppler one. Values come back
+      # masked, and as STEP outputs — which stay on the runner. That is the
+      # distinction that makes this work at all: job outputs crossing between
+      # jobs are dropped by GitHub when they look like secrets, which is why the
+      # fetch has to live in the same job as the step that consumes it, and so
+      # in this workflow rather than in the caller.
+      #
+      - uses: DopplerHQ/secrets-fetch-action@451892f16195f9ac360e1a5bcbf0b5fd0e957534 # v2.0.0
+        id: doppler
+        if: inputs.doppler-identity-id != ''
+        with:
+          auth-method: oidc
+          # Explicit, though it is already the default: fetched secrets stay step
+          # outputs and are never exported into the environment. The Claude step
+          # below runs the project's own commands, so anything in the environment
+          # is readable by them — and a Doppler config holding more than this one
+          # credential would otherwise put all of it there. Naming it means a
+          # change to that default upstream cannot quietly widen this job.
+          inject-env-vars: false
+          doppler-identity-id: ${{ inputs.doppler-identity-id }}
+          doppler-project: ${{ inputs.doppler-project }}
+          doppler-config: ${{ inputs.doppler-config }}
+
+      - uses: anthropics/claude-code-action@64bdc88bfe0b4c42a310e93abde02db8fb3b8956 # v1.0.199
+        with:
+          # Doppler first when it ran, the Actions secret otherwise. Three ways
+          # in, and a repo needs exactly one: a fetched secret, a stored secret,
+          # or federation below.
+          # Index rather than property access, so the Doppler-side name is the
+          # caller's to choose. The Actions-secret fallbacks cannot be made
+          # configurable the same way: `secrets:` on a reusable workflow is a
+          # static declaration, so only a name declared below exists to read.
+          # A repo whose stored secret is named otherwise maps it in its own
+          # caller, or keeps it in Doppler where the name is free.
+          anthropic_api_key: ${{ steps.doppler.outputs[inputs.doppler-api-key-name] || secrets.ANTHROPIC_API_KEY }}
+          claude_code_oauth_token: ${{ steps.doppler.outputs[inputs.doppler-oauth-token-name] || secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          anthropic_federation_rule_id: ${{ inputs.anthropic-federation-rule-id }}
+          anthropic_organization_id: ${{ inputs.anthropic-organization-id }}
+          anthropic_service_account_id: ${{ inputs.anthropic-service-account-id }}
+          anthropic_workspace_id: ${{ inputs.anthropic-workspace-id }}
+          allowed_bots: ${{ inputs.allowed-bots }}
+          # The vendored skill, invoked by name. Everything project-specific it
+          # needs comes from the caller's .claude/project-profile.md, which the
+          # checkout above put on the runner.
+          prompt: "/review-sweep ${{ matrix.pr }}"
+          # --allowedTools has to name the GitHub MCP server explicitly: the
+          # action starts its MCP servers only for tools named here, and
+          # review-sweep does every GitHub read and write through them. The list
+          # lives in the workflow rather than in the skill's frontmatter,
+          # because it is a fact about running under Actions and the skill has
+          # to stay usable in a session that has no MCP server at all.
+          claude_args: |
+            --allowedTools "Bash,Edit,Write,Read,Glob,Grep,mcp__github,mcp__github_inline_comment__create_inline_comment"
+            --max-turns ${{ inputs.max-turns }}
+            ${{ inputs.model && format('--model {0}', inputs.model) || '' }}

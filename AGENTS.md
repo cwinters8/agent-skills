@@ -75,9 +75,11 @@ any default posture that says to arm one after opening a PR or subscribing to
 its activity. Open the PR, call `subscribe_pr_activity`, and end the turn.
 
 The subscription is the mechanism — review comments arrive as webhook events in
-the session that opened the PR. There is no CI in this repo (no
-`.github/workflows`, no `scripts` in `package.json`), so the event class an
-hourly check-in mostly exists to poll for does not occur here at all. On a
+the session that opened the PR. Nothing runs CI on this repo's own commits:
+`.github/workflows/` holds one reusable workflow that is `workflow_call` only,
+so it fires on consumers' events and never on ours, and `package.json` has no
+`scripts`. The event class an hourly check-in mostly exists to poll for does not
+occur here at all. On a
 single-maintainer repo a dropped webhook costs a delay, not a missed failure,
 and a maintainer who wants a PR looked at sooner can say so directly.
 
@@ -104,9 +106,77 @@ package.json             `bin` + `files`; `files` decides what a consumer can ac
 profile-schema.json      canonical section list; the validator, template and docs all derive from it
 docs/project-profile.md  the schema reference consumers read
 templates/               the annotated blank consumers copy
+templates/workflows/     workflow callers `sync` writes into a consumer's .github/workflows/
+.github/workflows/       reusable workflows consumers CALL; never runs on this repo's events
 examples/                complete real profiles
 skills/<name>/SKILL.md   one skill; supporting files live alongside it
 ```
+
+## The workflow callers
+
+A skill is copied into the consumer. A workflow is not: `.github/workflows/`
+here holds the real thing, `workflow_call` only, and `sync` writes each consumer
+a short caller that names it with `uses:`. So a change to the loop — a trigger,
+a cost guard, an action bump — reaches every consumer by moving one ref, instead
+of a pull request in each repository. Inside a reusable workflow
+`actions/checkout` checks out the *caller*, which is why one shared file can
+find each consumer's own vendored skill and profile.
+
+Three things follow, and all three are easy to get wrong:
+
+- **The caller is a vendored file the consumer must never edit.** Everything a
+  consumer would want to change is a repository *variable* the caller reads, not
+  a line in it. A file a consumer is tempted to edit is one that makes their
+  next sync refuse, so anything configurable that is added must be added as a
+  variable or an input, never as a value to hand-edit.
+- **The caller's ref is the consumer's, and the tool renders no default.** It
+  was tempting to default it to `v<major>`, and that was wrong for a reason
+  worth keeping: this package moves a tag at release time, the consumer's sync
+  runs somewhere else entirely, and nothing connects the two — so a rendered ref
+  is a guess that fails at *event* time, in their repository, with no diff to
+  read. `sync` refuses instead, which costs one line of config and removes the
+  class.
+
+  If a `v<major>` tag is published anyway, it carries the usual cost of a
+  movable ref: moving it to a commit that broke the workflow breaks every
+  consumer pointing at it at once, again with no diff in any of their repos. A
+  SHA is insulated from that, which is why the README asks for one and `sync`
+  flags every ref that is not one.
+- **The one rule does not extend to these files, and it is worth being exact
+  about why.** The rule protects *skills*: portable content copied into a
+  consumer's repository, where a hardcoded path or command is a fact about one
+  project that every other project then carries. That is what the grep guards,
+  and it scans `SKILL.md` for exactly that reason. It is unchanged.
+
+  A workflow is a different kind of artifact: infrastructure, not content. The
+  reusable one is maintained here and only pointed at, so naming a tool it
+  integrates with is plainly a maintenance decision — this project's own choice
+  of secret store belongs in this project's own workflow. An integration that is
+  **opt-in and inert when its input is empty** costs a consumer who doesn't use
+  it nothing but lines they never read. Add them when they earn their keep.
+
+  The caller in `templates/workflows/` is the case that needs care, because it
+  *is* vendored into every consumer, and it does name a secret store. What
+  travels is a set of **variable keys, all optional and unset by default**. A key
+  offers a slot; it asserts nothing about the repository it lands in, and a
+  consumer who uses a different store leaves it empty and is unaffected. That is
+  categorically unlike a skill hardcoding a path or a command, which states
+  something false about every project that isn't the one it came from.
+
+  Note that the grep does not cover `templates/`, and should not start: it would
+  fire on exactly the lines above, which are deliberate. That makes this a
+  judgment for review rather than one the check enforces — so when adding a
+  provider here, confirm the keys are optional and default-empty, since nothing
+  mechanical will.
+
+  What still may not be hardcoded is anything that *differs per consumer and
+  cannot be defaulted*: a repository, a branch, a runner label, a review bot's
+  login. `allowed-bots` is an input with no default because there is no login
+  that is right for everyone — not because naming a product is forbidden.
+
+  The caller's `uses:` line names this repository, under the same standing
+  exception that lets `skills-adopt` name its npx invocations: the package
+  identifying itself, which a pointer to it cannot avoid.
 
 **The package ships the skills, so the invoked version is the vendored version.**
 There is no ref in a consumer's `.claude/skills.json` — the npx spec is the only

@@ -1,0 +1,288 @@
+# Vendored by @cwinters8/agent-skills — edit upstream, then re-run the sync.
+#
+# This file only says WHEN to sweep. The loop itself lives in the package, at the
+# ref below.
+#
+# That ref is yours and the sync never moves it. Upgrading the package does not
+# advance it, deliberately — it is the one pin this tool will not change under
+# you — so a fix to the shared workflow, security fixes included, reaches this
+# repository only when you edit "workflowRef" in .claude/skills.json yourself and
+# re-run the sync. Nothing warns you that you are behind.
+#
+# Configure it with repository or organization variables, not by editing here: a
+# hand-edited vendored file makes every later sync refuse until you revert it.
+#
+#   AGENT_SKILLS_REVIEW_BOTS   comma-separated bot logins whose comments should
+#                              start a sweep, e.g. your code-review bot. Unset
+#                              means human reviewers only. NO SPACES around the
+#                              commas: entries are matched whole, by wrapping
+#                              both sides in commas, so " x[bot]" is a different
+#                              string than "x[bot]" and will not match.
+#   AGENT_SKILLS_REVIEW_MODEL  optional model override.
+#   AGENT_SKILLS_RUNNER        optional runner label, for self-hosted runners.
+#   AGENT_SKILLS_MAX_TURNS     optional turn ceiling per run (default 40).
+#   AGENT_SKILLS_SWEEP_SCHEDULE  set to "on" to enable the daily backstop sweep.
+#   AGENT_SKILLS_ALLOW_FORKS   set to "true" to sweep pull requests from forks.
+#                              Read what that means in the README first: the
+#                              sweep runs with this repo's credential and write
+#                              permission over contributor-controlled code, and
+#                              it can triage and reply but NOT push fixes — the
+#                              token cannot write to someone else's fork.
+#
+# To store no credential at all, set these instead of the secret and the runner
+# exchanges its GitHub OIDC token for API access. None of them is secret — but
+# variables are scoped exactly like secrets, so a repo under an organization can
+# share them there and a repo under a personal account still sets its own:
+#
+#   ANTHROPIC_FEDERATION_RULE_ID   fdrl_...
+#   ANTHROPIC_ORGANIZATION_ID      your Anthropic organization ID
+#   ANTHROPIC_SERVICE_ACCOUNT_ID   svac_..., required unless the federation rule
+#                                  already targets one service account
+#   ANTHROPIC_WORKSPACE_ID         optional, wrkspc_...
+#
+# Or keep the credential in Doppler and let the run fetch it by OIDC, which
+# stores nothing in GitHub either:
+#
+#   DOPPLER_IDENTITY_ID            service account identity UUID
+#   DOPPLER_PROJECT                project holding the credential
+#   DOPPLER_CONFIG                 config within that project
+#   DOPPLER_SECRET_NAME            optional; the Doppler secret holding a
+#                                  subscription token, if not named
+#                                  CLAUDE_CODE_OAUTH_TOKEN
+#   DOPPLER_API_KEY_NAME           optional; same, for an API key stored under
+#                                  a name other than ANTHROPIC_API_KEY
+#
+# The run needs a credential, by exactly one of three routes. A stored Actions
+# secret named CLAUDE_CODE_OAUTH_TOKEN (`claude setup-token`), at REPOSITORY or
+# ORGANIZATION scope — an organization can share one, a personal account needs
+# one per repo, and there is no user-account-level Actions secret. Environment
+# scope is not usable here: this job selects no environment, and a job that
+# calls a reusable workflow cannot, so an environment-scoped secret or variable
+# resolves empty. Keep your own caller if you need one. Or use either of the two
+# routes below, which store nothing.
+#
+# If you need different triggers than these, take ownership of a copy — in this
+# order, because the obvious order does not work. Copy this file to a name the
+# sync does not own, THEN drop "review-sweep" from the "workflows" array in
+# .claude/skills.json, THEN sync:
+#
+#   cp .github/workflows/agent-skills-review-sweep.yml \
+#      .github/workflows/my-review-sweep.yml
+#
+# The sync removes the file it vendored and never touches yours. Editing this
+# file first instead makes every later sync refuse it as locally edited, and
+# dropping the name first deletes the copy you were about to base yours on.
+name: review sweep
+
+on:
+  # The opening of a pull request is the first thing that needs sweeping, and
+  # until now nothing here fired for it. That is the exact gap this caller exists
+  # to close: a PR opened from a terminal session has no listener, and if no
+  # reviewer comments on their own, none of the other triggers ever happens — so
+  # the sweep that would request the first reviewer verdict never ran, and the
+  # draft sat untouched.
+  #
+  # `ready_for_review` as well as `opened`, since a draft opened and later marked
+  # ready has had its `opened` event already. Fork PRs reach the called workflow
+  # and are filtered there, as with every other trigger.
+  pull_request:
+    # `synchronize` too — a push to the branch. Every reviewer verdict the skill
+    # accepts is bound to a head SHA, so a new commit invalidates the last one;
+    # without this, a repository with no CI completion event (or one hitting the
+    # Actions gap below) has nothing that asks for a verdict on the new head.
+    types: [opened, reopened, ready_for_review, synchronize]
+  pull_request_review_comment:
+    # `edited` too, for the same reason as review summaries below: feedback added
+    # by editing an existing comment emits only `edited`, and `created` already
+    # fired for whatever the comment said before.
+    types: [created, edited]
+  pull_request_review:
+    # `edited` as well as `submitted`: `review-sweep` treats a review's summary
+    # body as first-class feedback, so a reviewer who submits an empty or
+    # informational summary and then edits substance into it has left feedback
+    # that `submitted` already fired for and carried nothing.
+    # `dismissed` too: dismissing a stale CHANGES_REQUESTED review is the only
+    # state change that can make a PR satisfy readiness, and it emits no other
+    # event. Without it the PR stays blocked on a review that no longer applies.
+    types: [submitted, edited, dismissed]
+  issue_comment:
+    types: [created, edited]
+  # CI finishing is a readiness input with no other event behind it. A sweep that
+  # pushes a fix sees the new head's checks still pending, and readiness needs
+  # them green — so without these the PR waits for a reviewer to say something
+  # else, and if nobody does, it stays unmarked with the work already done.
+  #
+  # Both, because CI reports one of two ways and a repository may use either:
+  # third-party CI apps create check suites, while the older Commit Status API
+  # emits `status` and no suite at all, which is why `statuses: read` is granted
+  # below.
+  #
+  # KNOWN GAP, and it is the common case rather than a corner: GitHub documents
+  # that `check_suite` "does not trigger workflows if the check suite was created
+  # by GitHub Actions", to prevent recursion. So a repository whose CI is Actions
+  # — most of them — gets no event here when its checks finish, and a sweep that
+  # pushed a fix will not be woken by that fix going green.
+  #
+  # There is no fix available to this file. The event that does fire is
+  # `workflow_run`, and it requires naming the workflows to watch, which differ
+  # per repository and cannot come from a variable because triggers do not
+  # evaluate expressions. Two ways out, both yours: set
+  # AGENT_SKILLS_SWEEP_SCHEDULE to "on" so the daily backstop closes it, or take
+  # ownership of this file (see the end of this comment) and add a `workflow_run`
+  # trigger naming your own CI workflows. The job's condition below already
+  # accepts `workflow_run`, so adding the trigger is the only edit needed — a
+  # `workflow_run` payload carries no author_association and would otherwise fall
+  # through the human gate and never start.
+  #
+  # Neither event names a PR the caller can extract — a suite may cover several,
+  # and a status names only a commit — so the called workflow resolves them.
+  check_suite:
+    types: [completed]
+  status:
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: PR number to sweep. Empty sweeps every open PR.
+        type: string
+        required: false
+  # A backstop for the states no event announces: a reviewer who signals with a
+  # reaction rather than a comment, or a webhook that never arrived. Inert
+  # unless AGENT_SKILLS_SWEEP_SCHEDULE is set to "on" — the cron fires and the
+  # job's condition declines it, which costs nothing. This is the project
+  # configuring a routine once, the supported way to get recurrence, rather than
+  # a session arming a poll for itself.
+  schedule:
+    - cron: "17 8 * * *"
+
+jobs:
+  sweep:
+    # A called workflow cannot hold more than its caller grants, and none of
+    # these are in the default token: without this block the nested job is
+    # refused before any step runs. They match the called workflow exactly —
+    # write to push review fixes, to reply and resolve threads, and to comment;
+    # id-token for the keyless auth routes; the three read scopes to see CI on
+    # the PRs being swept — actions:read covers workflow runs, and the results
+    # readiness is actually judged on come through the Checks and Commit
+    # Statuses APIs, which it does not cover. A called workflow cannot elevate
+    # past its caller, so anything missing here is missing there too.
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+      actions: read
+      checks: read
+      statuses: read
+    # Four things to keep out, and one to deliberately let back in.
+    #
+    # Out: comments on plain issues, which are the same event as PR conversation
+    # comments and carry no PR to sweep. And the agent's own replies, since the
+    # skill answers threads as it triages them and each reply is another comment
+    # event.
+    #
+    # Back in: any `### Code review` report. Where a project has no separate bot
+    # account, `code-review` posts through this same identity, and `review-sweep`
+    # needs both of its shapes — "the distinction is authorship intent, not
+    # identity".
+    #
+    # Both shapes, not just one, and the difference between them belongs to the
+    # skill rather than to this condition. A report raising issues is feedback it
+    # must triage. A clean report is not feedback — but it is one of the three
+    # approving verdicts its readiness step accepts, so a sweep has to SEE it to
+    # conclude the PR is ready and post the signal.
+    #
+    # Filtering the clean one out here confused two layers: the skill says to
+    # "skip" it, meaning do not triage it as a comment, not do not run. Applying
+    # a triage rule at the trigger meant the verdict could arrive and nothing
+    # would ever look at it, leaving a ready PR unmarked with the daily backstop
+    # off by default.
+    #
+    # The self-loop stays closed either way: the sweep's own output — `Fixed in
+    # <sha>`, `Declined:`, the ready-to-merge signal, the review request — never
+    # carries that heading. And any other bot this repo has not named in
+    # AGENT_SKILLS_REVIEW_BOTS — a dependency bot, a linter — because the action
+    # rejects an unlisted bot actor by failing, so every one of their comments
+    # would leave a red X here. Gate on the allowlist rather than on particular
+    # logins: which bots review is the consumer's fact, and a hardcoded name is
+    # wrong in both directions at once.
+    #
+    # And any HUMAN without write access. On a public repository any user at all
+    # can comment on a PR, and the action would start, check their access, and
+    # fail — burning a runner and the repo's quota per comment, and pointing a
+    # credentialed agent at whatever they wrote.
+    #
+    # The two tests are separate on purpose, and conflating them broke this
+    # outright once: a GitHub App reviewer comments with author_association NONE,
+    # so an allowlisted bot gated on association is a bot that never starts a
+    # sweep — the primary case this workflow exists for, silently disabled. A bot
+    # is judged by the allowlist alone; a human by association alone.
+    #
+    # Association is a prefilter, not an authorization check. MEMBER and
+    # COLLABORATOR can both hold read-only roles, so a few users pass here who
+    # cannot actually write. The action verifies access authoritatively and
+    # rejects them; this condition exists to keep the common case — a passing
+    # stranger on a public repo — from starting a job at all. Making it exact
+    # would take an API call before the gate, which is a runner either way.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'schedule' && vars.AGENT_SKILLS_SWEEP_SCHEDULE == 'on') ||
+      (github.event_name == 'check_suite' && github.event.check_suite.pull_requests[0] != null) ||
+      (github.event_name == 'status' && github.event.state != 'pending') ||
+      github.event_name == 'workflow_run' ||
+      ((github.event_name != 'issue_comment' || github.event.issue.pull_request) &&
+       ((github.actor == 'claude[bot]' &&
+         contains(format('{0}{1}', github.event.comment.body, github.event.review.body),
+                  '### Code review')) ||
+        (github.actor != 'claude[bot]' &&
+         ((endsWith(github.actor, '[bot]') &&
+           contains(format(',{0},', vars.AGENT_SKILLS_REVIEW_BOTS), format(',{0},', github.actor))) ||
+          (!endsWith(github.actor, '[bot]') &&
+           contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'),
+                    github.event.comment.author_association
+                    || github.event.review.author_association
+                    || github.event.pull_request.author_association))))))
+    uses: cwinters8/agent-skills/.github/workflows/review-sweep.yml@__AGENT_SKILLS_REF__
+    with:
+      # The event names the PR it happened on, so sweep that one rather than
+      # every open PR. Review events carry pull_request, PR conversation
+      # comments carry issue; a manual dispatch passes its own. Empty means the
+      # called workflow works it out — from the check suite's own PR list, from
+      # the commit a status names, or by enumerating open pull requests.
+      pr: >-
+        ${{ inputs.pr
+            || github.event.pull_request.number
+            || github.event.issue.number
+            || '' }}
+      # CI events are emitted by whichever app runs the checks, so the actor is
+      # a bot the consumer never listed — and the action rejects an unlisted bot
+      # by failing the run, which would have made the CI-completion sweep fail by
+      # default for everyone using a third-party CI app. Admit that actor for
+      # these runs only. It is narrow: the prompt is fixed, and the event carries
+      # no text this run acts on, unlike a comment.
+      allowed-bots: >-
+        ${{ (github.event_name == 'check_suite' || github.event_name == 'status'
+             || github.event_name == 'workflow_run')
+            && format('{0},{1}', vars.AGENT_SKILLS_REVIEW_BOTS, github.actor)
+            || vars.AGENT_SKILLS_REVIEW_BOTS }}
+      model: ${{ vars.AGENT_SKILLS_REVIEW_MODEL }}
+      runs-on: ${{ vars.AGENT_SKILLS_RUNNER || 'ubuntu-latest' }}
+      max-turns: ${{ vars.AGENT_SKILLS_MAX_TURNS && fromJSON(vars.AGENT_SKILLS_MAX_TURNS) || 40 }}
+      anthropic-federation-rule-id: ${{ vars.ANTHROPIC_FEDERATION_RULE_ID }}
+      anthropic-organization-id: ${{ vars.ANTHROPIC_ORGANIZATION_ID }}
+      anthropic-workspace-id: ${{ vars.ANTHROPIC_WORKSPACE_ID }}
+      anthropic-service-account-id: ${{ vars.ANTHROPIC_SERVICE_ACCOUNT_ID }}
+      doppler-identity-id: ${{ vars.DOPPLER_IDENTITY_ID }}
+      doppler-project: ${{ vars.DOPPLER_PROJECT }}
+      doppler-config: ${{ vars.DOPPLER_CONFIG }}
+      doppler-oauth-token-name: ${{ vars.DOPPLER_SECRET_NAME || 'CLAUDE_CODE_OAUTH_TOKEN' }}
+      doppler-api-key-name: ${{ vars.DOPPLER_API_KEY_NAME || 'ANTHROPIC_API_KEY' }}
+      allow-forks: ${{ vars.AGENT_SKILLS_ALLOW_FORKS == 'true' }}
+    # Named rather than `inherit`. Inheriting is documented as working for a
+    # called workflow in the same organization or enterprise, and this one is in
+    # neither for most consumers — a personal account is not an organization at
+    # all — so `inherit` would silently pass nothing and the stored-secret route
+    # would fail with an empty credential. A secret that does not exist resolves
+    # to an empty string, which is what the other two routes already expect.
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}

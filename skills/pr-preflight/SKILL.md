@@ -150,8 +150,19 @@ this repo; a harness without it should substitute reasoning through the flow.
   should say what changed, why, how it was verified, and any known gaps or
   skipped review findings.
 - Call `subscribe_pr_activity` for the new PR so review comments and CI
-  failures flow back into the session, where the tooling supports it. **Then end
-  the turn.** Do not schedule a wake-up, a self check-in, or a recurring poll
+  failures flow back into the session, where the tooling supports it.
+
+  Where it isn't supported, **say so in the same breath as the PR link** — the
+  tool is absent in a plain terminal session, and a step that silently does
+  nothing there is indistinguishable from one that worked. Report that nothing
+  is currently watching the PR, and name what would: a workflow caller, if this
+  repo vendors one (`.github/workflows/agent-skills-review-sweep.yml`), starts
+  the sweep from GitHub's own events and needs nothing from this session; a repo
+  without one is waiting on a human to look. Do not try to arrange the watching
+  yourself — spawning a background agent to sit on the PR is not this step, and
+  is a decision the maintainer makes once, not one a session makes per PR.
+
+  **Then end the turn.** Do not schedule a wake-up, a self check-in, or a recurring poll
   for the PR. The subscription is the mechanism; a timer on top of it spends a
   whole session to re-learn what the next webhook would have delivered anyway.
   If a project wants a periodic backstop, that is a scheduled routine the
