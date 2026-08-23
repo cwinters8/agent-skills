@@ -117,19 +117,26 @@ jobs:
     # skill answers threads as it triages them and each reply is another comment
     # event.
     #
-    # Back in: a `### Code review` report that raises issues. Where a project has
-    # no separate bot account, `code-review` posts its PR-mode findings through
-    # this same identity, and `review-sweep` is explicit that those must be
-    # triaged like any other reviewer's — "the distinction is authorship intent,
-    # not identity". Excluding the identity wholesale would make this workflow
-    # unable to deliver the one event class that skill mandates handling, and a
-    # PR could be called ready with its own review's findings unresolved.
+    # Back in: any `### Code review` report. Where a project has no separate bot
+    # account, `code-review` posts through this same identity, and `review-sweep`
+    # needs both of its shapes — "the distinction is authorship intent, not
+    # identity".
     #
-    # The clean verdict (`### Code review` / `No issues found at <sha>`) is
-    # bookkeeping by that same skill's rule, so it stays out. The heading is what
-    # separates the two, and the self-loop stays closed because the sweep's own
-    # replies — `Fixed in <sha>`, `Declined:`, the review request — never carry
-    # it. And any other bot this repo has not named in
+    # Both shapes, not just one, and the difference between them belongs to the
+    # skill rather than to this condition. A report raising issues is feedback it
+    # must triage. A clean report is not feedback — but it is one of the three
+    # approving verdicts its readiness step accepts, so a sweep has to SEE it to
+    # conclude the PR is ready and post the signal.
+    #
+    # Filtering the clean one out here confused two layers: the skill says to
+    # "skip" it, meaning do not triage it as a comment, not do not run. Applying
+    # a triage rule at the trigger meant the verdict could arrive and nothing
+    # would ever look at it, leaving a ready PR unmarked with the daily backstop
+    # off by default.
+    #
+    # The self-loop stays closed either way: the sweep's own output — `Fixed in
+    # <sha>`, `Declined:`, the ready-to-merge signal, the review request — never
+    # carries that heading. And any other bot this repo has not named in
     # AGENT_SKILLS_REVIEW_BOTS — a dependency bot, a linter — because the action
     # rejects an unlisted bot actor by failing, so every one of their comments
     # would leave a red X here. Gate on the allowlist rather than on particular
@@ -159,9 +166,7 @@ jobs:
       ((github.event_name != 'issue_comment' || github.event.issue.pull_request) &&
        ((github.actor == 'claude[bot]' &&
          contains(format('{0}{1}', github.event.comment.body, github.event.review.body),
-                  '### Code review') &&
-         !contains(format('{0}{1}', github.event.comment.body, github.event.review.body),
-                   'No issues found')) ||
+                  '### Code review')) ||
         (github.actor != 'claude[bot]' &&
          ((endsWith(github.actor, '[bot]') &&
            contains(format(',{0},', vars.AGENT_SKILLS_REVIEW_BOTS), format(',{0},', github.actor))) ||
