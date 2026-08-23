@@ -399,6 +399,22 @@ whole list is covered over several rather than the same end of it every time.
 
 | `AGENT_SKILLS_ALLOW_FORKS` | Set to `true` to sweep pull requests from forks. Read the section below first |
 
+### Where the run's instructions come from
+
+**The sweep loads its instructions from your default branch, not from the pull
+request.** On review events GitHub would otherwise hand the job the PR's merge
+ref, and what this workflow reads from disk is not ordinary code — it is the
+agent's own instructions: the vendored skill, your project profile, your rules
+file. Running those from an unmerged branch would let anyone who can open a pull
+request and clear the actor gate direct a credentialed agent. The checkout is
+pinned for that reason.
+
+The residual, stated plainly: once the sweep checks out a PR branch to validate a
+fix, that branch's code is on disk and your project's own commands run over it.
+That is inherent to fixing a pull request, and no workflow setting removes it.
+What is removed is the *instructions* coming from the same untrusted place as the
+code under review.
+
 ### Pull requests from forks
 
 **Skipped unless you set `AGENT_SKILLS_ALLOW_FORKS` to `true`**, and turning it
