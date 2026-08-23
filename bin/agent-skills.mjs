@@ -735,8 +735,15 @@ for (const name of Object.keys(lock.workflowFiles ?? {})) {
     continue;
   }
   const dest = workflowPath(name);
-  if (isSymlink(dest) || !existsSync(dest) || !statSync(dest).isFile()) continue;
   const label = workflowLabel(name);
+  if (isSymlink(dest) || !existsSync(dest) || !statSync(dest).isFile()) {
+    // Nothing to delete, but the lock still claims ownership of a path that no
+    // longer holds our file. A real sync drops that entry, so staying quiet let
+    // --check certify a repository whose lock a sync would rewrite — the same
+    // blind spot as a stale hash, reached from the other side.
+    problems.push(`${label}: no longer listed and already gone — run a sync to drop the lock entry`);
+    continue;
+  }
   if (sha256(readFileSync(dest)) !== lock.workflowFiles[name] && !force) {
     problems.push(`${label}: no longer listed, but edited locally — refusing to delete it`);
     continue;

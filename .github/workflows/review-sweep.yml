@@ -318,9 +318,32 @@ jobs:
       # which version.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          # Pin the ref, rather than taking whatever the event supplies. On
+          # `pull_request_review` and `pull_request_review_comment` that default
+          # is `refs/pull/<n>/merge` — the pull request's own content — and what
+          # this job then loads from disk is not ordinary code but the agent's
+          # INSTRUCTIONS: the vendored `review-sweep` skill, the project profile,
+          # and the repository's rules file. Running those from an unmerged
+          # branch hands whoever opened it the credential, write permission and
+          # an unrestricted shell, without any of it passing review. The fork
+          # guard does not cover this: a same-repository pull request from
+          # someone who clears the actor gate is exactly the case it lets
+          # through.
+          #
+          # The default branch is the trusted copy, and it is what the skill
+          # expects anyway — it checks out pull request branches itself when it
+          # needs to push a fix.
+          ref: ${{ github.event.repository.default_branch || github.ref_name }}
           # Full history: the skill pushes fixes to PR branches, and a depth-1
-          # checkout of the default branch cannot check one out.
+          # checkout cannot check one out.
           fetch-depth: 0
+
+          # Residual, stated rather than implied: once the skill checks out a
+          # pull request branch to validate a fix, that branch's code is on disk
+          # and the project's own commands run over it. That is inherent to
+          # fixing a pull request at all and is not something this workflow can
+          # remove — what it can do, and now does, is make sure the instructions
+          # driving the run came from merged state.
 
       # Skipped entirely when the identity is unset. A skipped step still
       # resolves its outputs as empty strings, which is what lets the fallbacks

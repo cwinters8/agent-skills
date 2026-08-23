@@ -76,7 +76,10 @@ name: review sweep
 
 on:
   pull_request_review_comment:
-    types: [created]
+    # `edited` too, for the same reason as review summaries below: feedback added
+    # by editing an existing comment emits only `edited`, and `created` already
+    # fired for whatever the comment said before.
+    types: [created, edited]
   pull_request_review:
     # `edited` as well as `submitted`: `review-sweep` treats a review's summary
     # body as first-class feedback, so a reviewer who submits an empty or
@@ -84,7 +87,7 @@ on:
     # that `submitted` already fired for and carried nothing.
     types: [submitted, edited]
   issue_comment:
-    types: [created]
+    types: [created, edited]
   # CI finishing is a readiness input with no other event behind it. A sweep that
   # pushes a fix sees the new head's checks still pending, and readiness needs
   # them green — so without these the PR waits for a reviewer to say something
@@ -225,7 +228,16 @@ jobs:
             || github.event.pull_request.number
             || github.event.issue.number
             || '' }}
-      allowed-bots: ${{ vars.AGENT_SKILLS_REVIEW_BOTS }}
+      # CI events are emitted by whichever app runs the checks, so the actor is
+      # a bot the consumer never listed — and the action rejects an unlisted bot
+      # by failing the run, which would have made the CI-completion sweep fail by
+      # default for everyone using a third-party CI app. Admit that actor for
+      # these runs only. It is narrow: the prompt is fixed, and the event carries
+      # no text this run acts on, unlike a comment.
+      allowed-bots: >-
+        ${{ (github.event_name == 'check_suite' || github.event_name == 'status')
+            && format('{0},{1}', vars.AGENT_SKILLS_REVIEW_BOTS, github.actor)
+            || vars.AGENT_SKILLS_REVIEW_BOTS }}
       model: ${{ vars.AGENT_SKILLS_REVIEW_MODEL }}
       runs-on: ${{ vars.AGENT_SKILLS_RUNNER || 'ubuntu-latest' }}
       max-turns: ${{ vars.AGENT_SKILLS_MAX_TURNS && fromJSON(vars.AGENT_SKILLS_MAX_TURNS) || 40 }}
