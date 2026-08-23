@@ -95,22 +95,21 @@ those becomes.
    to stop. So the abbreviation is a security downgrade, not just an ambiguity
    risk.
 
-   **Some package runners reject a full-length SHA in a git spec.** `npx` is the
-   runner these instructions assume, and npm carried this bug on every version
-   from **9.6.5 up to (but not including) 11.4.2**: it downloads the commit
-   tarball and then aborts while packing it, with `GitFetcher requires an Arborist
-   constructor to pack a tarball`. Recognise it by that message on an affected
-   npm — the download means it is *not* the network or bad-pin failure it reads
-   like. So when a full SHA fails this way, upgrade npm and re-run with the full
-   pin rather than shortening the SHA: `npm install -g npm@latest` (any npm ≥
-   11.4.2). npm ≥ 11.4.2's engines allow only `^20.17.0 || >=22.9.0` — a disjoint
-   range that excludes Node 21 and 22.0–22.8 — so move Node onto a version inside
-   it first if the runner is outside that range. Reach for the abbreviation only when you genuinely cannot move the
-   toolchain (a locked CI image on Node 18, say), and then record in the
-   consumer's rules source that it is a workaround — for which runner and version,
-   and what the failure was — so the next person restores the full pin once the
-   toolchain moves. That per-project record is where a version number belongs; the
-   durable instruction here is upgrade-then-full-pin.
+   **Some package runners reject a full-length SHA in a git spec.** The runner
+   downloads the commit tarball and then aborts while packing it; on `npx` the
+   message is `GitFetcher requires an Arborist constructor to pack a tarball`.
+   Recognise it by that message — the download means it is *not* the network or
+   bad-pin failure it reads like. The durable fix is to **move the runner to a
+   version without the bug and re-pin the full SHA**, not to shorten the SHA; on
+   `npx` that means upgrading npm (mind its Node floor), and another runner has
+   its own upgrade path. Which versions carry the bug, which release fixes it,
+   and that release's Node floor are toolchain facts that rot — confirm them
+   against the runner's own history and record them in the consumer's rules
+   source, not here, where a number would ship stale into every consumer. Reach
+   for the abbreviation only when you genuinely cannot move the toolchain (a
+   locked CI image, say), and then record that it is a workaround — for which
+   runner and version, and what the failure was — so the next person restores the
+   full pin once the toolchain moves.
 
 ## Phase 2 — Survey the repo before writing a word of the profile
 
