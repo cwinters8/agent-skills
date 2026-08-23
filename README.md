@@ -377,10 +377,16 @@ revert it. Every knob is a variable for that reason.
 | `AGENT_SKILLS_MAX_TURNS` | Turn ceiling per run. Default 40. A sweep that hits it stops with partial work; the skill's reaction markers mean the next run resumes rather than redoing |
 | `AGENT_SKILLS_SWEEP_SCHEDULE` | Set to `on` for a daily backstop sweep, covering states no webhook announces — a reviewer who signals with a reaction rather than a comment, or an event that never arrived |
 
-The caller also sweeps when a **check suite completes** on a PR, since readiness
-needs green CI and a sweep that just pushed a fix sees the new head's checks
-still pending. Without it a PR could sit unmarked with the work already done,
-waiting for a reviewer to say something else.
+The caller also sweeps when **CI finishes** — both `check_suite` for check runs
+and `status` for the older Commit Status API, since a repository may report
+either way. Readiness needs green CI, and a sweep that just pushed a fix sees the
+new head's checks still pending; without these a PR could sit unmarked with the
+work already done, waiting for a reviewer to say something else.
+
+Each run resolves the pull requests it may sweep before anything privileged
+happens, and sweeps them **one job per pull request**. A run that finds more than
+50 eligible sweeps the 50 highest-numbered and says so in its log rather than
+truncating silently.
 
 | `AGENT_SKILLS_ALLOW_FORKS` | Set to `true` to sweep pull requests from forks. Read the section below first |
 

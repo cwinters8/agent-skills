@@ -1,8 +1,13 @@
 # Vendored by @cwinters8/agent-skills — edit upstream, then re-run the sync.
 #
-# This file only says WHEN to sweep. The loop itself lives in the package, so a
-# fix there reaches this repo when `agent-skills sync` bumps the ref below, with
-# no change to this file's contents.
+# This file only says WHEN to sweep. The loop itself lives in the package, at the
+# ref below.
+#
+# That ref is yours and the sync never moves it. Upgrading the package does not
+# advance it, deliberately — it is the one pin this tool will not change under
+# you — so a fix to the shared workflow, security fixes included, reaches this
+# repository only when you edit "workflowRef" in .claude/skills.json yourself and
+# re-run the sync. Nothing warns you that you are behind.
 #
 # Configure it with repository or organization variables, not by editing here: a
 # hand-edited vendored file makes every later sync refuse until you revert it.
@@ -78,11 +83,20 @@ on:
     types: [created]
   # CI finishing is a readiness input with no other event behind it. A sweep that
   # pushes a fix sees the new head's checks still pending, and readiness needs
-  # them green — so without this the PR waits for a reviewer to say something
-  # else, and if nobody does, it stays unmarked with the work already done. Fires
-  # once per completed check suite, and only for suites attached to a PR.
+  # them green — so without these the PR waits for a reviewer to say something
+  # else, and if nobody does, it stays unmarked with the work already done.
+  #
+  # Both, because CI reports one of two ways and a repository may use either.
+  # Check runs emit check_suite; the older Commit Status API emits `status` and
+  # no check_suite at all, which is why `statuses: read` is granted below. Taking
+  # only the first would leave every consumer on commit statuses with no
+  # CI-completion trigger, silently.
+  #
+  # Neither event names a PR the caller can extract — a suite may cover several,
+  # and a status names only a commit — so the called workflow resolves them.
   check_suite:
     types: [completed]
+  status:
   workflow_dispatch:
     inputs:
       pr:
@@ -171,6 +185,7 @@ jobs:
       github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'schedule' && vars.AGENT_SKILLS_SWEEP_SCHEDULE == 'on') ||
       (github.event_name == 'check_suite' && github.event.check_suite.pull_requests[0] != null) ||
+      (github.event_name == 'status' && github.event.state != 'pending') ||
       ((github.event_name != 'issue_comment' || github.event.issue.pull_request) &&
        ((github.actor == 'claude[bot]' &&
          contains(format('{0}{1}', github.event.comment.body, github.event.review.body),
@@ -185,14 +200,13 @@ jobs:
     with:
       # The event names the PR it happened on, so sweep that one rather than
       # every open PR. Review events carry pull_request, PR conversation
-      # comments carry issue, a completed check suite carries the PRs its head
-      # belongs to; a manual dispatch passes its own, and an empty value still
-      # means "sweep everything".
+      # comments carry issue; a manual dispatch passes its own. Empty means the
+      # called workflow works it out — from the check suite's own PR list, from
+      # the commit a status names, or by enumerating open pull requests.
       pr: >-
         ${{ inputs.pr
             || github.event.pull_request.number
             || github.event.issue.number
-            || github.event.check_suite.pull_requests[0].number
             || '' }}
       allowed-bots: ${{ vars.AGENT_SKILLS_REVIEW_BOTS }}
       model: ${{ vars.AGENT_SKILLS_REVIEW_MODEL }}

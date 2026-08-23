@@ -690,9 +690,21 @@ for (const name of wantedWorkflows) {
   }
 
   const localHash = !isSymlink(dest) && existsSync(dest) && statSync(dest).isFile() ? sha256(readFileSync(dest)) : null;
-  if (localHash === upstreamHash) continue;
-
   const lockedHash = lock.workflowFiles?.[name] ?? null;
+
+  if (localHash === upstreamHash) {
+    // The file is current, but the lock may not be. Returning clean here on a
+    // missing or stale entry let --check certify a repo a real sync would
+    // rewrite — and the lock is the ownership record: without a correct entry,
+    // dropping this name later leaves the tool unable to tell its own file from
+    // the consumer's, so it either refuses to remove a caller that is still
+    // firing or has nothing to match against at all.
+    if (lockedHash !== upstreamHash) {
+      problems.push(`${label}: lock entry ${lockedHash === null ? 'missing' : 'stale'} — run a sync to record it`);
+    }
+    continue;
+  }
+
   if (localHash !== null && localHash !== lockedHash && !force) {
     problems.push(
       lockedHash === null

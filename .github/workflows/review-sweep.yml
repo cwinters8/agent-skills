@@ -168,7 +168,107 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Resolve WHICH pull requests this run may sweep, before anything privileged
+  # happens, and hand the sweep a list of numbers rather than a yes/no.
+  #
+  # The yes/no version had a race that pagination could not close: it checked the
+  # open PRs, said "no forks", and the skill then enumerated open PRs again a
+  # minute later — so a fork PR opened in between was swept, checked out and run
+  # in the credentialed job. The scheduled sweep made that worse by publishing
+  # the exact minute to aim at. Naming the PRs closes it, because a pull
+  # request's head repository is fixed when it is created: a number verified here
+  # cannot become a fork later, and one created after this job cannot enter the
+  # matrix.
+  #
+  # Uses only the job's own GITHUB_TOKEN, and github-script rather than a shell
+  # so it carries no host dependency (`jq` is absent from a stock self-hosted
+  # runner, and `runs-on` exists precisely so consumers can use one). PR numbers
+  # are not secrets, so passing them between jobs as outputs is fine — unlike a
+  # credential, which GitHub would drop.
+  plan:
+    runs-on: ${{ inputs.runs-on }}
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      prs: ${{ steps.plan.outputs.prs }}
+    steps:
+      - id: plan
+        uses: actions/github-script@d746ffe35508b1917358783b479e04febd2b8f71 # v9.0.0
+        env:
+          PR: ${{ inputs.pr }}
+          ALLOW: ${{ inputs.allow-forks }}
+        with:
+          script: |
+            const full = `${context.repo.owner}/${context.repo.repo}`
+            const allow = process.env.ALLOW === 'true'
+            // A deleted fork leaves head.repo null. That is not this repository,
+            // so it must not compare equal to it.
+            const sameRepo = (pr) => pr.head.repo?.full_name === full
+
+            // Where the candidates come from depends on how this run started.
+            // Two events name their PRs in the payload or by commit, and the
+            // caller cannot extract those itself — check_suite may cover more
+            // than one PR, and a commit status names no PR at all.
+            let candidates = []
+            let alreadyFull = false
+            if (context.eventName === 'check_suite') {
+              candidates = (context.payload.check_suite.pull_requests || []).map((p) => p.number)
+            } else if (context.eventName === 'status') {
+              const { data } = await github.rest.repos.listPullRequestsAssociatedWithCommit({
+                ...context.repo, commit_sha: context.payload.sha,
+              })
+              candidates = data.map((p) => p.number)
+            } else if (process.env.PR) {
+              candidates = [Number(process.env.PR)]
+            } else {
+              // paginate, not a single page: a fork PR past the first hundred
+              // would otherwise pass unseen into the privileged job.
+              candidates = await github.paginate(github.rest.pulls.list, {
+                ...context.repo, state: 'open', per_page: 100,
+              })
+              alreadyFull = true
+            }
+
+            const resolved = alreadyFull ? candidates : (await Promise.all(
+              candidates.map((n) =>
+                github.rest.pulls
+                  .get({ ...context.repo, pull_number: n })
+                  .then((r) => r.data)
+                  .catch(() => {
+                    core.notice(`PR #${n} could not be read — not swept.`)
+                    return null
+                  }),
+              ),
+            )).filter(Boolean)
+
+            const open = resolved.filter((pr) => pr.state === 'open')
+            const eligible = open.filter((pr) => allow || sameRepo(pr))
+            const forks = open.length - eligible.length
+            if (forks) {
+              core.notice(`${forks} pull request(s) from forks not swept. Set allow-forks to include them.`)
+            }
+
+            // Bound the fan-out, and say so rather than truncating in silence: a
+            // run that quietly covered less than it was asked to reads exactly
+            // like one that covered everything.
+            const CAP = 50
+            const numbers = eligible.map((pr) => pr.number).sort((a, b) => b - a)
+            if (numbers.length > CAP) {
+              core.notice(`${numbers.length} pull requests eligible; sweeping the ${CAP} highest-numbered this run. The rest are NOT swept — sweep them by number, or re-run.`)
+            }
+            core.setOutput('prs', JSON.stringify(numbers.slice(0, CAP)))
+
+  # One job per verified pull request. The matrix is the plan's output, so this
+  # job never decides for itself what to sweep and never sees a PR the plan did
+  # not clear.
   sweep:
+    needs: plan
+    if: needs.plan.outputs.prs != '[]'
+    strategy:
+      fail-fast: false
+      matrix:
+        pr: ${{ fromJSON(needs.plan.outputs.prs) }}
     runs-on: ${{ inputs.runs-on }}
     permissions:
       # write: the skill pushes review fixes to the PR branch.
@@ -195,78 +295,7 @@ jobs:
       # mutable ref pointing into someone else's credentials. Bumping one still
       # means looking the current major up again — the SHA is which bytes, not
       # which version.
-      # A comment on a fork's pull request fires `issue_comment` in the BASE
-      # repository, so this job runs with the base repo's credential and write
-      # permission — and the sweep it starts checks out the contributor's branch
-      # and runs the project's own mechanical commands over it. That is the
-      # classic privileged-checkout escalation, and nothing later in this job
-      # would notice. Resolve the head repository first and stop before the
-      # checkout, since after it the untrusted code is already on disk.
-      #
-      # One thing here is deliberately unsettled. Whether these events actually
-      # carry the repository's secrets on a FORK's pull request is disputed:
-      # `pull_request` from a fork is documented as running without them, but
-      # `issue_comment` and the review events run in the BASE repository's
-      # context rather than the fork's, which is the whole basis of the
-      # privileged-checkout hazard above. (Which ref they run on differs by
-      # event and is a separate matter: `issue_comment` gets the default branch,
-      # while the two review events get `refs/pull/<n>/merge` — so on those, a
-      # checkout with no explicit ref lands on the contributor's merged code by
-      # default. The guard above runs before any checkout, so that is bounded,
-      # but it is why the guard has to come first rather than merely early.) GitHub's own wording — "secrets are not passed to
-      # the runner when a workflow is triggered from a forked repository" — never
-      # says which events count as triggered *from* a fork, and two reviews of
-      # this file reached opposite conclusions.
-      #
-      # It does not need settling for this guard to be right, which is why it has
-      # not been: if the secrets are there, this is what prevents the escalation;
-      # if they are withheld, this skips a run that would have failed anyway. The
-      # question only decides whether `allow-forks` does anything useful when
-      # switched on, and that path cannot push fixes regardless. Resolve it by
-      # observing one real run before relying on it.
-      #
-      # Skips rather than fails: a refusal is not an error, and a red X on every
-      # comment a fork PR receives would train everyone to ignore this workflow.
-      # Uses only the job's own GITHUB_TOKEN — never the fetched credential —
-      # and github-script rather than a shell so it carries no host dependency
-      # (`jq` is absent from a stock self-hosted runner, and `runs-on` exists
-      # precisely so consumers can use one).
-      - id: guard
-        uses: actions/github-script@d746ffe35508b1917358783b479e04febd2b8f71 # v9.0.0
-        env:
-          PR: ${{ inputs.pr }}
-          ALLOW: ${{ inputs.allow-forks }}
-        with:
-          script: |
-            if (process.env.ALLOW === 'true') return core.setOutput('skip', 'false')
-            const full = `${context.repo.owner}/${context.repo.repo}`
-            // A deleted fork leaves head.repo null. That is not this repository,
-            // so it must not compare equal to it.
-            const isFork = (pr) => pr.head.repo?.full_name !== full
-            if (process.env.PR) {
-              const { data } = await github.rest.pulls.get({
-                ...context.repo, pull_number: Number(process.env.PR),
-              })
-              if (isFork(data)) {
-                core.notice(`PR #${data.number} comes from a fork — skipping. Set allow-forks to sweep it.`)
-                return core.setOutput('skip', 'true')
-              }
-            } else {
-              // paginate, not a single page: a fork PR past the first hundred
-              // would otherwise pass unseen and reach the privileged checkout.
-              const open = await github.paginate(github.rest.pulls.list, {
-                ...context.repo, state: 'open', per_page: 100,
-              })
-              const forks = open.filter(isFork)
-              if (forks.length) {
-                core.notice(`${forks.length} open PR(s) from forks — skipping the all-PR sweep. Sweep by number, or set allow-forks.`)
-                return core.setOutput('skip', 'true')
-              }
-            }
-            core.setOutput('skip', 'false')
-
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        if: steps.guard.outputs.skip != 'true'
         with:
           # Full history: the skill pushes fixes to PR branches, and a depth-1
           # checkout of the default branch cannot check one out.
@@ -286,7 +315,7 @@ jobs:
       #
       - uses: DopplerHQ/secrets-fetch-action@451892f16195f9ac360e1a5bcbf0b5fd0e957534 # v2.0.0
         id: doppler
-        if: steps.guard.outputs.skip != 'true' && inputs.doppler-identity-id != ''
+        if: inputs.doppler-identity-id != ''
         with:
           auth-method: oidc
           # Explicit, though it is already the default: fetched secrets stay step
@@ -301,7 +330,6 @@ jobs:
           doppler-config: ${{ inputs.doppler-config }}
 
       - uses: anthropics/claude-code-action@64bdc88bfe0b4c42a310e93abde02db8fb3b8956 # v1.0.199
-        if: steps.guard.outputs.skip != 'true'
         with:
           # Doppler first when it ran, the Actions secret otherwise. Three ways
           # in, and a repo needs exactly one: a fetched secret, a stored secret,
@@ -322,7 +350,7 @@ jobs:
           # The vendored skill, invoked by name. Everything project-specific it
           # needs comes from the caller's .claude/project-profile.md, which the
           # checkout above put on the runner.
-          prompt: "/review-sweep ${{ inputs.pr }}"
+          prompt: "/review-sweep ${{ matrix.pr }}"
           # --allowedTools has to name the GitHub MCP server explicitly: the
           # action starts its MCP servers only for tools named here, and
           # review-sweep does every GitHub read and write through them. The list
