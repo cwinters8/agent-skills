@@ -84,23 +84,32 @@ those becomes.
    "fix" it back to the tag. If they agree, the ref is current *and* you have
    checked it rather than assumed it.
 
-4. **Pin the full 40-character SHA; abbreviate only if your runner makes you.**
-   The full object id is unambiguous forever. An abbreviated SHA is a *prefix*
-   that git resolves only while it stays unique in the repository, so a pin that
-   works today can become ambiguous as the history grows — a slow failure in the
-   one field whose job is to never move.
+4. **Pin the full 40-character SHA; abbreviate only if your runner forces you.**
+   The full object id is the one you verified above, and it is what a runner
+   resolves as an object. An abbreviated SHA is a *prefix* — git resolves it only
+   while it stays unique in the repository, so a pin that works today can grow
+   ambiguous as history grows, and, worse, a runner resolves a ref of that name
+   *ahead of* the object it abbreviates. An upstream that can push a tag named
+   like your seven characters then substitutes its own commit on the next sync,
+   with no pin change to show for it — the exact move pinning an object id exists
+   to stop. So the abbreviation is a security downgrade, not just an ambiguity
+   risk.
 
-   **Some package runners reject a full-length SHA in a git spec**, failing
-   before anything is fetched while the abbreviated form resolves normally. The
-   tell is a failure that never reaches the network and complains about the
-   runner's own internals rather than about the ref — which reads like a bad
-   pin and is not one. So try the full object id first. If it fails that way,
-   prefer upgrading or changing the runner; use the abbreviation only when you
-   cannot, and record in the consumer's rules source that it is a workaround,
-   for which runner and version, and what the failure was. That belongs there
-   and not here: it is a fact about one project's toolchain, it expires when
-   that toolchain moves, and written here it would send every other consumer
-   after a tool they may not even use.
+   **Some package runners reject a full-length SHA in a git spec.** The runner
+   downloads the commit tarball and then aborts while packing it; on `npx` the
+   message is `GitFetcher requires an Arborist constructor to pack a tarball`.
+   Recognise it by that message — the download means it is *not* the network or
+   bad-pin failure it reads like. The durable fix is to **move the runner to a
+   version without the bug and re-pin the full SHA**, not to shorten the SHA; on
+   `npx` that means upgrading npm (mind its Node floor), and another runner has
+   its own upgrade path. Which versions carry the bug, which release fixes it,
+   and that release's Node floor are toolchain facts that rot — confirm them
+   against the runner's own history and record them in the consumer's rules
+   source, not here, where a number would ship stale into every consumer. Reach
+   for the abbreviation only when you genuinely cannot move the toolchain (a
+   locked CI image, say), and then record that it is a workaround — for which
+   runner and version, and what the failure was — so the next person restores the
+   full pin once the toolchain moves.
 
 ## Phase 2 — Survey the repo before writing a word of the profile
 
