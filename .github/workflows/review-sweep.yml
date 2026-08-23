@@ -57,7 +57,16 @@ on:
           and sweeping a fork means checking out contributor-controlled code and
           running the project's own commands over it in that job.
 
-          Note what it can and cannot do when on. The checkout credential is
+          It is worse than that phrasing suggests, and worth reading before
+          turning this on. The skill checks out the pull request branch into the
+          working tree it is already running in, which replaces `.claude/` with
+          that branch's copy — so any skill it invokes afterwards loads
+          instructions the fork supplied, inside a job holding the credential and
+          write permission. Pinning the initial checkout does not prevent that.
+          With forks skipped the branch always belongs to someone who already has
+          write access; with this on, it does not.
+
+          Note also what it can and cannot do when on. The checkout credential is
           scoped to this repository, so the sweep can triage a fork PR, reply on
           its threads and decline feedback — but it cannot push a fix, because
           the branch lives in someone else's fork and this token cannot write
@@ -196,6 +205,8 @@ jobs:
             let alreadyFull = false
             if (context.eventName === 'check_suite') {
               candidates = (context.payload.check_suite.pull_requests || []).map((p) => p.number)
+            } else if (context.eventName === 'workflow_run') {
+              candidates = (context.payload.workflow_run.pull_requests || []).map((p) => p.number)
             } else if (context.eventName === 'status') {
               const { data } = await github.rest.repos.listPullRequestsAssociatedWithCommit({
                 ...context.repo, commit_sha: context.payload.sha,
@@ -338,12 +349,25 @@ jobs:
           # checkout cannot check one out.
           fetch-depth: 0
 
-          # Residual, stated rather than implied: once the skill checks out a
-          # pull request branch to validate a fix, that branch's code is on disk
-          # and the project's own commands run over it. That is inherent to
-          # fixing a pull request at all and is not something this workflow can
-          # remove — what it can do, and now does, is make sure the instructions
-          # driving the run came from merged state.
+          # Residual, and it is larger than "the project's commands run over PR
+          # code". The skill checks out the pull request branch in this same
+          # worktree, which replaces `.claude/` with that branch's copy — so a
+          # skill invoked AFTER that point resolves to instructions the pull
+          # request supplied, even though this checkout was trusted. Pinning the
+          # ref fixes the first load, not every later one.
+          #
+          # With the default settings that is defence in depth rather than a
+          # hole: forks are skipped, so the branch belongs to someone who already
+          # has write access and could change these files on the default branch
+          # anyway. With `allow-forks` on it is a real escalation, which is why
+          # that input's description says so and the README recommends against
+          # it.
+          #
+          # Closing it properly means the skill checking out pull request
+          # branches into a separate worktree, leaving the control files it
+          # loaded in place. That is a change to `review-sweep` itself, affecting
+          # how it pushes and how it runs project checks, and it is not something
+          # this workflow can impose from outside.
 
       # Skipped entirely when the identity is unset. A skipped step still
       # resolves its outputs as empty strings, which is what lets the fallbacks

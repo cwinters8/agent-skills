@@ -321,14 +321,16 @@ OIDC, so neither a Claude token nor a Doppler token is stored in GitHub.
    **This caller emits two shapes, and configuring only one is the likely way to
    get this wrong.** The ref in the subject follows the triggering event:
 
-   | Trigger | Ref in the subject |
+   | Trigger | Subject |
    | --- | --- |
-   | `issue_comment` (PR conversation comments), `check_suite`, `schedule`, `workflow_dispatch` | the default branch |
-   | `pull_request_review`, `pull_request_review_comment` | `refs/pull/<n>/merge` |
+   | `issue_comment` (PR conversation comments), `check_suite`, `status`, `schedule`, `workflow_dispatch` | ref: the default branch |
+   | `pull_request_review`, `pull_request_review_comment` | ref: `refs/pull/<n>/merge` |
+   | `pull_request` (opened, ready, synchronize) | a distinct `pull_request` subject rather than a ref |
 
    So an identity configured only for the default-branch subject authenticates
-   for conversation comments and the backstop, and fails for submitted reviews
-   and inline review comments — the two that matter most. Either configure a
+   for conversation comments and the backstop, and fails for submitted reviews,
+   inline review comments, and the first sweep when a pull request opens — which
+   between them are most of what this does. Either configure a
    claim that matches both, or add the second as an additional subject on the
    same identity. Doppler's own guidance points at the [secrets-fetch-action
    README](https://github.com/DopplerHQ/secrets-fetch-action) for the exact
@@ -420,8 +422,20 @@ code under review.
 
 ### Pull requests from forks
 
-**Skipped unless you set `AGENT_SKILLS_ALLOW_FORKS` to `true`**, and turning it
-on buys less than it looks like.
+**Skipped unless you set `AGENT_SKILLS_ALLOW_FORKS` to `true`**, and the
+recommendation is to leave it off.
+
+Turning it on does more than widen what gets swept. The skill checks out the pull
+request branch into the working tree it is already running in, which replaces
+`.claude/` with that branch's copy — so any skill invoked after that point loads
+instructions the fork supplied, in a job holding your credential and write
+permission. Pinning the initial checkout, described above, does not prevent it.
+With forks skipped, that branch always belongs to someone who already has write
+access to your repository; with this on, it does not. Closing it properly means
+the skill checking pull request branches out into a separate worktree — a change
+to `review-sweep` itself, not something the workflow can impose.
+
+It also buys less than it looks like.
 
 A comment on a fork's PR fires `issue_comment` in *your* repository, so the sweep
 would run with your credential and write permission while checking out

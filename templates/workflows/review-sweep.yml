@@ -86,7 +86,11 @@ on:
   # ready has had its `opened` event already. Fork PRs reach the called workflow
   # and are filtered there, as with every other trigger.
   pull_request:
-    types: [opened, reopened, ready_for_review]
+    # `synchronize` too — a push to the branch. Every reviewer verdict the skill
+    # accepts is bound to a head SHA, so a new commit invalidates the last one;
+    # without this, a repository with no CI completion event (or one hitting the
+    # Actions gap below) has nothing that asks for a verdict on the new head.
+    types: [opened, reopened, ready_for_review, synchronize]
   pull_request_review_comment:
     # `edited` too, for the same reason as review summaries below: feedback added
     # by editing an existing comment emits only `edited`, and `created` already
@@ -256,7 +260,8 @@ jobs:
       # these runs only. It is narrow: the prompt is fixed, and the event carries
       # no text this run acts on, unlike a comment.
       allowed-bots: >-
-        ${{ (github.event_name == 'check_suite' || github.event_name == 'status')
+        ${{ (github.event_name == 'check_suite' || github.event_name == 'status'
+             || github.event_name == 'workflow_run')
             && format('{0},{1}', vars.AGENT_SKILLS_REVIEW_BOTS, github.actor)
             || vars.AGENT_SKILLS_REVIEW_BOTS }}
       model: ${{ vars.AGENT_SKILLS_REVIEW_MODEL }}
