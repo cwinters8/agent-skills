@@ -340,27 +340,56 @@ if (command === 'init') {
   // has nothing to install into — but it is said, with the command to run, so
   // the gap is visible rather than discovered later as a skill that never loads.
   const installCommand = `claude plugin install ${SUPERPOWERS} --scope project`;
+  const MARKETPLACE = SUPERPOWERS.split('@')[1];
+  const marketplaceCommand = `claude plugin marketplace add anthropics/${MARKETPLACE}`;
   let installed = false;
   if (install) {
-    console.log(`agent-skills: running ${installCommand}`);
     // Windows exposes `claude` as a .cmd shim, which spawn finds only through a
-    // shell. The arguments are constants, so the shell has nothing to interpret.
-    const result = spawnSync('claude', ['plugin', 'install', SUPERPOWERS, '--scope', 'project'], {
-      stdio: 'inherit',
-      shell: process.platform === 'win32',
-    });
-    if (result.error?.code === 'ENOENT') {
+    // shell. Every argument here is a constant, so the shell has nothing to
+    // interpret.
+    const claude = (args, options = {}) =>
+      spawnSync('claude', args, { shell: process.platform === 'win32', ...options });
+
+    // Claude Code registers the official marketplace only on the first
+    // interactive session, so on a machine that has never had one the install
+    // below fails on an unknown marketplace — and a fresh machine is exactly
+    // where `init` is likeliest to run. Register it first, but only when it is
+    // missing: `marketplace add` on a registered marketplace still writes a
+    // declaration into the user's settings, which is not this command's to touch.
+    const listed = claude(['plugin', 'marketplace', 'list', '--json'], { encoding: 'utf8' });
+    if (listed.error?.code === 'ENOENT') {
       console.log('agent-skills: `claude` is not on PATH, so superpowers is enabled but not installed here.');
       console.log(`  Install Claude Code, then run: ${installCommand}`);
-    } else if (result.error || result.status !== 0) {
-      // A fresh machine that has never opened an interactive session has not
-      // registered the official marketplace yet, which is the likeliest cause.
-      settingsProblems.push(
-        `${installCommand} failed — superpowers is enabled in .claude/settings.json but not installed.\n` +
-          '  If the marketplace is unknown, run `claude plugin marketplace add anthropics/claude-plugins-official`\n' +
-          '  and then the install command again.',
-      );
-    } else installed = true;
+    } else {
+      let known = false;
+      try {
+        known = JSON.parse(listed.stdout).some((m) => m.name === MARKETPLACE);
+      } catch {
+        // An unreadable listing is treated as missing: adding a marketplace that
+        // turns out to be present costs one settings entry, while skipping one
+        // that is absent fails the install.
+      }
+      let ready = known;
+      if (!known) {
+        console.log(`agent-skills: running ${marketplaceCommand}`);
+        const added = claude(['plugin', 'marketplace', 'add', `anthropics/${MARKETPLACE}`], { stdio: 'inherit' });
+        ready = !added.error && added.status === 0;
+        if (!ready) {
+          settingsProblems.push(
+            `${marketplaceCommand} failed — superpowers is enabled in .claude/settings.json but not installed`,
+          );
+        }
+      }
+      if (ready) {
+        console.log(`agent-skills: running ${installCommand}`);
+        const result = claude(['plugin', 'install', SUPERPOWERS, '--scope', 'project'], { stdio: 'inherit' });
+        if (result.error || result.status !== 0) {
+          settingsProblems.push(
+            `${installCommand} failed — superpowers is enabled in .claude/settings.json but not installed`,
+          );
+        } else installed = true;
+      }
+    }
   }
 
   for (const f of links) {

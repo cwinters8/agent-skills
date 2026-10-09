@@ -102,10 +102,11 @@ Commit `.claude/settings.json`. That entry turns the plugin on for everyone in
 the repo but does not download it for them: each collaborator runs the same
 `claude plugin install … --scope project` once, and `init` prints it. If
 `claude` is not on PATH, `init` still writes the entry and tells you to run the
-install yourself; if the install runs and fails — most often because a machine
-that has never opened an interactive session has not registered the official
-marketplace — `init` exits non-zero and prints the
-`claude plugin marketplace add anthropics/claude-plugins-official` step.
+install yourself. A machine that has never opened an interactive session has
+not registered the official marketplace yet, so `init` runs
+`claude plugin marketplace add anthropics/claude-plugins-official` first when
+it is missing — and the same applies to collaborators on a fresh machine. If
+either command fails, `init` exits non-zero.
 
 It merges rather than scaffolds: an existing settings file keeps every other
 key, and an existing `superpowers@…` entry — `false`, or an install from another
