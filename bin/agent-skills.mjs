@@ -31,6 +31,7 @@ import {
   mkdirSync,
   readFileSync,
   readdirSync,
+  renameSync,
   rmSync,
   lstatSync,
   statSync,
@@ -316,7 +317,12 @@ if (command === 'init') {
           install = existing === SUPERPOWERS && plugins[existing] === true;
         } else {
           settings.enabledPlugins = { ...plugins, [SUPERPOWERS]: true };
-          writeFileSync(settingsPath, `${JSON.stringify(settings, null, 2)}\n`);
+          // Write beside it and rename over it. An in-place write truncates the
+          // adopter's only copy first, so an interrupted run or a full disk
+          // would leave the very file this merge exists to preserve empty.
+          const temp = `${settingsPath}.agent-skills-${process.pid}.tmp`;
+          writeFileSync(temp, `${JSON.stringify(settings, null, 2)}\n`);
+          renameSync(temp, settingsPath);
           wrote.push(`${label} (enabled ${SUPERPOWERS})`);
           install = true;
         }
@@ -346,9 +352,14 @@ if (command === 'init') {
   if (install) {
     // Windows exposes `claude` as a .cmd shim, which spawn finds only through a
     // shell. Every argument here is a constant, so the shell has nothing to
-    // interpret.
-    const claude = (args, options = {}) =>
-      spawnSync('claude', args, { shell: process.platform === 'win32', ...options });
+    // interpret — but the shell's command search is its own hazard: cmd looks
+    // in the current directory before PATH, and the current directory is the
+    // repository being adopted. A `claude.cmd` committed there would run in
+    // place of Claude Code. NoDefaultCurrentDirectoryInExePath is Windows' own
+    // switch for dropping the current directory from that search.
+    const win = process.platform === 'win32';
+    const env = win ? { ...process.env, NoDefaultCurrentDirectoryInExePath: '1' } : process.env;
+    const claude = (args, options = {}) => spawnSync('claude', args, { shell: win, env, ...options });
 
     // Claude Code registers the official marketplace only on the first
     // interactive session, so on a machine that has never had one the install
@@ -360,9 +371,11 @@ if (command === 'init') {
     // a shell in between (Windows, above), a command that does not exist is the
     // shell's own non-zero exit, not ENOENT, so the check below would see an
     // ordinary failure and report a broken install where there is simply no
-    // Claude Code. Ask `where` directly there; elsewhere spawn reports ENOENT.
-    const missing =
-      process.platform === 'win32' && spawnSync('where', ['claude'], { stdio: 'ignore' }).status !== 0;
+    // Claude Code. Ask `where` directly there, restricted to PATH with its
+    // `$PATH:` form — a bare `where` also searches the current directory, so a
+    // file in the repository would answer for a Claude Code that is not
+    // installed. Elsewhere spawn reports ENOENT.
+    const missing = win && spawnSync('where', ['$PATH:claude'], { stdio: 'ignore', env }).status !== 0;
     const listed = missing ? null : claude(['plugin', 'marketplace', 'list', '--json'], { encoding: 'utf8' });
     if (missing || listed.error?.code === 'ENOENT') {
       console.log('agent-skills: `claude` is not on PATH, so superpowers is enabled but not installed here.');

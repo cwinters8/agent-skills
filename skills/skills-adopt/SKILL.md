@@ -171,9 +171,17 @@ The profile states facts a skill can act on. Derive every answer; guess none.
     adoption PR description should give collaborators the install command
     `init` printed, together with the `claude plugin marketplace add` step it
     prints for a machine that has never opened an interactive session. Commit
-    that file with the rest of the adoption, or pass `--no-superpowers` if the
-    repo should not carry it — say which in the PR description, since a
-    reviewer seeing a settings change in a skills PR will otherwise ask why.
+    that file with the rest of the adoption, or leave superpowers out — say
+    which in the PR description, since a reviewer seeing a settings change in a
+    skills PR will otherwise ask why.
+
+    Leaving it out after a bootstrap means undoing it, not re-running: the
+    bootstrap `init` already wrote the entry and installed the plugin, and
+    `--no-superpowers` on a later run only skips the step, it removes nothing.
+    Run `claude plugin uninstall superpowers@claude-plugins-official --scope
+    project`, which drops the entry from `.claude/settings.json` as well, or
+    delete the key by hand where `claude` is not available. Before a first
+    `init`, `--no-superpowers` is enough.
 
     It scaffolds only. The survey in phase 2 is still the work, and a profile
     left as the template it wrote fails validation exactly as it should.
