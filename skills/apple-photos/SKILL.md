@@ -78,11 +78,20 @@ The host might already have the grant (a terminal-based agent launched from a
 granted terminal inherits it). Run one cheap query directly:
 
 ```sh
-osxphotos query --only-movies --from-date <recent date> --count
+cd "<scratch dir>" && osxphotos query --only-movies --from-date <recent date> --count
 ```
 
-- **A number comes back:** this session has access. Run every command
-  directly and skip the relay.
+Run it from a scratch directory, not the repo: a failure writes
+`osxphotos_crash.log` into the current directory.
+
+- **A number comes back:** this session can read the database, which is the
+  Full Disk Access grant. Queries and exports of originals already on disk can
+  run directly. Downloads (`--download-missing --use-photokit`) and `import`
+  go through PhotoKit, which needs the separate Photos grant (Setup step 3),
+  and a successful query does not show this session has it. Run those
+  through the relay unless one has already succeeded directly in this
+  session. If one fails directly, relay it, and before relaying an import,
+  check the album first (Step 4).
 - **`Operation not permitted` on `Photos.sqlite`:** use the relay for *every*
   osxphotos command in this session — query, export and import alike. Delete
   the `osxphotos_crash.log` the failure wrote into the working directory, and

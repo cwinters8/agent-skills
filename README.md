@@ -1,9 +1,9 @@
 # agent-skills
 
-Portable [Claude Code skills](https://code.claude.com/docs/en/skills) for QA and
-code review, written to work in any repository. Project-specific facts live in
-the consumer repo, in a single overlay file, so the skills themselves stay
-generic.
+Portable [Claude Code skills](https://code.claude.com/docs/en/skills) for QA,
+code review, and agent work on the user's machine, written to work in any
+repository. Project-specific facts live in the consumer repo, in a single
+overlay file, so the skills themselves stay generic.
 
 Shipping a change:
 
