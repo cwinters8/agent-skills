@@ -85,10 +85,15 @@ explaining adoption is vendored *by* step 2, before it is needed in step 3.
 `sync` writes the skills before it validates the profile, deliberately, so a
 first run always leaves the guidance on disk even though it fails.
 
-`#main` is right for the bootstrap specifically: nothing durable comes out of it
-— two scaffolded files you are about to rewrite — and the pin that *is* durable
-gets chosen and verified in `skills-adopt` phase 1, with the whole current
-feature set on disk to choose from.
+`#main` is right for the bootstrap specifically: nothing durable *that depends on
+the ref* comes out of it — two scaffolded files you are about to rewrite — and
+the pin that *is* durable gets chosen and verified in `skills-adopt` phase 1,
+with the whole current feature set on disk to choose from. The superpowers entry
+`init` adds to `.claude/settings.json` (below) does outlive the bootstrap, but it
+names the plugin's own marketplace, not this package: the plugin version comes
+from that marketplace whichever ref you pin later, so pinning an older ref
+leaves nothing to reconcile. If you don't want it, pass `--no-superpowers` to the
+bootstrap `init` or delete the entry before committing.
 
 **Superpowers comes with `init` by default.** These skills own what lands in a
 diff; [superpowers](https://github.com/obra/superpowers) owns how the session
@@ -171,6 +176,20 @@ npx -y github:cwinters8/agent-skills#main init --no-superpowers
    ```sh
    npx -y github:cwinters8/agent-skills#<verified-ref> check-profile
    ```
+
+6. **Set up superpowers, or decide not to.** `init` does this by default, so
+   skipping it here should be a choice rather than an omission. To match `init`,
+   install it at project scope — on a machine that has never opened an
+   interactive Claude Code session, register the marketplace first — and commit
+   the `.claude/settings.json` it writes:
+
+   ```sh
+   claude plugin marketplace add anthropics/claude-plugins-official
+   claude plugin install superpowers@claude-plugins-official --scope project
+   ```
+
+   Collaborators run the same commands once on their own machines; the
+   committed entry enables the plugin but downloads it for no one.
 
 ## The version you invoke is the version you vendor
 
