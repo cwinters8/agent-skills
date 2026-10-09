@@ -466,7 +466,18 @@ if (command === 'init') {
         // name from any other repository would otherwise supply the plugin.
         const entry = entries.find((m) => m?.name === MARKETPLACE);
         if (!entry) return {};
-        if (entry.source === 'github' && entry.repo === `anthropics/${MARKETPLACE}`) return { known: true };
+        // Two spellings of the same repository: `owner/repo` registers as a
+        // github source, the full GitHub URL as a git source. Normalize only
+        // the URL forms of github.com itself — any other host or path is not
+        // the official marketplace, however its name reads.
+        const official = `anthropics/${MARKETPLACE}`;
+        const fromUrl = (url) =>
+          typeof url === 'string' &&
+          url.replace(/^git\+/, '').replace(/^(https:\/\/github\.com\/|git@github\.com:)/i, '').replace(/\.git$|\/$/g, '') ===
+            official &&
+          /^(git\+)?(https:\/\/github\.com\/|git@github\.com:)/i.test(url);
+        if (entry.source === 'github' && entry.repo === official) return { known: true };
+        if (entry.source === 'git' && fromUrl(entry.url)) return { known: true };
         const from = entry.repo ?? entry.url ?? entry.source ?? 'an unrecognized source';
         return {
           refusal:
