@@ -70,7 +70,8 @@ this into a session at the root of the repo you are adopting into.
 > repository.
 >
 > 1. Run `npx -y github:cwinters8/agent-skills#main init` to scaffold
->    `.claude/skills.json` and a blank `.claude/project-profile.md`.
+>    `.claude/skills.json` and a blank `.claude/project-profile.md`, and to
+>    enable the superpowers plugin in `.claude/settings.json`.
 > 2. Run `npx -y github:cwinters8/agent-skills#main sync`. It vendors the skills
 >    and then exits non-zero because the profile is still the template — that is
 >    expected, and it is what puts `.claude/skills/skills-adopt/SKILL.md` on
@@ -88,6 +89,24 @@ first run always leaves the guidance on disk even though it fails.
 — two scaffolded files you are about to rewrite — and the pin that *is* durable
 gets chosen and verified in `skills-adopt` phase 1, with the whole current
 feature set on disk to choose from.
+
+**Superpowers comes with `init` by default.** These skills own what lands in a
+diff; [superpowers](https://github.com/obra/superpowers) owns how the session
+gets there — planning, debugging, test-driving, verifying before claiming done.
+So `init` adds `"superpowers@claude-plugins-official": true` to
+`enabledPlugins` in `.claude/settings.json`, which is what
+`claude plugin install --scope project` writes. Commit that file and Claude Code
+offers to install the plugin when someone trusts the folder.
+
+It merges rather than scaffolds: an existing settings file keeps every other
+key, and an existing `superpowers@…` entry — `false`, or an install from another
+marketplace — is left exactly as found. A settings file that is not valid JSON,
+or is a symlink, is not touched, and `init` exits non-zero to say so. Pass
+`--no-superpowers` to skip the step entirely:
+
+```sh
+npx -y github:cwinters8/agent-skills#main init --no-superpowers
+```
 
 **Or do it by hand.** `init` is a convenience, not a requirement.
 

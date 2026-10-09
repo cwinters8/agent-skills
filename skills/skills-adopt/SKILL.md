@@ -160,8 +160,15 @@ The profile states facts a skill can act on. Derive every answer; guess none.
     disk, both already exist and this step is done:
 
     ```sh
-    npx -y github:cwinters8/agent-skills#<ref> init [skill...]
+    npx -y github:cwinters8/agent-skills#<ref> init [--no-superpowers] [skill...]
     ```
+
+    By default it also enables the superpowers plugin in
+    `.claude/settings.json`, merging one key into an existing file and leaving
+    any existing `superpowers@…` entry as found. Commit that file with the rest
+    of the adoption, or pass `--no-superpowers` if the repo should not carry
+    it — say which in the adoption PR description, since a reviewer seeing a settings
+    change in a skills PR will otherwise ask why.
 
     It scaffolds only. The survey in phase 2 is still the work, and a profile
     left as the template it wrote fails validation exactly as it should.

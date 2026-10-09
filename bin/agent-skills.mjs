@@ -4,6 +4,10 @@
 //   agent-skills sync            write the vendored copies
 //   agent-skills sync --check    verify without writing; non-zero on drift
 //   agent-skills sync --force    overwrite locally-edited vendored files
+//   agent-skills init            scaffold the lock and profile, and enable the
+//                                superpowers plugin in .claude/settings.json
+//   agent-skills init --no-superpowers
+//                                scaffold without touching .claude/settings.json
 //
 // Typically run without installing:
 //
@@ -42,11 +46,20 @@ const repoRoot = process.cwd();
 const lockPath = join(repoRoot, '.claude', 'skills.json');
 const skillsDir = join(repoRoot, '.claude', 'skills');
 const profilePath = join(repoRoot, '.claude', 'project-profile.md');
+const settingsPath = join(repoRoot, '.claude', 'settings.json');
+
+// The plugin these skills are written to sit beside: superpowers owns how a
+// session plans, debugs and verifies, these skills own what lands in the diff.
+// The official marketplace id, because Claude Code knows that marketplace
+// without an `extraKnownMarketplaces` entry — this is exactly what
+// `claude plugin install --scope project` writes.
+const SUPERPOWERS = 'superpowers@claude-plugins-official';
 
 const argv = process.argv.slice(2);
 const command = argv.find((a) => !a.startsWith('--')) ?? 'sync';
 const check = argv.includes('--check');
 const force = argv.includes('--force');
+const noSuperpowers = argv.includes('--no-superpowers');
 
 const die = (message) => {
   console.error(`agent-skills: ${message}`);
@@ -55,7 +68,7 @@ const die = (message) => {
 
 const usage = () => {
   console.error('usage: agent-skills sync [--check] [--force]');
-  console.error('       agent-skills init [skill...]');
+  console.error('       agent-skills init [--no-superpowers] [skill...]');
   console.error('       agent-skills check-profile');
   console.error('       agent-skills list');
   process.exit(2);
@@ -260,6 +273,51 @@ if (command === 'init') {
     copyFileSync(join(packageRoot, 'templates', 'project-profile.md'), profilePath),
   );
 
+  // Enable superpowers for the repo. This is the one write in `init` that merges
+  // rather than scaffolds, and deliberately: a repo adopting these skills very
+  // often has a .claude/settings.json already, and treating it like the two
+  // files above — present, so kept — would print "kept existing" and leave the
+  // plugin unconfigured, an adoption that reads as complete and is not. The
+  // merge only ever adds one key. Everything else in the file is the adopter's,
+  // and an existing entry for superpowers is a decision already made — `false`
+  // is an opt-out, and an install from another marketplace would load the same
+  // skills twice — so either one is left exactly as found.
+  const settingsProblems = [];
+  if (!noSuperpowers) {
+    const label = '.claude/settings.json';
+    if (isSymlink(settingsPath)) links.push(label);
+    else if (existsSync(settingsPath) && !statSync(settingsPath).isFile()) blocked.push(label);
+    else {
+      let settings = {};
+      let readable = true;
+      if (existsSync(settingsPath)) {
+        // Unparseable is not the same as absent. Rewriting it from `{}` would
+        // discard whatever the adopter meant to be there, so refuse and say why.
+        try {
+          settings = JSON.parse(readFileSync(settingsPath, 'utf8'));
+        } catch (error) {
+          settingsProblems.push(`${label} is not valid JSON (${error.message}) — superpowers not enabled`);
+          readable = false;
+        }
+      }
+      const isObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+      if (readable && (!isObject(settings) || (settings.enabledPlugins !== undefined && !isObject(settings.enabledPlugins)))) {
+        settingsProblems.push(`${label} does not have the shape Claude Code expects — superpowers not enabled`);
+        readable = false;
+      }
+      if (readable) {
+        const plugins = settings.enabledPlugins ?? {};
+        const existing = Object.keys(plugins).find((k) => k.startsWith('superpowers@'));
+        if (existing) kept.push(`${label} (${existing} already listed)`);
+        else {
+          settings.enabledPlugins = { ...plugins, [SUPERPOWERS]: true };
+          writeFileSync(settingsPath, `${JSON.stringify(settings, null, 2)}\n`);
+          wrote.push(`${label} (enabled ${SUPERPOWERS})`);
+        }
+      }
+    }
+  }
+
   for (const f of wrote) console.log(`agent-skills: wrote ${f}`);
   for (const f of kept) console.log(`agent-skills: kept existing ${f}`);
   for (const f of links) {
@@ -268,6 +326,7 @@ if (command === 'init') {
   for (const f of blocked) {
     console.error(`agent-skills: ${f} exists but is not a regular file — nothing written, and sync cannot read it`);
   }
+  for (const p of settingsProblems) console.error(`agent-skills: ${p}`);
   if (collisions.length) {
     console.log('');
     console.log('agent-skills: these names already exist under .claude/skills/ and are listed:');
@@ -278,6 +337,11 @@ if (command === 'init') {
   console.log('');
   console.log('Next: fill in .claude/project-profile.md — every TODO must be replaced.');
   console.log('Then: agent-skills sync    (validates the profile and vendors the skills)');
+  if (!noSuperpowers) {
+    console.log('');
+    console.log('Commit .claude/settings.json too: Claude Code offers to install superpowers');
+    console.log('when someone trusts this folder. Pass --no-superpowers to skip that step.');
+  }
   console.log('');
   console.log('An agent can do the whole thing: see "Adopting in a new repo" in the');
   console.log(`${pkg.name} README for a prompt to hand it.`);
@@ -287,7 +351,9 @@ if (command === 'init') {
   // succeeded and leaves the failure to surface one command later, detached
   // from its cause. Refusing to write through the link was the right call;
   // reporting success afterwards would undo the point of it.
-  process.exit(links.length || blocked.length ? 1 : 0);
+  // An unreadable settings file is the same failure in a different shape: init
+  // was asked to enable the plugin and could not.
+  process.exit(links.length || blocked.length || settingsProblems.length ? 1 : 0);
 }
 
 if (command !== 'sync' && command !== 'check-profile') usage();
