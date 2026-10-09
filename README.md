@@ -24,6 +24,12 @@ Keeping the repo's inputs honest:
 | `skills-adopt` | Vendors these skills into a new repo, deriving the profile from the repo instead of a template |
 | `profile-refresh` | Re-derives an existing profile against the repo, because a stale profile reads exactly like a current one |
 
+Working on the user's machine:
+
+| Skill | What it does |
+| --- | --- |
+| `apple-photos` | Queries, exports from and imports into Apple Photos with `osxphotos`, relayed through a terminal app that holds the macOS privacy grants |
+
 ## How consumers get them
 
 **Vendored, not linked.** A consumer repo copies the skills it wants into its

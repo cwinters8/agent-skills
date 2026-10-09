@@ -382,3 +382,23 @@ Where this project ships: app stores, a web deploy, a package registry, or none.
 Drives the release-readiness group, which is otherwise skipped.
 
 *Missing:* the `release` group is skipped and reported as skipped.
+
+### `## Photos` — optional
+
+Read by `apple-photos`.
+
+Two facts the skill cannot know:
+
+- **Writable albums** — the Apple Photos albums this project may import into,
+  one per line, or `none`. These are the only writes the skill makes to the
+  library; it never modifies, retags or deletes anything already there.
+- **Relay app** — the terminal app on the maintainer's Mac that holds Full Disk
+  Access and Photos access, if it is not iTerm. macOS grants those to the app
+  that launches a process, so the skill runs `osxphotos` inside this app rather
+  than in the agent's own shell.
+
+Delete the section in a project that never touches Photos.
+
+*Missing:* the skill runs read-only — it queries and exports, and imports only
+into an album the user names as the destination in that session. It relays
+through iTerm if installed, Terminal otherwise, and says it guessed.
