@@ -179,8 +179,11 @@ The profile states facts a skill can act on. Derive every answer; guess none.
     bootstrap `init` already wrote the entry and installed the plugin, and
     `--no-superpowers` on a later run only skips the step, it removes nothing.
     Run `claude plugin uninstall superpowers@claude-plugins-official --scope
-    project`, which drops the entry from `.claude/settings.json` as well, or
-    delete the key by hand where `claude` is not available. Before a first
+    project`, which drops the entry from `.claude/settings.json` as well.
+    Delete the key by hand instead where `claude` is not available, or when the
+    uninstall reports the plugin is not installed — the bootstrap writes the
+    entry even when it could not install, and uninstall then exits non-zero
+    with the entry still in place. Before a first
     `init`, `--no-superpowers` is enough.
 
     It scaffolds only. The survey in phase 2 is still the work, and a profile

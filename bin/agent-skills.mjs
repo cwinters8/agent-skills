@@ -288,7 +288,15 @@ if (command === 'init') {
   // skills twice — so either one is left exactly as found.
   const settingsProblems = [];
   let install = false;
-  if (!noSuperpowers) {
+  // A blocked scaffold means this run already cannot initialize the repo, and
+  // it exits non-zero below. Enabling and installing a plugin for a repository
+  // init then reports as not initialized would leave durable state behind a
+  // failure, so the plugin waits for a run that can succeed.
+  const scaffoldFailed = links.length > 0 || blocked.length > 0;
+  if (!noSuperpowers && scaffoldFailed) {
+    settingsProblems.push('superpowers not set up — fix the paths above and re-run init');
+  }
+  if (!noSuperpowers && !scaffoldFailed) {
     const label = '.claude/settings.json';
     if (isSymlink(settingsPath)) links.push(label);
     else if (existsSync(settingsPath) && !statSync(settingsPath).isFile()) blocked.push(label);
