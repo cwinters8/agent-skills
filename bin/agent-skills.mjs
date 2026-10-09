@@ -24,7 +24,7 @@
 // no network once vendored.
 
 import { spawnSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import {
   chmodSync,
   copyFileSync,
@@ -212,6 +212,14 @@ if (command === 'list') {
 // the profile it writes is still a template full of placeholders, and a sync
 // would fail validation on it. Write, then let the adopter fill it in.
 if (command === 'init') {
+  // Reject any flag init does not know. --no-superpowers exists to prevent a
+  // durable side effect, so a misspelling of it (or a `=true` form) silently
+  // ignored would perform exactly what the adopter asked to skip.
+  const unknownFlags = argv.filter((a) => a.startsWith('--') && a !== '--no-superpowers');
+  if (unknownFlags.length) {
+    console.error(`agent-skills: unknown option${unknownFlags.length === 1 ? '' : 's'} for init: ${unknownFlags.join(' ')}`);
+    usage();
+  }
   const requested = argv.filter((a) => !a.startsWith('--') && a !== 'init');
   // Dedupe: a repeated name is a typo, not a request for two copies, and it
   // does lasting damage if it reaches the file. Every later stage keys on the
@@ -320,7 +328,12 @@ if (command === 'init') {
       }
       if (readable) {
         const plugins = settings.enabledPlugins ?? {};
-        const existing = Object.keys(plugins).find((k) => k.startsWith('superpowers@'));
+        // The official key decides when it is present, whatever else is listed;
+        // only without it does another marketplace's entry stand in, and that
+        // one is never installed over. A first-match search would make the
+        // outcome depend on key order.
+        const existing =
+          SUPERPOWERS in plugins ? SUPERPOWERS : Object.keys(plugins).find((k) => k.startsWith('superpowers@'));
         if (existing) {
           kept.push(`${label} (${existing} already listed)`);
           // `true` is not the only enabled form: the settings schema also takes
@@ -336,9 +349,12 @@ if (command === 'init') {
           // Carry the original's permission bits across, or the rename quietly
           // widens a file the adopter had restricted to whatever the umask
           // gives a new one.
-          const temp = `${settingsPath}.agent-skills-${process.pid}.tmp`;
+          // A random name opened exclusively: `wx` fails on anything already at
+          // the path, a symlink included, so a planted link cannot redirect the
+          // write outside the repository.
+          const temp = `${settingsPath}.agent-skills-${randomBytes(8).toString('hex')}.tmp`;
           const mode = existsSync(settingsPath) ? statSync(settingsPath).mode & 0o777 : undefined;
-          writeFileSync(temp, `${JSON.stringify(settings, null, 2)}\n`, mode === undefined ? {} : { mode });
+          writeFileSync(temp, `${JSON.stringify(settings, null, 2)}\n`, { flag: 'wx', ...(mode === undefined ? {} : { mode }) });
           if (mode !== undefined) chmodSync(temp, mode);
           renameSync(temp, settingsPath);
           wrote.push(`${label} (enabled ${SUPERPOWERS})`);
@@ -400,15 +416,28 @@ if (command === 'init') {
       console.log(`  Install Claude Code, then run: ${installCommand}`);
     } else {
       let known = false;
+      let impostor = null;
       try {
-        known = JSON.parse(listed.stdout).some((m) => m.name === MARKETPLACE);
+        // Match the source, not only the name: a registered marketplace by this
+        // name from any other repository would otherwise supply the plugin.
+        const entry = JSON.parse(listed.stdout).find((m) => m.name === MARKETPLACE);
+        if (entry) {
+          if (entry.source === 'github' && entry.repo === `anthropics/${MARKETPLACE}`) known = true;
+          else impostor = entry.repo ?? entry.url ?? entry.source ?? 'an unrecognized source';
+        }
       } catch {
         // An unreadable listing is treated as missing: adding a marketplace that
         // turns out to be present costs one settings entry, while skipping one
         // that is absent fails the install.
       }
       let ready = known;
-      if (!known) {
+      if (impostor) {
+        ready = false;
+        settingsProblems.push(
+          `the registered "${MARKETPLACE}" marketplace points at ${impostor}, not anthropics/${MARKETPLACE} — ` +
+            'superpowers not installed. Check `claude plugin marketplace list` before installing it yourself.',
+        );
+      } else if (!known) {
         console.log(`agent-skills: running ${marketplaceCommand}`);
         const added = claude(['plugin', 'marketplace', 'add', `anthropics/${MARKETPLACE}`], { stdio: 'inherit' });
         ready = !added.error && added.status === 0;

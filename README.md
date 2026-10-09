@@ -103,9 +103,12 @@ So `init` adds `"superpowers@claude-plugins-official": true` to
 `claude plugin install superpowers@claude-plugins-official --scope project` to
 install it on the machine running `init`.
 
-Commit `.claude/settings.json`. That entry turns the plugin on for everyone in
-the repo but does not download it for them: each collaborator runs the same
-`claude plugin install … --scope project` once, and `init` prints it. If
+Commit `.claude/settings.json`. That entry turns the plugin on for everyone who
+runs Claude Code locally in the repo — terminal, desktop app, IDE — but cloud
+sessions do not load plugins from a repository's settings at all, so agents
+there run without superpowers. Locally, too, it does not download the plugin:
+each collaborator runs the same `claude plugin install … --scope project` once,
+and `init` prints it. If
 `claude` is not on PATH, `init` still writes the entry and tells you to run the
 install yourself. A machine that has never opened an interactive session has
 not registered the official marketplace yet, so `init` runs
