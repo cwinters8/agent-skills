@@ -115,7 +115,10 @@ not registered the official marketplace yet, so `init` runs
 `claude plugin marketplace add anthropics/claude-plugins-official` first when
 it is missing, and prints that step alongside the install command it hands
 collaborators, since a fresh machine of theirs has the same gap. If
-either command fails, `init` exits non-zero.
+either command fails, `init` exits non-zero. The install step needs Claude Code
+2.1.273 or later, because it verifies the marketplace's source through
+`claude plugin marketplace list --json`; on anything older `init` refuses the
+install, leaves your settings as they were, and says to run `claude update`.
 
 It merges rather than scaffolds: an existing settings file keeps every other
 key, and an existing `superpowers@…` entry — `false`, or an install from another

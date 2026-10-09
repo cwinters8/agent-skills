@@ -449,7 +449,14 @@ if (command === 'init') {
         } catch {}
       }
       if (entries === null) {
-        refusal = `\`claude plugin marketplace list --json\` failed or returned something unreadable, so the "${MARKETPLACE}" marketplace could not be verified`;
+        // The commonest cause is not tampering but age: the JSON listing needs
+        // Claude Code 2.1.273 or later. Name that, so the failure reads as an
+        // upgrade rather than a mystery.
+        refusal =
+          `superpowers not installed: \`claude plugin marketplace list --json\` failed or returned something unreadable, ` +
+          `so the "${MARKETPLACE}" marketplace could not be verified.\n` +
+          '  That listing needs Claude Code 2.1.273 or later. Run `claude update` and re-run init, or install by hand\n' +
+          `  once \`claude plugin marketplace list\` shows anthropics/${MARKETPLACE}: ${installCommand}`;
       } else {
         // Match the source, not only the name: a registered marketplace by this
         // name from any other repository would otherwise supply the plugin.
@@ -458,7 +465,9 @@ if (command === 'init') {
           if (entry.source === 'github' && entry.repo === `anthropics/${MARKETPLACE}`) known = true;
           else {
             const from = entry.repo ?? entry.url ?? entry.source ?? 'an unrecognized source';
-            refusal = `the registered "${MARKETPLACE}" marketplace points at ${from}, not anthropics/${MARKETPLACE}`;
+            refusal =
+              `superpowers not installed: the registered "${MARKETPLACE}" marketplace points at ${from}, not ` +
+              `anthropics/${MARKETPLACE}. Check \`claude plugin marketplace list\` before installing it yourself.`;
           }
         }
       }
@@ -475,9 +484,7 @@ if (command === 'init') {
           console.log('agent-skills: undid the .claude/settings.json change above — superpowers is not enabled');
         }
         install = false;
-        settingsProblems.push(
-          `${refusal} — superpowers not installed. Check \`claude plugin marketplace list\` before installing it yourself.`,
-        );
+        settingsProblems.push(refusal);
       } else if (!known) {
         console.log(`agent-skills: running ${marketplaceCommand}`);
         const added = claude(['plugin', 'marketplace', 'add', `anthropics/${MARKETPLACE}`], { stdio: 'inherit' });
