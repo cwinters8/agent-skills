@@ -71,7 +71,7 @@ this into a session at the root of the repo you are adopting into.
 >
 > 1. Run `npx -y github:cwinters8/agent-skills#main init` to scaffold
 >    `.claude/skills.json` and a blank `.claude/project-profile.md`, and to
->    enable the superpowers plugin in `.claude/settings.json`.
+>    enable and install the superpowers plugin for this repo.
 > 2. Run `npx -y github:cwinters8/agent-skills#main sync`. It vendors the skills
 >    and then exits non-zero because the profile is still the template — that is
 >    expected, and it is what puts `.claude/skills/skills-adopt/SKILL.md` on
@@ -94,15 +94,25 @@ feature set on disk to choose from.
 diff; [superpowers](https://github.com/obra/superpowers) owns how the session
 gets there — planning, debugging, test-driving, verifying before claiming done.
 So `init` adds `"superpowers@claude-plugins-official": true` to
-`enabledPlugins` in `.claude/settings.json`, which is what
-`claude plugin install --scope project` writes. Commit that file and Claude Code
-offers to install the plugin when someone trusts the folder.
+`enabledPlugins` in `.claude/settings.json`, then runs
+`claude plugin install superpowers@claude-plugins-official --scope project` to
+install it on the machine running `init`.
+
+Commit `.claude/settings.json`. That entry turns the plugin on for everyone in
+the repo but does not download it for them: each collaborator runs the same
+`claude plugin install … --scope project` once, and `init` prints it. If
+`claude` is not on PATH, `init` still writes the entry and tells you to run the
+install yourself; if the install runs and fails — most often because a machine
+that has never opened an interactive session has not registered the official
+marketplace — `init` exits non-zero and prints the
+`claude plugin marketplace add anthropics/claude-plugins-official` step.
 
 It merges rather than scaffolds: an existing settings file keeps every other
 key, and an existing `superpowers@…` entry — `false`, or an install from another
 marketplace — is left exactly as found. A settings file that is not valid JSON,
-or is a symlink, is not touched, and `init` exits non-zero to say so. Pass
-`--no-superpowers` to skip the step entirely:
+or is a symlink, is not touched, and `init` exits non-zero to say so. An entry
+that is not the official one set to `true` is not installed over either. Pass
+`--no-superpowers` to skip both the settings entry and the install:
 
 ```sh
 npx -y github:cwinters8/agent-skills#main init --no-superpowers

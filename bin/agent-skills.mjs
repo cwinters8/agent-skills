@@ -4,10 +4,11 @@
 //   agent-skills sync            write the vendored copies
 //   agent-skills sync --check    verify without writing; non-zero on drift
 //   agent-skills sync --force    overwrite locally-edited vendored files
-//   agent-skills init            scaffold the lock and profile, and enable the
-//                                superpowers plugin in .claude/settings.json
+//   agent-skills init            scaffold the lock and profile, enable the
+//                                superpowers plugin in .claude/settings.json,
+//                                and install it here if `claude` is on PATH
 //   agent-skills init --no-superpowers
-//                                scaffold without touching .claude/settings.json
+//                                scaffold without touching superpowers at all
 //
 // Typically run without installing:
 //
@@ -22,6 +23,7 @@
 // start, so they exist on a session's first turn, appear in PR diffs, and need
 // no network once vendored.
 
+import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
   copyFileSync,
@@ -283,6 +285,7 @@ if (command === 'init') {
   // is an opt-out, and an install from another marketplace would load the same
   // skills twice — so either one is left exactly as found.
   const settingsProblems = [];
+  let install = false;
   if (!noSuperpowers) {
     const label = '.claude/settings.json';
     if (isSymlink(settingsPath)) links.push(label);
@@ -308,11 +311,14 @@ if (command === 'init') {
       if (readable) {
         const plugins = settings.enabledPlugins ?? {};
         const existing = Object.keys(plugins).find((k) => k.startsWith('superpowers@'));
-        if (existing) kept.push(`${label} (${existing} already listed)`);
-        else {
+        if (existing) {
+          kept.push(`${label} (${existing} already listed)`);
+          install = existing === SUPERPOWERS && plugins[existing] === true;
+        } else {
           settings.enabledPlugins = { ...plugins, [SUPERPOWERS]: true };
           writeFileSync(settingsPath, `${JSON.stringify(settings, null, 2)}\n`);
           wrote.push(`${label} (enabled ${SUPERPOWERS})`);
+          install = true;
         }
       }
     }
@@ -320,6 +326,43 @@ if (command === 'init') {
 
   for (const f of wrote) console.log(`agent-skills: wrote ${f}`);
   for (const f of kept) console.log(`agent-skills: kept existing ${f}`);
+
+  // Enabling is not installing. A project-scope `enabledPlugins` entry turns the
+  // plugin on for everyone in the repo but downloads it for no one: Claude Code
+  // reports it as enabled but not installed until each person runs the install
+  // once. Stopping at the settings write would therefore exit 0 with superpowers
+  // still absent on the very machine that asked for it. So install it here,
+  // through Claude Code's own CLI rather than by reproducing its plugin cache —
+  // that layout is Claude Code's to change. Only for the official entry, and
+  // only when it is `true`: an opt-out or another marketplace's install was left
+  // as found above, and installing over it would undo that decision.
+  // `claude` missing is not a failure of init — a machine without Claude Code
+  // has nothing to install into — but it is said, with the command to run, so
+  // the gap is visible rather than discovered later as a skill that never loads.
+  const installCommand = `claude plugin install ${SUPERPOWERS} --scope project`;
+  let installed = false;
+  if (install) {
+    console.log(`agent-skills: running ${installCommand}`);
+    // Windows exposes `claude` as a .cmd shim, which spawn finds only through a
+    // shell. The arguments are constants, so the shell has nothing to interpret.
+    const result = spawnSync('claude', ['plugin', 'install', SUPERPOWERS, '--scope', 'project'], {
+      stdio: 'inherit',
+      shell: process.platform === 'win32',
+    });
+    if (result.error?.code === 'ENOENT') {
+      console.log('agent-skills: `claude` is not on PATH, so superpowers is enabled but not installed here.');
+      console.log(`  Install Claude Code, then run: ${installCommand}`);
+    } else if (result.error || result.status !== 0) {
+      // A fresh machine that has never opened an interactive session has not
+      // registered the official marketplace yet, which is the likeliest cause.
+      settingsProblems.push(
+        `${installCommand} failed — superpowers is enabled in .claude/settings.json but not installed.\n` +
+          '  If the marketplace is unknown, run `claude plugin marketplace add anthropics/claude-plugins-official`\n' +
+          '  and then the install command again.',
+      );
+    } else installed = true;
+  }
+
   for (const f of links) {
     console.error(`agent-skills: ${f} is a symlink — left alone, nothing written through it`);
   }
@@ -337,10 +380,12 @@ if (command === 'init') {
   console.log('');
   console.log('Next: fill in .claude/project-profile.md — every TODO must be replaced.');
   console.log('Then: agent-skills sync    (validates the profile and vendors the skills)');
-  if (!noSuperpowers) {
+  if (install) {
     console.log('');
-    console.log('Commit .claude/settings.json too: Claude Code offers to install superpowers');
-    console.log('when someone trusts this folder. Pass --no-superpowers to skip that step.');
+    console.log('Commit .claude/settings.json too. It enables superpowers for everyone in this');
+    console.log('repo, but each collaborator still installs it once on their own machine:');
+    console.log(`  ${installCommand}`);
+    if (!installed) console.log('(That includes this machine — it was not installed here.)');
   }
   console.log('');
   console.log('An agent can do the whole thing: see "Adopting in a new repo" in the');
@@ -351,8 +396,9 @@ if (command === 'init') {
   // succeeded and leaves the failure to surface one command later, detached
   // from its cause. Refusing to write through the link was the right call;
   // reporting success afterwards would undo the point of it.
-  // An unreadable settings file is the same failure in a different shape: init
-  // was asked to enable the plugin and could not.
+  // An unreadable settings file, or an install that ran and failed, is the same
+  // failure in a different shape: init was asked to set up the plugin and could
+  // not.
   process.exit(links.length || blocked.length || settingsProblems.length ? 1 : 0);
 }
 
