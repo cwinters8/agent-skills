@@ -436,22 +436,34 @@ if (command === 'init') {
       console.log(`  Install Claude Code, then run: ${installCommand}`);
     } else {
       let known = false;
-      let impostor = null;
-      try {
+      let refusal = null;
+      // Fail closed on a listing that cannot be read. Treating it as empty
+      // would go on to `marketplace add`, which can exit 0 for a same-named
+      // marketplace already on disk from another source — and then install
+      // from it with the source check below never having run.
+      let entries = null;
+      if (!listed.error && listed.status === 0) {
+        try {
+          const parsed = JSON.parse(listed.stdout);
+          if (Array.isArray(parsed)) entries = parsed;
+        } catch {}
+      }
+      if (entries === null) {
+        refusal = `\`claude plugin marketplace list --json\` failed or returned something unreadable, so the "${MARKETPLACE}" marketplace could not be verified`;
+      } else {
         // Match the source, not only the name: a registered marketplace by this
         // name from any other repository would otherwise supply the plugin.
-        const entry = JSON.parse(listed.stdout).find((m) => m.name === MARKETPLACE);
+        const entry = entries.find((m) => m?.name === MARKETPLACE);
         if (entry) {
           if (entry.source === 'github' && entry.repo === `anthropics/${MARKETPLACE}`) known = true;
-          else impostor = entry.repo ?? entry.url ?? entry.source ?? 'an unrecognized source';
+          else {
+            const from = entry.repo ?? entry.url ?? entry.source ?? 'an unrecognized source';
+            refusal = `the registered "${MARKETPLACE}" marketplace points at ${from}, not anthropics/${MARKETPLACE}`;
+          }
         }
-      } catch {
-        // An unreadable listing is treated as missing: adding a marketplace that
-        // turns out to be present costs one settings entry, while skipping one
-        // that is absent fails the install.
       }
       let ready = known;
-      if (impostor) {
+      if (refusal) {
         ready = false;
         // The entry is only safe to leave when the marketplace behind it is the
         // official one. Here it is not, and a project-scope entry enables
@@ -464,8 +476,7 @@ if (command === 'init') {
         }
         install = false;
         settingsProblems.push(
-          `the registered "${MARKETPLACE}" marketplace points at ${impostor}, not anthropics/${MARKETPLACE} — ` +
-            'superpowers not installed. Check `claude plugin marketplace list` before installing it yourself.',
+          `${refusal} — superpowers not installed. Check \`claude plugin marketplace list\` before installing it yourself.`,
         );
       } else if (!known) {
         console.log(`agent-skills: running ${marketplaceCommand}`);
