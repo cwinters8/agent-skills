@@ -27,12 +27,26 @@ terminal app the user granted access to *does* have it, so the fix is to run
 the command **inside that terminal app**, started through `osascript`, and
 read its results back from files.
 
-The alternative — granting Full Disk Access to the agent's host app — would
-work, but it hands every session, every tool call and every prompt-injected
-command the whole disk, not just the Photos library. The relay confines the
-grant to the commands the agent writes into a script you can read. Do not
-suggest the broader grant as a shortcut; if the user wants it, that is their
-decision to make in System Settings.
+**The relay is not narrower than granting Full Disk Access to the agent's
+host app, and the user should know that before setting it up.** The
+Automation consent in Setup step 4 is recorded for the host-to-relay-app pair
+and kept. From then on, any process the host app is responsible for (every
+session, every tool call, any prompt-injected command) can open a window in
+the relay app running any script, and that script runs with the relay app's
+Full Disk Access. If the relay app is the user's everyday terminal, the same
+consent also lets those processes type into the terminal sessions the user
+already has open. Nobody reads the relay script before it runs either: the
+agent writes it and launches it in the same command. So treat the Automation
+grant as roughly equal to giving the host app Full Disk Access, plus control
+of the relay app.
+
+What the relay does buy is that the grant stays visible and revocable in one
+place (Automation, in System Settings), and that each run leaves its script
+on disk as a record of what ran. If the user wants a narrower setup, the relay
+app should be a dedicated one that holds these grants and is used for nothing
+else, not their everyday terminal; name it in `## Photos` → relay app. Do not
+present either the relay or a direct Full Disk Access grant as the safe
+option; both are the user's decision to make in System Settings.
 
 ## What this skill reads
 
@@ -67,7 +81,10 @@ and stop.
 4. **Automation**: the first relay run prompts twice — once for the agent's
    host app to control the relay app, once for the relay app to control
    Photos. Both must be allowed; a declined prompt makes `osascript` fail with
-   `Not authorized to send Apple events`.
+   `Not authorized to send Apple events`. Allowing the first one is the
+   decision described above: it gives everything running under the host app
+   the relay app's Full Disk Access, and lasts until revoked in Privacy &
+   Security → Automation.
 
 Restart the relay app after changing its grants. A running app keeps the
 permissions it started with.
@@ -110,13 +127,16 @@ for a sentinel file.
 ```sh
 RUN="<scratch dir>/photos-$(date +%s)"     # a fresh dir per run, outside the repo
 mkdir -p "$RUN"
-cat > "$RUN/run.sh" <<EOF
-#!/bin/zsh -l
-cd "$RUN"
-osxphotos query --only-movies --from-date 2026-10-01 --json > out.json 2> err.log
-echo \$? > exit.code
+{
+  printf '#!/bin/zsh -l\n'
+  printf 'cd %q\n' "$RUN"
+  printf 'osxphotos query --only-movies --from-date %q --json > out.json 2> err.log\n' \
+    "2026-10-01"
+  cat <<'EOF'
+echo $? > exit.code
 touch done
 EOF
+} > "$RUN/run.sh"
 chmod +x "$RUN/run.sh"
 
 (osascript -e 'with timeout of 20 seconds' \
@@ -129,10 +149,23 @@ cat "$RUN/exit.code" "$RUN/osa.log"; tail -5 "$RUN/err.log"
 
 Each part is there for a reason:
 
-- **A script file, not an inline command.** The command crosses two quoting
-  layers — the shell, then an AppleScript string. Paths with spaces, album
-  names with quotes, and `{template}` arguments break one layer or the other.
-  A file path has none of that, and the script is a record of exactly what ran.
+- **A script file, not an inline command.** Inline, the command would cross
+  an AppleScript string as well as the shell. The file removes the AppleScript
+  layer: only `$RUN` goes into the `osascript` line, so keep that path free of
+  quotes and backslashes, and never put any other value there. The script is
+  also a record of exactly what ran.
+- **Every value goes in through `printf %q`, and the fixed lines through a
+  quoted heredoc.** The shell layer is still there: the script is shell code
+  that runs with the relay app's Full Disk Access. Album names, paths, titles
+  and uuids are data, and some of them come from the library rather than from
+  you (a shared album's name is set by whoever shared it). `%q` quotes a value
+  so the script sees it as one literal argument, whatever `"`, `$(...)`,
+  backticks, spaces or `{template}` braces it holds. An unquoted heredoc
+  (`<<EOF`) would instead expand `$(...)` and `$VAR` while writing the file,
+  and a `"` in a value would end the quoting inside the script, so a name like
+  `x"; curl … | sh; "` would become a command. Build every osxphotos line in
+  Steps 3 and 4 the same way: the command and flags in the format string, each
+  value as a `%q` argument.
 - **`#!/bin/zsh -l`.** iTerm's `command` runs the file without an interactive
   shell, so the user's `PATH` is not loaded and `osxphotos` (often in
   `~/.local/bin`) is not found. A login shell loads it.
@@ -150,6 +183,14 @@ Each part is there for a reason:
   sentinel and gives up after three minutes. It is part of this turn's work,
   not a wake-up or a scheduled check-in — those are never the answer here.
   Raise the bound for a large export rather than looping again blind.
+- **A shell-tool timeout above the loop's bound.** If your shell tool kills a
+  command after a fixed time (Claude Code's Bash tool stops a foreground call
+  at 120 s unless the call passes a longer `timeout`, up to 600 s), the tool
+  kills a slow run before the loop gives up and before the trailing `cat`
+  prints the diagnostics the next section depends on. Pass a timeout a little
+  above the loop's bound (200 s for the 180 s loop above), and raise both
+  together. An export that could outlast the tool's maximum is too big for
+  one run: split the uuids across several runs.
 
 For Terminal instead of iTerm, the launch line is
 `tell application "Terminal" to do script "$RUN/run.sh"`. Terminal's `do

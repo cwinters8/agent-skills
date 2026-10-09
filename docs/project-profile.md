@@ -395,7 +395,9 @@ Two facts the skill cannot know:
 - **Relay app** — the terminal app on the maintainer's Mac that holds Full Disk
   Access and Photos access, if it is not iTerm. macOS grants those to the app
   that launches a process, so the skill runs `osxphotos` inside this app rather
-  than in the agent's own shell.
+  than in the agent's own shell. Allowing the agent's host app to control this
+  app gives everything running under the host its Full Disk Access, so a
+  dedicated app used only for the relay is narrower than an everyday terminal.
 
 Delete the section in a project that never touches Photos.
 
