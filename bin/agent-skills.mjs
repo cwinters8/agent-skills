@@ -435,43 +435,66 @@ if (command === 'init') {
       console.log('agent-skills: `claude` is not on PATH, so superpowers is enabled but not installed here.');
       console.log(`  Install Claude Code, then run: ${installCommand}`);
     } else {
-      let known = false;
-      let refusal = null;
-      // Fail closed on a listing that cannot be read. Treating it as empty
-      // would go on to `marketplace add`, which can exit 0 for a same-named
-      // marketplace already on disk from another source — and then install
-      // from it with the source check below never having run.
-      let entries = null;
-      if (!listed.error && listed.status === 0) {
-        try {
-          const parsed = JSON.parse(listed.stdout);
-          if (Array.isArray(parsed)) entries = parsed;
-        } catch {}
-      }
-      if (entries === null) {
-        // The commonest cause is not tampering but age: the JSON listing needs
-        // Claude Code 2.1.273 or later. Name that, so the failure reads as an
-        // upgrade rather than a mystery.
-        refusal =
-          `superpowers not installed: \`claude plugin marketplace list --json\` failed or returned something unreadable, ` +
-          `so the "${MARKETPLACE}" marketplace could not be verified.\n` +
-          '  That listing needs Claude Code 2.1.273 or later. Run `claude update` and re-run init, or install by hand\n' +
-          `  once \`claude plugin marketplace list\` shows anthropics/${MARKETPLACE}: ${installCommand}`;
-      } else {
+      // Read a marketplace listing into one of three answers: the official
+      // marketplace is registered (`known`), something makes it unsafe to go
+      // on (`refusal`), or it is simply absent (neither).
+      const verify = (listing) => {
+        // Fail closed on a listing that cannot be read. Treating it as empty
+        // would go on to `marketplace add`, which can exit 0 for a same-named
+        // marketplace already on disk from another source — and then install
+        // from it with the source check below never having run.
+        let entries = null;
+        if (!listing.error && listing.status === 0) {
+          try {
+            const parsed = JSON.parse(listing.stdout);
+            if (Array.isArray(parsed)) entries = parsed;
+          } catch {}
+        }
+        if (entries === null) {
+          // The commonest cause is not tampering but age: the JSON listing
+          // needs Claude Code 2.1.273 or later. Name that, so the failure reads
+          // as an upgrade rather than a mystery.
+          return {
+            refusal:
+              `superpowers not installed: \`claude plugin marketplace list --json\` failed or returned something unreadable, ` +
+              `so the "${MARKETPLACE}" marketplace could not be verified.\n` +
+              '  That listing needs Claude Code 2.1.273 or later. Run `claude update` and re-run init, or install by hand\n' +
+              `  once \`claude plugin marketplace list\` shows anthropics/${MARKETPLACE}: ${installCommand}`,
+          };
+        }
         // Match the source, not only the name: a registered marketplace by this
         // name from any other repository would otherwise supply the plugin.
         const entry = entries.find((m) => m?.name === MARKETPLACE);
-        if (entry) {
-          if (entry.source === 'github' && entry.repo === `anthropics/${MARKETPLACE}`) known = true;
-          else {
-            const from = entry.repo ?? entry.url ?? entry.source ?? 'an unrecognized source';
+        if (!entry) return {};
+        if (entry.source === 'github' && entry.repo === `anthropics/${MARKETPLACE}`) return { known: true };
+        const from = entry.repo ?? entry.url ?? entry.source ?? 'an unrecognized source';
+        return {
+          refusal:
+            `superpowers not installed: the registered "${MARKETPLACE}" marketplace points at ${from}, not ` +
+            `anthropics/${MARKETPLACE}. Check \`claude plugin marketplace list\` before installing it yourself.`,
+        };
+      };
+      const relist = () => claude(['plugin', 'marketplace', 'list', '--json'], { encoding: 'utf8' });
+
+      let { known, refusal } = verify(listed);
+      let addFailed = false;
+      if (!known && !refusal) {
+        console.log(`agent-skills: running ${marketplaceCommand}`);
+        const added = claude(['plugin', 'marketplace', 'add', `anthropics/${MARKETPLACE}`], { stdio: 'inherit' });
+        if (added.error || added.status !== 0) addFailed = true;
+        else {
+          // A successful add is not proof of the source: it also exits 0 when a
+          // marketplace by that name is merely already on disk, from wherever
+          // it came. Install only from what the listing then verifies.
+          ({ known, refusal } = verify(relist()));
+          if (!known && !refusal) {
             refusal =
-              `superpowers not installed: the registered "${MARKETPLACE}" marketplace points at ${from}, not ` +
-              `anthropics/${MARKETPLACE}. Check \`claude plugin marketplace list\` before installing it yourself.`;
+              `superpowers not installed: \`${marketplaceCommand}\` reported success, but the listing still does not ` +
+              `show anthropics/${MARKETPLACE}. Check \`claude plugin marketplace list\` before installing it yourself.`;
           }
         }
       }
-      let ready = known;
+      let ready = Boolean(known);
       if (refusal) {
         ready = false;
         // The entry is only safe to leave when the marketplace behind it is the
@@ -485,15 +508,10 @@ if (command === 'init') {
         }
         install = false;
         settingsProblems.push(refusal);
-      } else if (!known) {
-        console.log(`agent-skills: running ${marketplaceCommand}`);
-        const added = claude(['plugin', 'marketplace', 'add', `anthropics/${MARKETPLACE}`], { stdio: 'inherit' });
-        ready = !added.error && added.status === 0;
-        if (!ready) {
-          settingsProblems.push(
-            `${marketplaceCommand} failed — superpowers is enabled in .claude/settings.json but not installed`,
-          );
-        }
+      } else if (addFailed) {
+        settingsProblems.push(
+          `${marketplaceCommand} failed — superpowers is enabled in .claude/settings.json but not installed`,
+        );
       }
       if (ready) {
         console.log(`agent-skills: running ${installCommand}`);
