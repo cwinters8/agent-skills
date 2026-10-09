@@ -26,6 +26,7 @@
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
+  chmodSync,
   copyFileSync,
   existsSync,
   mkdirSync,
@@ -314,14 +315,23 @@ if (command === 'init') {
         const existing = Object.keys(plugins).find((k) => k.startsWith('superpowers@'));
         if (existing) {
           kept.push(`${label} (${existing} already listed)`);
-          install = existing === SUPERPOWERS && plugins[existing] === true;
+          // `true` is not the only enabled form: the settings schema also takes
+          // an array of version constraints, and that entry still needs the
+          // download as much as a bare `true` does. `false` is the opt-out.
+          const value = plugins[existing];
+          install = existing === SUPERPOWERS && (value === true || Array.isArray(value));
         } else {
           settings.enabledPlugins = { ...plugins, [SUPERPOWERS]: true };
           // Write beside it and rename over it. An in-place write truncates the
           // adopter's only copy first, so an interrupted run or a full disk
           // would leave the very file this merge exists to preserve empty.
+          // Carry the original's permission bits across, or the rename quietly
+          // widens a file the adopter had restricted to whatever the umask
+          // gives a new one.
           const temp = `${settingsPath}.agent-skills-${process.pid}.tmp`;
-          writeFileSync(temp, `${JSON.stringify(settings, null, 2)}\n`);
+          const mode = existsSync(settingsPath) ? statSync(settingsPath).mode & 0o777 : undefined;
+          writeFileSync(temp, `${JSON.stringify(settings, null, 2)}\n`, mode === undefined ? {} : { mode });
+          if (mode !== undefined) chmodSync(temp, mode);
           renameSync(temp, settingsPath);
           wrote.push(`${label} (enabled ${SUPERPOWERS})`);
           install = true;
