@@ -169,10 +169,11 @@ The profile states facts a skill can act on. Derive every answer; guess none.
     machine through `claude plugin install … --scope project`. Enabling is not
     installing: the committed entry downloads nothing for anyone else, so the
     adoption PR description should give collaborators the install command
-    `init` printed. Commit that file with the rest of the adoption, or pass
-    `--no-superpowers` if the repo should not carry it — say which in the PR
-    description, since a reviewer seeing a settings change in a skills PR will
-    otherwise ask why.
+    `init` printed, together with the `claude plugin marketplace add` step it
+    prints for a machine that has never opened an interactive session. Commit
+    that file with the rest of the adoption, or pass `--no-superpowers` if the
+    repo should not carry it — say which in the PR description, since a
+    reviewer seeing a settings change in a skills PR will otherwise ask why.
 
     It scaffolds only. The survey in phase 2 is still the work, and a profile
     left as the template it wrote fails validation exactly as it should.

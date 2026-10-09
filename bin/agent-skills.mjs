@@ -356,8 +356,15 @@ if (command === 'init') {
     // where `init` is likeliest to run. Register it first, but only when it is
     // missing: `marketplace add` on a registered marketplace still writes a
     // declaration into the user's settings, which is not this command's to touch.
-    const listed = claude(['plugin', 'marketplace', 'list', '--json'], { encoding: 'utf8' });
-    if (listed.error?.code === 'ENOENT') {
+    // Missing `claude` has to be detected before anything runs through it. With
+    // a shell in between (Windows, above), a command that does not exist is the
+    // shell's own non-zero exit, not ENOENT, so the check below would see an
+    // ordinary failure and report a broken install where there is simply no
+    // Claude Code. Ask `where` directly there; elsewhere spawn reports ENOENT.
+    const missing =
+      process.platform === 'win32' && spawnSync('where', ['claude'], { stdio: 'ignore' }).status !== 0;
+    const listed = missing ? null : claude(['plugin', 'marketplace', 'list', '--json'], { encoding: 'utf8' });
+    if (missing || listed.error?.code === 'ENOENT') {
       console.log('agent-skills: `claude` is not on PATH, so superpowers is enabled but not installed here.');
       console.log(`  Install Claude Code, then run: ${installCommand}`);
     } else {
@@ -414,6 +421,10 @@ if (command === 'init') {
     console.log('Commit .claude/settings.json too. It enables superpowers for everyone in this');
     console.log('repo, but each collaborator still installs it once on their own machine:');
     console.log(`  ${installCommand}`);
+    // The same fresh-machine gap init closes for itself above: without the
+    // marketplace step, the one command a collaborator is handed fails.
+    console.log('On a machine that has never opened an interactive Claude Code session,');
+    console.log(`register the marketplace first: ${marketplaceCommand}`);
     if (!installed) console.log('(That includes this machine — it was not installed here.)');
   }
   console.log('');

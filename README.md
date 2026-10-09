@@ -105,7 +105,8 @@ the repo but does not download it for them: each collaborator runs the same
 install yourself. A machine that has never opened an interactive session has
 not registered the official marketplace yet, so `init` runs
 `claude plugin marketplace add anthropics/claude-plugins-official` first when
-it is missing — and the same applies to collaborators on a fresh machine. If
+it is missing, and prints that step alongside the install command it hands
+collaborators, since a fresh machine of theirs has the same gap. If
 either command fails, `init` exits non-zero.
 
 It merges rather than scaffolds: an existing settings file keeps every other
