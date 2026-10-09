@@ -127,16 +127,15 @@ for a sentinel file.
 ```sh
 RUN="<scratch dir>/photos-$(date +%s)"     # a fresh dir per run, outside the repo
 mkdir -p "$RUN"
+/bin/zsh -f -s -- "$RUN" "2026-10-01" <<'GEN'
 {
   printf '#!/bin/zsh -l\n'
-  printf 'cd %q\n' "$RUN"
-  printf 'osxphotos query --only-movies --from-date %q --json > out.json 2> err.log\n' \
-    "2026-10-01"
-  cat <<'EOF'
-echo $? > exit.code
-touch done
-EOF
-} > "$RUN/run.sh"
+  printf 'cd %q\n' "$1"
+  printf 'osxphotos query --only-movies --from-date %q --json > out.json 2> err.log\n' "$2"
+  print -r -- 'echo $? > exit.code'
+  print -r -- 'touch done'
+} > "$1/run.sh"
+GEN
 chmod +x "$RUN/run.sh"
 
 (osascript -e 'with timeout of 20 seconds' \
@@ -154,18 +153,26 @@ Each part is there for a reason:
   layer: only `$RUN` goes into the `osascript` line, so keep that path free of
   quotes and backslashes, and never put any other value there. The script is
   also a record of exactly what ran.
-- **Every value goes in through `printf %q`, and the fixed lines through a
-  quoted heredoc.** The shell layer is still there: the script is shell code
-  that runs with the relay app's Full Disk Access. Album names, paths, titles
-  and uuids are data, and some of them come from the library rather than from
-  you (a shared album's name is set by whoever shared it). `%q` quotes a value
-  so the script sees it as one literal argument, whatever `"`, `$(...)`,
-  backticks, spaces or `{template}` braces it holds. An unquoted heredoc
+- **Every value goes in through zsh's `printf %q`, inside a quoted heredoc.**
+  The shell layer is still there: the script is shell code that runs with the
+  relay app's Full Disk Access. Album names, paths, titles and uuids are data,
+  and some of them come from the library rather than from you (a shared
+  album's name is set by whoever shared it). The values reach the generator
+  as positional arguments (`$1`, `$2`, …) and `%q` quotes each one so the
+  script sees one literal argument, whatever `"`, `'`, `$(...)`, backticks,
+  spaces, `{template}` braces or a leading `-` it holds. An unquoted heredoc
   (`<<EOF`) would instead expand `$(...)` and `$VAR` while writing the file,
   and a `"` in a value would end the quoting inside the script, so a name like
   `x"; curl … | sh; "` would become a command. Build every osxphotos line in
   Steps 3 and 4 the same way: the command and flags in the format string, each
-  value as a `%q` argument.
+  value as a positional argument to the generator and a `%q` in the format.
+- **The generator runs in `/bin/zsh`, whatever your own shell is.** `%q`
+  quotes for the shell that runs it, and the script runs in zsh. bash's `%q`
+  leaves a leading `=` or `~` bare, and zsh expands both at the start of a
+  word: a value like `=Trips` aborts the script before it writes `exit.code`
+  or `done`, so the run waits out the loop and reports nothing, and one like
+  `~root` silently turns into a path. `-f` skips the user's zsh startup files,
+  which the generator does not need.
 - **`#!/bin/zsh -l`.** iTerm's `command` runs the file without an interactive
   shell, so the user's `PATH` is not loaded and `osxphotos` (often in
   `~/.local/bin`) is not found. A login shell loads it.
