@@ -352,7 +352,18 @@ if (command === 'init') {
           // an array of version constraints, and that entry still needs the
           // download as much as a bare `true` does. `false` is the opt-out.
           const value = plugins[existing];
-          install = existing === SUPERPOWERS && (value === true || Array.isArray(value));
+          const constraints = Array.isArray(value) && value.every((v) => typeof v === 'string');
+          if (existing === SUPERPOWERS && typeof value !== 'boolean' && !constraints) {
+            // Anything else is a value Claude Code will not honor — the
+            // adopter believes the plugin is on and it is not. Say so rather
+            // than calling a broken entry kept.
+            kept.pop();
+            settingsProblems.push(
+              `${label} has "${SUPERPOWERS}": ${JSON.stringify(value)}, which is not true, false, or a list of ` +
+                'version constraints — superpowers not set up. Fix or remove the entry and re-run init.',
+            );
+          }
+          install = existing === SUPERPOWERS && (value === true || constraints);
         } else {
           settings.enabledPlugins = { ...plugins, [SUPERPOWERS]: true };
           // Write beside it and rename over it. An in-place write truncates the
