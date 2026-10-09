@@ -296,6 +296,18 @@ if (command === 'init') {
   // skills twice — so either one is left exactly as found.
   const settingsProblems = [];
   let install = false;
+  // What .claude/settings.json held before this run added the entry — null
+  // when the file did not exist, undefined when this run wrote nothing. Kept so
+  // a refused install can put the file back rather than leave the plugin
+  // enabled for whatever a later session finds installed under that name.
+  let previousSettings;
+  const writeSettings = (text) => {
+    const temp = `${settingsPath}.agent-skills-${randomBytes(8).toString('hex')}.tmp`;
+    const mode = existsSync(settingsPath) ? statSync(settingsPath).mode & 0o777 : undefined;
+    writeFileSync(temp, text, { flag: 'wx', ...(mode === undefined ? {} : { mode }) });
+    if (mode !== undefined) chmodSync(temp, mode);
+    renameSync(temp, settingsPath);
+  };
   // A blocked scaffold means this run already cannot initialize the repo, and
   // it exits non-zero below. Enabling and installing a plugin for a repository
   // init then reports as not initialized would leave durable state behind a
@@ -352,11 +364,8 @@ if (command === 'init') {
           // A random name opened exclusively: `wx` fails on anything already at
           // the path, a symlink included, so a planted link cannot redirect the
           // write outside the repository.
-          const temp = `${settingsPath}.agent-skills-${randomBytes(8).toString('hex')}.tmp`;
-          const mode = existsSync(settingsPath) ? statSync(settingsPath).mode & 0o777 : undefined;
-          writeFileSync(temp, `${JSON.stringify(settings, null, 2)}\n`, { flag: 'wx', ...(mode === undefined ? {} : { mode }) });
-          if (mode !== undefined) chmodSync(temp, mode);
-          renameSync(temp, settingsPath);
+          previousSettings = existsSync(settingsPath) ? readFileSync(settingsPath, 'utf8') : null;
+          writeSettings(`${JSON.stringify(settings, null, 2)}\n`);
           wrote.push(`${label} (enabled ${SUPERPOWERS})`);
           install = true;
         }
@@ -433,6 +442,16 @@ if (command === 'init') {
       let ready = known;
       if (impostor) {
         ready = false;
+        // The entry is only safe to leave when the marketplace behind it is the
+        // official one. Here it is not, and a project-scope entry enables
+        // whatever is already installed under that ID — so undo this run's
+        // write. An entry that was already in the file is the adopter's.
+        if (previousSettings !== undefined) {
+          if (previousSettings === null) rmSync(settingsPath, { force: true });
+          else writeSettings(previousSettings);
+          console.log('agent-skills: undid the .claude/settings.json change above — superpowers is not enabled');
+        }
+        install = false;
         settingsProblems.push(
           `the registered "${MARKETPLACE}" marketplace points at ${impostor}, not anthropics/${MARKETPLACE} — ` +
             'superpowers not installed. Check `claude plugin marketplace list` before installing it yourself.',
