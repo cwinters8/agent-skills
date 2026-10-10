@@ -431,7 +431,10 @@ if (command === 'init') {
     // `$PATH:` form — a bare `where` also searches the current directory, so a
     // file in the repository would answer for a Claude Code that is not
     // installed. Elsewhere spawn reports ENOENT.
-    const missing = win && spawnSync('where', ['$PATH:claude'], { stdio: 'ignore', env }).status !== 0;
+    // By absolute path: a bare `where` is itself looked up in the current
+    // directory first, which is the repository being adopted.
+    const whereExe = join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'where.exe');
+    const missing = win && spawnSync(whereExe, ['$PATH:claude'], { stdio: 'ignore', env }).status !== 0;
     const listed = missing ? null : claude(['plugin', 'marketplace', 'list', '--json'], { encoding: 'utf8' });
     if (missing || listed.error?.code === 'ENOENT') {
       console.log('agent-skills: `claude` is not on PATH, so superpowers is enabled but not installed here.');
