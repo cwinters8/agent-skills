@@ -57,9 +57,9 @@ Read `.claude/project-profile.md` → `## Photos` first. It supplies:
   album the user names that is not on the list is refused and reported, not
   imported into. The project chose its list; widening it is a profile edit.
 - **Relay app** — `iTerm` or `Terminal`: whichever holds the grants on this
-  Mac. These are the only two the relay has a launch line for (Step 2); a
-  profile naming any other app is a profile error to report, not a guess to
-  make.
+  Mac. A section that leaves it out means iTerm, as the template says. These
+  are the only two the relay has a launch line for (Step 2); a profile
+  naming any other app is a profile error to report, not a guess to make.
 
 **Without a profile, or without a `## Photos` section,** query and export
 freely, and import nothing unless the user's own message in this session
@@ -122,6 +122,18 @@ Run it from a scratch directory, not the repo: a failure writes
   the `osxphotos_crash.log` the failure wrote into the working directory, and
   never commit it; it is a stack trace with the library path in it.
 
+**Confirm the library before the first read.** Every osxphotos command
+without `--library` uses the *last opened* library, and its stderr starts
+with `Using last opened Photos library: <path>`. osxphotos's own docs say that
+automatic choice is not always the library the user expects. So on first use
+in a session, run `osxphotos list` (directly or through the relay, as above).
+If it shows only one library of the user's own (ignore the
+`Syndication.photoslibrary` entries macOS keeps for shared-with-you items) and
+that is the last opened one, carry on. If it shows more than one, ask the user
+which library they mean before querying anything, then pass `--library
+"<that path>"` to every query and export for the rest of the session. Step 4
+adds what an import needs on top of this.
+
 Never retry an `import` directly after a failure, and never retry it at all
 before checking. A direct import has been seen to copy the file into the
 library and *then* crash, so a blind retry duplicates it. Query the target
@@ -133,7 +145,8 @@ Write the command into a script, start that script in the relay app, and wait
 for a sentinel file.
 
 ```sh
-OSXP=$(command -v osxphotos) || { echo "osxphotos not on PATH"; exit 1; }
+OSXP=$(/bin/zsh -fc 'whence -p osxphotos') || { echo "osxphotos not on PATH"; exit 1; }
+echo "relaying with $OSXP"   # check it before the first run; see below
 RUN=$(mktemp -d "<scratch dir>/photos-XXXXXX") || { echo "mktemp failed"; exit 1; }
 [[ $RUN == *[^A-Za-z0-9/._-]* ]] && { echo "unsafe run path: $RUN"; exit 1; }
 /bin/zsh -f -s -- "$RUN" "$OSXP" "<recent date>" <<'GEN'
@@ -192,11 +205,21 @@ Each part is there for a reason:
 - **osxphotos by absolute path, resolved in the session.** The relay app's
   `command` runs the file without an interactive shell, so a `PATH` entry
   the user only added in `~/.zshrc` is not loaded, and a login shell (`-l`)
-  does not load `.zshrc` either. Resolving `command -v osxphotos` here and
-  writing that path into the script (through `%q`, like any other value)
-  works whichever startup file set `PATH`. If `command -v` finds nothing in
-  this session, ask the user for the path rather than guessing one. With the
-  path absolute, the script needs no startup files at all, hence `-f`.
+  does not load `.zshrc` either. Resolving the path here and writing it into
+  the script (through `%q`, like any other value) works whichever startup
+  file set `PATH`. With the path absolute, the script needs no startup files
+  at all, hence `-f`. If nothing resolves, ask the user for the path rather
+  than guessing one.
+- **That path gets the relay app's Full Disk Access, so check it.**
+  `whence -p` returns only an executable file on `PATH`, never an alias or a
+  shell function, which `command -v` can return. But `PATH` itself can put a
+  project's own `osxphotos` (a `node_modules/.bin`, a repo `bin/`, a virtualenv
+  inside the checkout) ahead of the real one, and whatever it finds runs with
+  access to every file on the disk. Before the first run, refuse a path inside
+  the repository or the current working directory. If the path is not under
+  the user's tool locations (`~/.local/bin`, a `pipx` or `uv` tools
+  directory, `/opt/homebrew/bin`, `/usr/local/bin`), show it to the user and
+  wait for their yes. Name the path in your report either way.
 - **`mktemp -d` for the run directory, outside the repo, checked.** If the
   scratch parent is missing or unwritable, `mktemp` fails and `RUN` is
   empty; without the `||` the script would go to `/run.sh` and the loop
@@ -253,13 +276,16 @@ A successful launch leaves `window id <n>` in `osa.log`.
 - `osa.log` holds `Not authorized to send Apple events` → an Automation prompt
   was declined (Setup step 4).
 - `osa.log` holds a timeout (`AppleEvent timed out`, error -1712) → the relay
-  app is not answering. Wait a few minutes and retry once, in a new run
-  directory, and only after checking that the timed-out run never started:
-  its directory holds no `err.log`. A timed-out Apple event is not
-  guaranteed to have been dropped, and for an import a second launch of a
-  run that did start is a duplicate write. If the retry times out too, stop
-  and tell the user the relay app is not responding (often after many
-  windows have piled up in it). Do not quit or
+  app is not answering. A timed-out Apple event may still be queued and run
+  once the app recovers, so treat the timed-out run as *possibly still
+  coming*, not as cancelled. For a query, or an export into a destination
+  no other run uses, wait a few minutes and retry once in a new run
+  directory; if both end up running, the cost is a duplicate read. **Never
+  relaunch an import after a timeout.** Tell the user the import may still
+  run when the relay app responds, and leave it to them: a second launch can
+  land the file twice. If the retry also times out, stop and tell the user
+  the relay app is not responding (often after many windows have piled up
+  in it). Do not quit or
   restart the relay app and do not close its windows: the user is working in
   them, and the ones you did not open are not yours.
 - `osa.log` is empty and `err.log` shows `Operation not permitted` → the relay
@@ -343,13 +369,11 @@ the user named as the destination in this session's messages (see What this
 skill reads).
 
 **An import lands in the most recently opened Photos library**, which is not
-necessarily the system library. Before the first import in a session, find
-out which that is: every relayed osxphotos command's `err.log` starts with
-`Using last opened Photos library: <path>`. Then run `osxphotos list` through
-the relay. If it shows more than one library of the user's own (ignore the
-`Syndication.photoslibrary` entries macOS keeps for shared-with-you items),
-or the last opened one is not the library the user means, stop and ask the
-user to open the right library in Photos before importing anything.
+necessarily the system library, and `--library` does not redirect it. So
+the library Step 1 confirmed must also be the last opened one: check the
+`Using last opened Photos library:` line in the latest `err.log`. If it names
+a different library, stop and ask the user to open the right library in
+Photos before importing anything.
 
 ```sh
 osxphotos import --album "<permitted album>" --skip-dups \
@@ -361,6 +385,11 @@ osxphotos import --album "<permitted album>" --skip-dups \
   or `}` (`{created.year}`, `{filepath.parent}`) can create or write to an
   album other than the one named. Refuse an album name with a brace in it,
   even one from the profile, and report it. Do not try to escape it.
+- **No `/` in the album name either.** Import and query read a slash
+  differently: to `query --album` it separates a folder from an album, and
+  a literal slash has to be doubled (`Travel//2025`). A name with a slash
+  would be imported under one reading and verified under the other. Refuse
+  it and report it, the same as a brace.
 - **`--skip-dups`** skips a file osxphotos considers already in the library,
   so a retry after an unclear failure does not duplicate. For photos that
   means the same fingerprint. **For videos it means the same lowercase
@@ -373,8 +402,8 @@ osxphotos import --album "<permitted album>" --skip-dups \
   this rule. The import output says whether each file was imported or
   skipped; read it.
 - **Verify after importing**, through the relay like everything else:
-  `osxphotos query --album "<permitted album>" --json`, and confirm the new
-  item is there. Without `--library` the query reads the last opened
+  `osxphotos query --album "<permitted album>" --not-hidden --json`, and
+  confirm the new item is there. Without `--library` the query reads the last opened
   library, the same one the import wrote to. Check its `err.log` names the
   same path as before the import; if it doesn't, the user switched
   libraries in between, so say so instead of reporting the result.

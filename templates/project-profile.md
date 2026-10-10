@@ -216,7 +216,8 @@ TODO
      the apple-photos skill. Delete this section otherwise.
      Writable albums: the albums this project may import into, one per line —
      the only writes allowed to the library. Write "none" for read-only.
+     Album names may not contain {, } or /.
      Relay app: iTerm or Terminal, whichever holds Full Disk Access and Photos
-     access on the maintainer's Mac, if it is not iTerm. -->
+     access on the maintainer's Mac. Leave it out for iTerm. -->
 
 TODO
