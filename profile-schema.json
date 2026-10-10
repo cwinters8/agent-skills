@@ -192,6 +192,15 @@
       ],
       "supplies": "Where this project ships: app stores, a web deploy, a package registry, or none. Drives the release-readiness group.",
       "fallback": "The release group is skipped and reported as skipped."
+    },
+    {
+      "heading": "Photos",
+      "required": false,
+      "readBy": [
+        "apple-photos"
+      ],
+      "supplies": "The Apple Photos albums this project may import into (its only permitted writes to the library), and which of iTerm or Terminal on the maintainer's Mac holds the Full Disk Access and Photos grants, if it is not iTerm.",
+      "fallback": "apple-photos queries and exports, and imports only into an album the user names as the destination in that session. It relays through iTerm if installed, Terminal otherwise, and says it guessed."
     }
   ]
 }
