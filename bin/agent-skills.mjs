@@ -301,6 +301,7 @@ if (command === 'init') {
   // a refused install can put the file back rather than leave the plugin
   // enabled for whatever a later session finds installed under that name.
   let previousSettings;
+  let writtenSettings;
   const writeSettings = (text) => {
     const temp = `${settingsPath}.agent-skills-${randomBytes(8).toString('hex')}.tmp`;
     const mode = existsSync(settingsPath) ? statSync(settingsPath).mode & 0o777 : undefined;
@@ -376,7 +377,8 @@ if (command === 'init') {
           // the path, a symlink included, so a planted link cannot redirect the
           // write outside the repository.
           previousSettings = existsSync(settingsPath) ? readFileSync(settingsPath, 'utf8') : null;
-          writeSettings(`${JSON.stringify(settings, null, 2)}\n`);
+          writtenSettings = `${JSON.stringify(settings, null, 2)}\n`;
+          writeSettings(writtenSettings);
           wrote.push(`${label} (enabled ${SUPERPOWERS})`);
           install = true;
         }
@@ -473,10 +475,17 @@ if (command === 'init') {
         const official = `anthropics/${MARKETPLACE}`;
         const fromUrl = (url) =>
           typeof url === 'string' &&
-          url.replace(/^git\+/, '').replace(/^(https:\/\/github\.com\/|git@github\.com:)/i, '').replace(/(\.git)?\/?$/, '') ===
-            official &&
+          url
+            .replace(/^git\+/, '')
+            .replace(/^(https:\/\/github\.com\/|git@github\.com:)/i, '')
+            .replace(/(\.git)?\/?$/, '')
+            .toLowerCase() === official &&
           /^(git\+)?(https:\/\/github\.com\/|git@github\.com:)/i.test(url);
-        if (entry.source === 'github' && entry.repo === official) return { known: true };
+        // GitHub owner and repository names are case-insensitive, so compare
+        // them that way; the official name is already lowercase.
+        if (entry.source === 'github' && typeof entry.repo === 'string' && entry.repo.toLowerCase() === official) {
+          return { known: true };
+        }
         if (entry.source === 'git' && fromUrl(entry.url)) return { known: true };
         const from = entry.repo ?? entry.url ?? entry.source ?? 'an unrecognized source';
         return {
@@ -513,9 +522,24 @@ if (command === 'init') {
         // whatever is already installed under that ID — so undo this run's
         // write. An entry that was already in the file is the adopter's.
         if (previousSettings !== undefined) {
-          if (previousSettings === null) rmSync(settingsPath, { force: true });
-          else writeSettings(previousSettings);
-          console.log('agent-skills: undid the .claude/settings.json change above — superpowers is not enabled');
+          // Only undo what is still ours. The marketplace commands can take a
+          // while, and an editor or another tool may have rewritten the file
+          // meanwhile — restoring the pre-run text or deleting the file then
+          // would discard their change to retract ours.
+          let current = null;
+          try {
+            current = readFileSync(settingsPath, 'utf8');
+          } catch {}
+          if (current === writtenSettings) {
+            if (previousSettings === null) rmSync(settingsPath, { force: true });
+            else writeSettings(previousSettings);
+            console.log('agent-skills: undid the .claude/settings.json change above — superpowers is not enabled');
+          } else {
+            settingsProblems.push(
+              `.claude/settings.json changed while init was running, so the "${SUPERPOWERS}" entry it added was ` +
+                'left in place — remove it yourself before committing.',
+            );
+          }
         }
         install = false;
         settingsProblems.push(refusal);
