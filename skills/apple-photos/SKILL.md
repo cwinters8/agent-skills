@@ -52,8 +52,10 @@ option; both are the user's decision to make in System Settings.
 
 Read `.claude/project-profile.md` → `## Photos` first. It supplies:
 
-- **Writable albums** — the albums this project may import into. These are the
-  only writes this skill will ever make.
+- **Writable albums** — the albums this project may import into. When the
+  section exists, these are the only writes this skill will ever make: an
+  album the user names that is not on the list is refused and reported, not
+  imported into. The project chose its list; widening it is a profile edit.
 - **Relay app** — the terminal app on this Mac that holds the grants, if it is
   not iTerm.
 
@@ -71,7 +73,9 @@ change them. If the relay fails for a missing grant, name the missing step
 and stop.
 
 1. **Install osxphotos** — `uv tool install osxphotos`, `pipx install
-   osxphotos`, or `brew install osxphotos`. Confirm with `osxphotos --version`.
+   osxphotos`, or with Homebrew `brew tap RhetTbull/osxphotos` then `brew
+   install osxphotos` (the formula lives in that tap, so the install alone
+   fails with `No available formula`). Confirm with `osxphotos --version`.
 2. **System Settings → Privacy & Security → Full Disk Access**: add the relay
    app. This is what lets osxphotos read `Photos.sqlite`.
 3. **Privacy & Security → Photos**: give the relay app **Full Access**. This is
@@ -258,11 +262,18 @@ Export the shortlist by uuid:
 
 ```sh
 osxphotos export "<dest>" --uuid <uuid> --uuid <uuid> \
-  --download-missing --use-photokit --skip-edited --skip-live
+  --download-missing --use-photokit --skip-edited --skip-live \
+  --filename "{uuid}"
 ```
 
 - `--download-missing --use-photokit` fetches iCloud-only originals; without
   both, those items are skipped with only a log line to show for it.
+  osxphotos's own help says `--use-photokit` does not work with iTerm2 and
+  to use Terminal. With osxphotos 0.77.2 it did work through the iTerm
+  relay: an iCloud-only clip exported with `missing: 0, error: 0`. So
+  iTerm stays the default, but read the summary line. If a relayed iTerm
+  export reports items as missing or errored, rerun that export with
+  Terminal as the relay app before concluding the download failed.
 - `--skip-edited` exports the original, not the user's edit in Photos. Drop it
   when the user wants their edits.
 - `--skip-live` skips the short video half of a Live Photo, which otherwise
@@ -270,17 +281,24 @@ osxphotos export "<dest>" --uuid <uuid> --uuid <uuid> \
 - `--filename "{uuid}"` names files by uuid, which avoids the repeating
   camera filenames colliding in one directory.
 
-After an export, check the destination holds a file per uuid you asked for.
-An iCloud download can fail for one item in a batch, and an exit code covers
-the batch; counting the files is what proves each one arrived.
+After an export, read the `Processed: … exported: …, missing: …, error: …`
+line in its output, then check the destination holds a `<uuid>.<ext>` file
+for each uuid you asked for (ignore the `.osxphotos_export.db` osxphotos
+leaves there). An iCloud download can fail for one item in a batch, and an
+exit code covers the batch. The uuid-named files are what prove each one
+arrived, which is why `--filename "{uuid}"` is part of the command:
+under original filenames, repeated camera names get numbered suffixes that
+no longer map back to a uuid.
 
 ## Step 4 — Writing: import into a permitted album only
 
 **Never modify, delete, retag, rename, favorite, hide, or move anything
 already in the library.** The user's library is the only copy of most of it,
 and a metadata change made from a script has no undo in Photos. The only write this skill
-makes is importing new files into an album from `## Photos` → writable albums,
-or one the user named as the destination in this session's messages.
+makes is importing new files into an album from `## Photos` → writable albums.
+Only when the profile has no `## Photos` section may it import into an album
+the user named as the destination in this session's messages (see What this
+skill reads).
 
 ```sh
 osxphotos import --album "<permitted album>" --skip-dups \
