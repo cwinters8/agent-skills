@@ -396,8 +396,9 @@ if (command === 'init') {
   // still absent on the very machine that asked for it. So install it here,
   // through Claude Code's own CLI rather than by reproducing its plugin cache —
   // that layout is Claude Code's to change. Only for the official entry, and
-  // only when it is `true`: an opt-out or another marketplace's install was left
-  // as found above, and installing over it would undo that decision.
+  // only when it is enabled — `true` or a list of version constraints: an
+  // opt-out or another marketplace's install was left as found above, and
+  // installing over it would undo that decision.
   // `claude` missing is not a failure of init — a machine without Claude Code
   // has nothing to install into — but it is said, with the command to run, so
   // the gap is visible rather than discovered later as a skill that never loads.

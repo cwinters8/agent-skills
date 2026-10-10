@@ -129,8 +129,9 @@ install, leaves your settings as they were, and says to run `claude update`.
 It merges rather than scaffolds: an existing settings file keeps every other
 key, and an existing `superpowers@…` entry — `false`, or an install from another
 marketplace — is left exactly as found. A settings file that is not valid JSON,
-or is a symlink, is not touched, and `init` exits non-zero to say so. An entry
-that is not the official one set to `true` is not installed over either. Pass
+or is a symlink, is not touched, and `init` exits non-zero to say so. Only the
+official entry is installed, and only when it is enabled — `true`, or a list of
+version constraints; nothing else is installed over. Pass
 `--no-superpowers` to skip both the settings entry and the install:
 
 ```sh
