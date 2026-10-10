@@ -56,13 +56,17 @@ Read `.claude/project-profile.md` → `## Photos` first. It supplies:
   section exists, these are the only writes this skill will ever make: an
   album the user names that is not on the list is refused and reported, not
   imported into. The project chose its list; widening it is a profile edit.
-- **Relay app** — the terminal app on this Mac that holds the grants, if it is
-  not iTerm.
+- **Relay app** — `iTerm` or `Terminal`: whichever holds the grants on this
+  Mac. These are the only two the relay has a launch line for (Step 2); a
+  profile naming any other app is a profile error to report, not a guess to
+  make.
 
-**Without a profile, or without a `## Photos` section,** run read-only: query
-and export freely, and import only into an album the user's own message in
-this session names as the destination. Say in your report that no writable
-album was configured. For the relay app, use
+**Without a profile, or without a `## Photos` section,** query and export
+freely, and import nothing unless the user's own message in this session
+names the destination album for that import. That one case is the only write
+this fallback allows. Say in your report that no writable album was
+configured, and either that no import was made or which session-named import
+was. For the relay app, use
 iTerm if it is installed and Terminal otherwise, and say which one you used
 and that you guessed.
 
@@ -129,12 +133,14 @@ Write the command into a script, start that script in the relay app, and wait
 for a sentinel file.
 
 ```sh
+OSXP=$(command -v osxphotos) || { echo "osxphotos not on PATH"; exit 1; }
 RUN=$(mktemp -d "<scratch dir>/photos-XXXXXX")   # a new dir per run, outside the repo
-/bin/zsh -f -s -- "$RUN" "2026-10-01" <<'GEN'
+[[ $RUN == *[^A-Za-z0-9/._-]* ]] && { echo "unsafe run path: $RUN"; exit 1; }
+/bin/zsh -f -s -- "$RUN" "$OSXP" "2026-10-01" <<'GEN'
 {
-  printf '#!/bin/zsh -l\n'
+  printf '#!/bin/zsh -f\n'
   printf 'cd %q\n' "$1"
-  printf 'osxphotos query --only-movies --from-date %q --json > out.json 2> err.log\n' "$2"
+  printf '%q query --only-movies --not-hidden --from-date %q --json > out.json 2> err.log\n' "$2" "$3"
   print -r -- 'echo $? > exit.code'
   print -r -- 'touch done'
 } > "$1/run.sh"
@@ -153,9 +159,16 @@ Each part is there for a reason:
 
 - **A script file, not an inline command.** Inline, the command would cross
   an AppleScript string as well as the shell. The file removes the AppleScript
-  layer: only `$RUN` goes into the `osascript` line, so keep that path free of
-  quotes and backslashes, and never put any other value there. The script is
-  also a record of exactly what ran.
+  layer: only `$RUN/run.sh` goes into the `osascript` line, and never any
+  other value. The script is also a record of exactly what ran.
+- **The run path is checked before it is used.** That one path still crosses
+  two layers unquoted: the AppleScript string, and the relay app splitting
+  the command on spaces. A scratch directory with a space in it (`~/Temporary
+  Files`) would launch only the part before the space, and the sentinel would
+  never appear. Escaping for both layers at once is easy to get wrong, so the
+  check refuses any path with characters outside letters, digits, `/`, `.`,
+  `_` and `-`. If it fires, pick a scratch directory that passes rather than
+  escaping around it.
 - **Every value goes in through zsh's `printf %q`, inside a quoted heredoc.**
   The shell layer is still there: the script is shell code that runs with the
   relay app's Full Disk Access. Album names, paths, titles and uuids are data,
@@ -176,9 +189,14 @@ Each part is there for a reason:
   or `done`, so the run waits out the loop and reports nothing, and one like
   `~root` silently turns into a path. `-f` skips the user's zsh startup files,
   which the generator does not need.
-- **`#!/bin/zsh -l`.** iTerm's `command` runs the file without an interactive
-  shell, so the user's `PATH` is not loaded and `osxphotos` (often in
-  `~/.local/bin`) is not found. A login shell loads it.
+- **osxphotos by absolute path, resolved in the session.** The relay app's
+  `command` runs the file without an interactive shell, so a `PATH` entry
+  the user only added in `~/.zshrc` is not loaded, and a login shell (`-l`)
+  does not load `.zshrc` either. Resolving `command -v osxphotos` here and
+  writing that path into the script (through `%q`, like any other value)
+  works whichever startup file set `PATH`. If `command -v` finds nothing in
+  this session, ask the user for the path rather than guessing one. With the
+  path absolute, the script needs no startup files at all, hence `-f`.
 - **`mktemp -d` for the run directory.** Every run needs a directory no
   earlier run has used, because the wait loop trusts the first `done` it
   sees. A name built from the time (`$(date +%s)`) repeats for runs started
@@ -211,7 +229,8 @@ Each part is there for a reason:
 
 For Terminal instead of iTerm, the launch line is
 `tell application "Terminal" to do script "$RUN/run.sh"`. Terminal's `do
-script` runs in an interactive shell, so `-l` is harmless there. This variant
+script` types that path into an interactive shell, which is one more reason
+the run-path check above matters. This variant
 follows Terminal's documented AppleScript but has not been exercised the way
 the iTerm one has; say so if you use it.
 
@@ -243,8 +262,10 @@ first and export only the shortlist.
 
 Useful query filters: `--from-date`/`--to-date`, `--album`, `--person`,
 `--label` (Apple's own image classification, which works on libraries with no
-keywords), `--only-movies`/`--only-photos`, `--uuid`, `--not-hidden`. Trash is
-excluded by default. Fields in the JSON worth knowing:
+keywords), `--only-movies`/`--only-photos`, `--uuid`. Trash is excluded by
+default; **hidden items are not**. Pass `--not-hidden` on every query and
+export, and drop it only when the user asks to search their hidden items.
+Hiding something is the user saying it should not come up in passing. Fields in the JSON worth knowing:
 
 | Field | Why it matters |
 | --- | --- |
@@ -263,7 +284,7 @@ Export the shortlist by uuid:
 ```sh
 osxphotos export "<dest>" --uuid <uuid> --uuid <uuid> \
   --download-missing --use-photokit --skip-edited --skip-live \
-  --filename "{uuid}"
+  --filename "{uuid}" --not-hidden
 ```
 
 - `--download-missing --use-photokit` fetches iCloud-only originals; without
@@ -300,22 +321,39 @@ Only when the profile has no `## Photos` section may it import into an album
 the user named as the destination in this session's messages (see What this
 skill reads).
 
+Before the first import in a session, run `osxphotos list` through the relay.
+It marks the system library with `(*)`, which is where an import lands. If
+that is not the library the user means, or the list shows more than one
+library of their own (ignore the `Syndication.photoslibrary` entries macOS
+keeps for shared-with-you items), stop and ask the user to confirm which
+library Photos has open before importing anything.
+
 ```sh
 osxphotos import --album "<permitted album>" --skip-dups \
   --title "{filepath.stem}" "<file>"
 ```
 
-- **A literal album name.** `--album` accepts templates like
-  `{filepath.parent}` that create albums from paths. Pass the permitted name
-  exactly; a template can write somewhere nobody approved.
-- **`--skip-dups`** skips a file whose fingerprint is already in the library,
-  so a retry after an unclear failure does not duplicate. The same check
-  silently skips a re-render that came out byte-identical; if a new version
-  must land, it has to differ, and the output says whether it was imported or
-  skipped — read it.
+- **The album name must be a literal, and braces make it a template.**
+  `--album` is rendered as an osxphotos template, so a name containing `{`
+  or `}` (`{created.year}`, `{filepath.parent}`) can create or write to an
+  album other than the one named. Refuse an album name with a brace in it,
+  even one from the profile, and report it. Do not try to escape it.
+- **`--skip-dups`** skips a file osxphotos considers already in the library,
+  so a retry after an unclear failure does not duplicate. For photos that
+  means the same fingerprint. **For videos it means the same lowercase
+  filename and byte size**, because Photos does not always store a video
+  fingerprint. A different video that happens to share both is skipped as a
+  duplicate. So when a video import reports a skip, query the library for
+  that filename and compare the match's date and duration with the file
+  you meant to import before calling it a duplicate. A re-cut should
+  carry a new filename (`<name>-v2.mp4`) anyway, which also keeps it clear of
+  this rule. The import output says whether each file was imported or
+  skipped; read it.
 - **Verify after importing**, through the relay like everything else:
-  `osxphotos query --album "<permitted album>" --json` and confirm the new
-  item is there. Report the uuid.
+  `osxphotos query --library "<the (*) library path>" --album "<permitted
+  album>" --json`, and confirm the new item is there. Pass `--library`
+  explicitly: without it a query reads the *last opened* library, which is
+  not always the one the import wrote to. Report the uuid.
 
 If an import's exit code is non-zero, run that verification query before
 anything else. The file may already be in the library.
@@ -324,6 +362,6 @@ anything else. The file may already be in the library.
 
 Say whether you ran directly or through the relay (and which app), what you
 queried, which uuids you exported and where, and every import with its album
-and uuid. If the profile supplied no writable album, say that writes were
-off. If a grant was missing, name the Setup step rather than describing the
+and uuid. If the profile supplied no writable album, say so, and say either
+that no import was made or which session-named import was. If a grant was missing, name the Setup step rather than describing the
 error.
