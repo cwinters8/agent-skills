@@ -97,19 +97,55 @@ and stop.
 Restart the relay app after changing its grants. A running app keeps the
 permissions it started with.
 
+## Step 0 — Find osxphotos and check it
+
+Before running osxphotos at all, directly or through the relay, resolve it to
+one absolute path and use that path for every command in the session:
+
+```sh
+OSXP=$(/bin/zsh -fc 'whence -p osxphotos') || { echo "osxphotos not on PATH"; exit 1; }
+echo "using $OSXP"
+```
+
+Every later `osxphotos` in this skill means that path. If your shell
+variables do not survive between tool calls, write the vetted path itself
+into each command rather than resolving the name again.
+
+- **An absolute path, resolved in the session.** The relay app's
+  `command` runs the file without an interactive shell, so a `PATH` entry
+  the user only added in `~/.zshrc` is not loaded, and a login shell (`-l`)
+  does not load `.zshrc` either. Resolving the path here and writing it into
+  the script (through `%q`, like any other value) works whichever startup
+  file set `PATH`. With the path absolute, the script needs no startup files
+  at all, hence `-f`. If nothing resolves, ask the user for the path rather
+  than guessing one.
+- **That path gets Full Disk Access, so check it.**
+  `whence -p` returns only an executable file on `PATH`, never an alias or a
+  shell function, which `command -v` can return. But `PATH` itself can put a
+  project's own `osxphotos` (a `node_modules/.bin`, a repo `bin/`, a virtualenv
+  inside the checkout) ahead of the real one, and whatever it finds runs with
+  access to every file on the disk. Before the first command, refuse a path
+  inside the repository or the current working directory. If the path is not under
+  the user's tool locations (`~/.local/bin`, a `pipx` or `uv` tools
+  directory, `/opt/homebrew/bin`, `/usr/local/bin`), show it to the user and
+  wait for their yes. Name the path in your report either way.
+
 ## Step 1 — Try directly once, then relay
 
 The host might already have the grant (a terminal-based agent launched from a
-granted terminal inherits it). Run one cheap query directly:
+granted terminal inherits it). Run one probe directly:
 
 ```sh
-cd "<scratch dir>" && osxphotos query --only-movies --from-date <recent date> --count
+cd "<scratch dir>" && timeout 30 "$OSXP" query --uuid 00000000-0000-0000-0000-000000000000 --count
 ```
 
 Run it from a scratch directory, not the repo: a failure writes
-`osxphotos_crash.log` into the current directory.
+`osxphotos_crash.log` into the current directory. The uuid matches nothing
+on purpose. Opening the database is the whole test, so the probe reads no
+item, hidden or not, from what may not yet be the library the user means;
+choosing that library comes next.
 
-- **A number comes back:** this session can read the database, which is the
+- **`0` comes back:** this session can read the database, which is the
   Full Disk Access grant. Queries and exports of originals already on disk can
   run directly. Downloads (`--download-missing --use-photokit`) and `import`
   go through PhotoKit, which needs the separate Photos grant (Setup step 3),
@@ -117,6 +153,13 @@ Run it from a scratch directory, not the repo: a failure writes
   through the relay unless one has already succeeded directly in this
   session. If one fails directly, relay it, and before relaying an import,
   check the album first (Step 4).
+- **No answer within the limit:** a direct osxphotos call can also hang
+  with no output at all instead of failing. A privacy prompt waiting on
+  screen is one possible cause. Treat it like the next case and relay, and
+  tell the user a macOS permission dialog may be open. Whether to allow it
+  is their decision (see the top of this skill). The `timeout` is what
+  keeps a hang from eating the session. Without coreutils' `timeout`,
+  give the shell call itself a short limit instead.
 - **`Operation not permitted` on `Photos.sqlite`:** use the relay for *every*
   osxphotos command in this session — query, export and import alike. Delete
   the `osxphotos_crash.log` the failure wrote into the working directory, and
@@ -126,7 +169,7 @@ Run it from a scratch directory, not the repo: a failure writes
 without `--library` uses the *last opened* library, and its stderr starts
 with `Using last opened Photos library: <path>`. osxphotos's own docs say that
 automatic choice is not always the library the user expects. So on first use
-in a session, run `osxphotos list` (directly or through the relay, as above).
+in a session, run `"$OSXP" list` (directly or through the relay, as above).
 If it shows only one library of the user's own (ignore the
 `Syndication.photoslibrary` entries macOS keeps for shared-with-you items) and
 that is the last opened one, carry on. If it shows more than one, ask the user
@@ -145,8 +188,6 @@ Write the command into a script, start that script in the relay app, and wait
 for a sentinel file.
 
 ```sh
-OSXP=$(/bin/zsh -fc 'whence -p osxphotos') || { echo "osxphotos not on PATH"; exit 1; }
-echo "relaying with $OSXP"   # check it before the first run; see below
 RUN=$(mktemp -d "<scratch dir>/photos-XXXXXX") || { echo "mktemp failed"; exit 1; }
 [[ $RUN == *[^A-Za-z0-9/._-]* ]] && { echo "unsafe run path: $RUN"; exit 1; }
 /bin/zsh -f -s -- "$RUN" "$OSXP" "<recent date>" <<'GEN'
@@ -202,24 +243,8 @@ Each part is there for a reason:
   or `done`, so the run waits out the loop and reports nothing, and one like
   `~root` silently turns into a path. `-f` skips the user's zsh startup files,
   which the generator does not need.
-- **osxphotos by absolute path, resolved in the session.** The relay app's
-  `command` runs the file without an interactive shell, so a `PATH` entry
-  the user only added in `~/.zshrc` is not loaded, and a login shell (`-l`)
-  does not load `.zshrc` either. Resolving the path here and writing it into
-  the script (through `%q`, like any other value) works whichever startup
-  file set `PATH`. With the path absolute, the script needs no startup files
-  at all, hence `-f`. If nothing resolves, ask the user for the path rather
-  than guessing one.
-- **That path gets the relay app's Full Disk Access, so check it.**
-  `whence -p` returns only an executable file on `PATH`, never an alias or a
-  shell function, which `command -v` can return. But `PATH` itself can put a
-  project's own `osxphotos` (a `node_modules/.bin`, a repo `bin/`, a virtualenv
-  inside the checkout) ahead of the real one, and whatever it finds runs with
-  access to every file on the disk. Before the first run, refuse a path inside
-  the repository or the current working directory. If the path is not under
-  the user's tool locations (`~/.local/bin`, a `pipx` or `uv` tools
-  directory, `/opt/homebrew/bin`, `/usr/local/bin`), show it to the user and
-  wait for their yes. Name the path in your report either way.
+- **`$OSXP` comes from Step 0**, already vetted. The script needs no
+  startup files because that path is absolute, hence `#!/bin/zsh -f`.
 - **`mktemp -d` for the run directory, outside the repo, checked.** If the
   scratch parent is missing or unwritable, `mktemp` fails and `RUN` is
   empty; without the `||` the script would go to `/run.sh` and the loop
@@ -327,7 +352,7 @@ Export the shortlist by uuid:
 
 ```sh
 osxphotos export "<dest>" --uuid <uuid> --uuid <uuid> \
-  --download-missing --use-photokit --skip-edited --skip-live \
+  --download-missing --use-photokit --skip-edited --skip-live --skip-bursts \
   --filename "{uuid}" --not-hidden --no-exportdb
 ```
 
@@ -341,6 +366,9 @@ osxphotos export "<dest>" --uuid <uuid> --uuid <uuid> \
   Terminal as the relay app before concluding the download failed.
 - `--skip-edited` exports the original, not the user's edit in Photos. Drop it
   when the user wants their edits.
+- `--skip-bursts` exports only the frame you picked when an item is part of
+  a burst. Without it osxphotos exports every frame of the burst, which
+  nobody shortlisted. Drop it only when the user asks for the whole burst.
 - `--skip-live` skips the short video half of a Live Photo, which otherwise
   appears as a second file per still.
 - `--no-exportdb` stops osxphotos leaving `.osxphotos_export.db` in the
@@ -401,7 +429,9 @@ osxphotos import --album "<permitted album>" --skip-dups \
   carry a new filename (`<name>-v2.mp4`) anyway, which also keeps it clear of
   this rule. The import output says whether each file was imported or
   skipped; read it.
-- **Verify after importing**, through the relay like everything else:
+- **Verify after importing**, the same way the import ran (directly or
+  through the relay, whichever succeeded), since that is the path known to
+  reach this library:
   `osxphotos query --album "<permitted album>" --not-hidden --json`, and
   confirm the new item is there. Without `--library` the query reads the last opened
   library, the same one the import wrote to. Check its `err.log` names the
