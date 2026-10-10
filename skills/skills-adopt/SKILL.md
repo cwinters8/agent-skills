@@ -186,7 +186,7 @@ The profile states facts a skill can act on. Derive every answer; guess none.
     with the entry still in place. Before a first
     `init`, `--no-superpowers` is enough.
 
-    It scaffolds only. The survey in phase 2 is still the work, and a profile
+    For the profile, it scaffolds only. The survey in phase 2 is still the work, and a profile
     left as the template it wrote fails validation exactly as it should.
 
 11. **Validate, then sync**, in that order — the validation is possible only now

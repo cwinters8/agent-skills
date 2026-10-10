@@ -131,6 +131,16 @@ pin a ref they have read through the `sync` diff before committing it. Anything
 that makes a skill change land without appearing in that diff, or lets the CLI
 write outside `.claude/`, defeats the control.
 
+One deliberate exception: `init` (unless `--no-superpowers`) runs Claude Code's
+own `claude plugin marketplace add` and `claude plugin install` with constant
+arguments, which change the adopter's user-level plugin state outside the repo.
+That happens on the bootstrap run at `#main`, before any `sync` diff has been
+read, so the control above does not cover it. The marketplace-source check and
+the fixed plugin ID are what bound it instead. A change that makes those
+arguments variable, installs anything else, or weakens the source check widens
+what an unread ref can do on an adopter's machine. Review it as a supply-chain
+change.
+
 ## Trust boundary
 
 | Path | Groups |
