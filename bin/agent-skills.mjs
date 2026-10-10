@@ -550,7 +550,17 @@ if (command === 'init') {
       }
       if (ready) {
         console.log(`agent-skills: running ${installCommand}`);
-        const result = claude(['plugin', 'install', SUPERPOWERS, '--scope', 'project'], { stdio: 'inherit' });
+        const runInstall = () => claude(['plugin', 'install', SUPERPOWERS, '--scope', 'project'], { stdio: 'inherit' });
+        let result = runInstall();
+        if (result.error || result.status !== 0) {
+          // A verified marketplace can still hold a stale catalog — one cached
+          // before the plugin existed, or with auto-update off — and Claude
+          // Code's own remedy for plugin-not-found is to refresh it. Do that
+          // once and retry, rather than failing a state the user can't see.
+          console.log(`agent-skills: install failed — refreshing the ${MARKETPLACE} marketplace and retrying once`);
+          const refreshed = claude(['plugin', 'marketplace', 'update', MARKETPLACE], { stdio: 'inherit' });
+          if (!refreshed.error && refreshed.status === 0) result = runInstall();
+        }
         if (result.error || result.status !== 0) {
           settingsProblems.push(
             `${installCommand} failed — superpowers is enabled in .claude/settings.json but not installed`,
