@@ -362,8 +362,11 @@ osxphotos export "<dest>" --uuid <uuid> --uuid <uuid> \
   to use Terminal. With osxphotos 0.77.2 it did work through the iTerm
   relay: an iCloud-only clip exported with `missing: 0, error: 0`. So
   iTerm stays the default, but read the summary line. If a relayed iTerm
-  export reports items as missing or errored, rerun that export with
-  Terminal as the relay app before concluding the download failed.
+  export reports items as missing or errored, rerun with Terminal as the
+  relay app before concluding the download failed. Rerun **only the uuids
+  with no `<uuid>.<ext>` file** in the destination. Rerunning the whole
+  batch makes osxphotos write `(1)` copies of the files that already
+  arrived.
 - `--skip-edited` exports the original, not the user's edit in Photos. Drop it
   when the user wants their edits.
 - `--skip-bursts` exports only the frame you picked when an item is part of
@@ -398,10 +401,14 @@ skill reads).
 
 **An import lands in the most recently opened Photos library**, which is not
 necessarily the system library, and `--library` does not redirect it. So
-the library Step 1 confirmed must also be the last opened one: check the
-`Using last opened Photos library:` line in the latest `err.log`. If it names
-a different library, stop and ask the user to open the right library in
-Photos before importing anything.
+the library Step 1 confirmed must also be the last opened one *at the moment
+of the import*. An earlier log does not show that: the user may have opened
+another library since, and commands run with `--library` never report the
+last opened one. So immediately before **every** import, run the Step 1
+zero-uuid probe again, with no `--library` and the same way (direct or
+relay) the import will run. Compare its `Using last opened Photos library:`
+line with the confirmed path. If it names a different library, stop and ask
+the user to open the right library in Photos before importing anything.
 
 ```sh
 osxphotos import --album "<permitted album>" --skip-dups \
