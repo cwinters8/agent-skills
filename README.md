@@ -1,9 +1,9 @@
 # agent-skills
 
-Portable [Claude Code skills](https://code.claude.com/docs/en/skills) for QA and
-code review, written to work in any repository. Project-specific facts live in
-the consumer repo, in a single overlay file, so the skills themselves stay
-generic.
+Portable [Claude Code skills](https://code.claude.com/docs/en/skills) for QA,
+code review, and agent work on the user's machine, written to work in any
+repository. Project-specific facts live in the consumer repo, in a single
+overlay file, so the skills themselves stay generic.
 
 Shipping a change:
 
@@ -23,6 +23,12 @@ Keeping the repo's inputs honest:
 | `dependency-refresh` | Bumps and audits dependencies across whatever ecosystems the repo actually has, ranked by reachability |
 | `skills-adopt` | Vendors these skills into a new repo, deriving the profile from the repo instead of a template |
 | `profile-refresh` | Re-derives an existing profile against the repo, because a stale profile reads exactly like a current one |
+
+Working on the user's machine:
+
+| Skill | What it does |
+| --- | --- |
+| `apple-photos` | Queries, exports from and imports into Apple Photos with `osxphotos`, relayed through a terminal app that holds the macOS privacy grants |
 
 ## How consumers get them
 

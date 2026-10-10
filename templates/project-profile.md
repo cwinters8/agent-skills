@@ -209,3 +209,15 @@ TODO
 <!-- Where this ships: app stores, a web deploy, a package registry, or none. -->
 
 TODO
+
+## Photos
+
+<!-- Only for a project that reads or writes the Apple Photos library through
+     the apple-photos skill. Delete this section otherwise.
+     Writable albums: the albums this project may import into, one per line —
+     the only writes allowed to the library. Write "none" for read-only.
+     Album names may not contain {, } or /.
+     Relay app: iTerm or Terminal, whichever holds Full Disk Access and Photos
+     access on the maintainer's Mac. Leave it out for iTerm. -->
+
+TODO
