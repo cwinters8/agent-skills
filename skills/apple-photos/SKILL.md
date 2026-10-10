@@ -125,8 +125,7 @@ Write the command into a script, start that script in the relay app, and wait
 for a sentinel file.
 
 ```sh
-RUN="<scratch dir>/photos-$(date +%s)"     # a fresh dir per run, outside the repo
-mkdir -p "$RUN"
+RUN=$(mktemp -d "<scratch dir>/photos-XXXXXX")   # a new dir per run, outside the repo
 /bin/zsh -f -s -- "$RUN" "2026-10-01" <<'GEN'
 {
   printf '#!/bin/zsh -l\n'
@@ -176,6 +175,13 @@ Each part is there for a reason:
 - **`#!/bin/zsh -l`.** iTerm's `command` runs the file without an interactive
   shell, so the user's `PATH` is not loaded and `osxphotos` (often in
   `~/.local/bin`) is not found. A login shell loads it.
+- **`mktemp -d` for the run directory.** Every run needs a directory no
+  earlier run has used, because the wait loop trusts the first `done` it
+  sees. A name built from the time (`$(date +%s)`) repeats for runs started
+  in the same second, such as the split export runs below, and `mkdir -p`
+  would reuse the old directory silently: the loop finds the earlier run's
+  `done` at once and prints that run's `exit.code` and output as this one's.
+  `mktemp -d` creates a new directory or fails.
 - **`cd "$RUN"`.** A crashing osxphotos writes `osxphotos_crash.log` into the
   current directory. Keep that out of the repo.
 - **Output, stderr and exit code to files.** Nothing the relay app prints
