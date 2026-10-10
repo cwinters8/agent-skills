@@ -473,7 +473,7 @@ if (command === 'init') {
         const official = `anthropics/${MARKETPLACE}`;
         const fromUrl = (url) =>
           typeof url === 'string' &&
-          url.replace(/^git\+/, '').replace(/^(https:\/\/github\.com\/|git@github\.com:)/i, '').replace(/\.git$|\/$/g, '') ===
+          url.replace(/^git\+/, '').replace(/^(https:\/\/github\.com\/|git@github\.com:)/i, '').replace(/(\.git)?\/?$/, '') ===
             official &&
           /^(git\+)?(https:\/\/github\.com\/|git@github\.com:)/i.test(url);
         if (entry.source === 'github' && entry.repo === official) return { known: true };
