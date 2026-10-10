@@ -134,9 +134,9 @@ for a sentinel file.
 
 ```sh
 OSXP=$(command -v osxphotos) || { echo "osxphotos not on PATH"; exit 1; }
-RUN=$(mktemp -d "<scratch dir>/photos-XXXXXX")   # a new dir per run, outside the repo
+RUN=$(mktemp -d "<scratch dir>/photos-XXXXXX") || { echo "mktemp failed"; exit 1; }
 [[ $RUN == *[^A-Za-z0-9/._-]* ]] && { echo "unsafe run path: $RUN"; exit 1; }
-/bin/zsh -f -s -- "$RUN" "$OSXP" "2026-10-01" <<'GEN'
+/bin/zsh -f -s -- "$RUN" "$OSXP" "<recent date>" <<'GEN'
 {
   printf '#!/bin/zsh -f\n'
   printf 'cd %q\n' "$1"
@@ -197,15 +197,23 @@ Each part is there for a reason:
   works whichever startup file set `PATH`. If `command -v` finds nothing in
   this session, ask the user for the path rather than guessing one. With the
   path absolute, the script needs no startup files at all, hence `-f`.
-- **`mktemp -d` for the run directory.** Every run needs a directory no
-  earlier run has used, because the wait loop trusts the first `done` it
+- **`mktemp -d` for the run directory, outside the repo, checked.** If the
+  scratch parent is missing or unwritable, `mktemp` fails and `RUN` is
+  empty; without the `||` the script would go to `/run.sh` and the loop
+  would wait three minutes on `/done` before showing anything. Every run
+  needs a directory no earlier run has used, because the wait loop trusts the first `done` it
   sees. A name built from the time (`$(date +%s)`) repeats for runs started
   in the same second, such as the split export runs below, and `mkdir -p`
   would reuse the old directory silently: the loop finds the earlier run's
   `done` at once and prints that run's `exit.code` and output as this one's.
   `mktemp -d` creates a new directory or fails.
-- **`cd "$RUN"`.** A crashing osxphotos writes `osxphotos_crash.log` into the
-  current directory. Keep that out of the repo.
+- **`cd "$RUN"`, so every path argument must be absolute.** A crashing
+  osxphotos writes `osxphotos_crash.log` into the current directory, which
+  keeps it out of the repo. The same `cd` means a relative path in the
+  script (`exports/clips`, `media/clip.mp4`) resolves inside the run
+  directory: an export lands in scratch and an import cannot find its file.
+  Resolve every export destination and import source to an absolute path
+  in the session (zsh `${p:A}`, or `realpath`) before passing it in.
 - **Output, stderr and exit code to files.** Nothing the relay app prints
   reaches the session. The exit code is the only reliable success signal:
   osxphotos prints progress to stderr even when it succeeds.
@@ -224,8 +232,12 @@ Each part is there for a reason:
   kills a slow run before the loop gives up and before the trailing `cat`
   prints the diagnostics the next section depends on. Pass a timeout a little
   above the loop's bound (200 s for the 180 s loop above), and raise both
-  together. An export that could outlast the tool's maximum is too big for
-  one run: split the uuids across several runs.
+  together. The tool only kills the wait, never the relayed job: that runs
+  in the relay app and keeps going. So if a wait is cut off or gives up,
+  keep the same `$RUN` and wait on its `done` again; do not start another
+  run for the same uuids until it appears, or two exports write the same
+  files at once. To keep a run inside one wait, split a large export
+  across several runs from the start.
 
 For Terminal instead of iTerm, the launch line is
 `tell application "Terminal" to do script "$RUN/run.sh"`. Terminal's `do
@@ -241,7 +253,13 @@ A successful launch leaves `window id <n>` in `osa.log`.
 - `osa.log` holds `Not authorized to send Apple events` → an Automation prompt
   was declined (Setup step 4).
 - `osa.log` holds a timeout (`AppleEvent timed out`, error -1712) → the relay
-  app is not answering. Wait a few minutes and retry once. Do not quit or
+  app is not answering. Wait a few minutes and retry once, in a new run
+  directory, and only after checking that the timed-out run never started:
+  its directory holds no `err.log`. A timed-out Apple event is not
+  guaranteed to have been dropped, and for an import a second launch of a
+  run that did start is a duplicate write. If the retry times out too, stop
+  and tell the user the relay app is not responding (often after many
+  windows have piled up in it). Do not quit or
   restart the relay app and do not close its windows: the user is working in
   them, and the ones you did not open are not yours.
 - `osa.log` is empty and `err.log` shows `Operation not permitted` → the relay
@@ -284,7 +302,7 @@ Export the shortlist by uuid:
 ```sh
 osxphotos export "<dest>" --uuid <uuid> --uuid <uuid> \
   --download-missing --use-photokit --skip-edited --skip-live \
-  --filename "{uuid}" --not-hidden
+  --filename "{uuid}" --not-hidden --no-exportdb
 ```
 
 - `--download-missing --use-photokit` fetches iCloud-only originals; without
@@ -299,13 +317,16 @@ osxphotos export "<dest>" --uuid <uuid> --uuid <uuid> \
   when the user wants their edits.
 - `--skip-live` skips the short video half of a Live Photo, which otherwise
   appears as a second file per still.
+- `--no-exportdb` stops osxphotos leaving `.osxphotos_export.db` in the
+  destination. That hidden database holds metadata for what was exported,
+  including places and people's names, and travels with the folder if it is
+  zipped or shared. These are one-off exports, so nothing needs it.
 - `--filename "{uuid}"` names files by uuid, which avoids the repeating
   camera filenames colliding in one directory.
 
 After an export, read the `Processed: … exported: …, missing: …, error: …`
 line in its output, then check the destination holds a `<uuid>.<ext>` file
-for each uuid you asked for (ignore the `.osxphotos_export.db` osxphotos
-leaves there). An iCloud download can fail for one item in a batch, and an
+for each uuid you asked for. An iCloud download can fail for one item in a batch, and an
 exit code covers the batch. The uuid-named files are what prove each one
 arrived, which is why `--filename "{uuid}"` is part of the command:
 under original filenames, repeated camera names get numbered suffixes that
@@ -321,12 +342,14 @@ Only when the profile has no `## Photos` section may it import into an album
 the user named as the destination in this session's messages (see What this
 skill reads).
 
-Before the first import in a session, run `osxphotos list` through the relay.
-It marks the system library with `(*)`, which is where an import lands. If
-that is not the library the user means, or the list shows more than one
-library of their own (ignore the `Syndication.photoslibrary` entries macOS
-keeps for shared-with-you items), stop and ask the user to confirm which
-library Photos has open before importing anything.
+**An import lands in the most recently opened Photos library**, which is not
+necessarily the system library. Before the first import in a session, find
+out which that is: every relayed osxphotos command's `err.log` starts with
+`Using last opened Photos library: <path>`. Then run `osxphotos list` through
+the relay. If it shows more than one library of the user's own (ignore the
+`Syndication.photoslibrary` entries macOS keeps for shared-with-you items),
+or the last opened one is not the library the user means, stop and ask the
+user to open the right library in Photos before importing anything.
 
 ```sh
 osxphotos import --album "<permitted album>" --skip-dups \
@@ -350,10 +373,12 @@ osxphotos import --album "<permitted album>" --skip-dups \
   this rule. The import output says whether each file was imported or
   skipped; read it.
 - **Verify after importing**, through the relay like everything else:
-  `osxphotos query --library "<the (*) library path>" --album "<permitted
-  album>" --json`, and confirm the new item is there. Pass `--library`
-  explicitly: without it a query reads the *last opened* library, which is
-  not always the one the import wrote to. Report the uuid.
+  `osxphotos query --album "<permitted album>" --json`, and confirm the new
+  item is there. Without `--library` the query reads the last opened
+  library, the same one the import wrote to. Check its `err.log` names the
+  same path as before the import; if it doesn't, the user switched
+  libraries in between, so say so instead of reporting the result.
+  Report the uuid.
 
 If an import's exit code is non-zero, run that verification query before
 anything else. The file may already be in the library.
