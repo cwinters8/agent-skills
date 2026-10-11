@@ -55,6 +55,12 @@ const run = (args, { env = {}, script = cli } = {}) => {
   return { ...result, output: result.stdout + result.stderr };
 };
 
+// Fixture links are junctions for the reason the CLI's are: on Windows an
+// untyped link to a directory is a directory symlink, which needs a privilege
+// non-elevated users lack, so the test would fail with EPERM before asserting
+// anything. A junction needs no existing target, so dangling fixtures work too.
+// The type is ignored everywhere else.
+const junction = (to, path) => symlinkSync(to, path, 'junction');
 const linkTarget = (name) => readlinkSync(join(target, name));
 const isLink = (path) => {
   try {
@@ -105,7 +111,7 @@ test('a link to somewhere else is reported and kept, and --force replaces it', (
   const elsewhere = join(scratch, 'other-checkout', skills[0]);
   mkdirSync(elsewhere, { recursive: true });
   mkdirSync(target, { recursive: true });
-  symlinkSync(elsewhere, join(target, skills[0]));
+  junction(elsewhere, join(target, skills[0]));
 
   const kept = run([]);
   assert.equal(kept.status, 1, kept.output);
@@ -121,7 +127,7 @@ test('a link to somewhere else is reported and kept, and --force replaces it', (
 
 test('a dangling link under a skill name is kept without --force', () => {
   mkdirSync(target, { recursive: true });
-  symlinkSync(join(scratch, 'nowhere'), join(target, skills[0]));
+  junction(join(scratch, 'nowhere'), join(target, skills[0]));
   const r = run([]);
   assert.equal(r.status, 1, r.output);
   assert.equal(linkTarget(skills[0]), join(scratch, 'nowhere'));
@@ -142,7 +148,7 @@ test('a real directory under a skill name is never touched, even with --force', 
 test('removes a link to a skill this checkout no longer has', () => {
   run([]);
   const gone = join(target, 'renamed-away');
-  symlinkSync(join(repoSkills, 'renamed-away'), gone);
+  junction(join(repoSkills, 'renamed-away'), gone);
 
   const checked = run(['--check']);
   assert.equal(checked.status, 1, checked.output);
@@ -158,12 +164,12 @@ test('a link written through a symlinked path to this checkout is still its own'
   // A clone reached through a symlink, or moved with a link left at its old
   // place: the link's text names a different path to the same skills/.
   const alias = join(scratch, 'clone-alias');
-  symlinkSync(repo, alias);
+  junction(repo, alias);
   run([]);
   rmSync(join(target, skills[0]));
-  symlinkSync(join(alias, 'skills', skills[0]), join(target, skills[0]));
+  junction(join(alias, 'skills', skills[0]), join(target, skills[0]));
   const gone = join(target, 'renamed-away');
-  symlinkSync(join(alias, 'skills', 'renamed-away'), gone);
+  junction(join(alias, 'skills', 'renamed-away'), gone);
 
   const r = run([]);
   assert.equal(r.status, 0, r.output);
@@ -176,8 +182,8 @@ test('leaves everything it did not create alone', () => {
   mkdirSync(join(target, 'synced', 'bucket'), { recursive: true });
   writeFileSync(join(target, 'synced', 'bucket', 'SKILL.md'), 'synced\n');
   mkdirSync(join(target, 'my-skill'));
-  symlinkSync(join(scratch, 'nowhere'), join(target, 'dangling-elsewhere'));
-  symlinkSync(join(scratch, 'other-checkout', 'skills', 'x'), join(target, 'other-checkout-skill'));
+  junction(join(scratch, 'nowhere'), join(target, 'dangling-elsewhere'));
+  junction(join(scratch, 'other-checkout', 'skills', 'x'), join(target, 'other-checkout-skill'));
 
   const r = run([]);
   assert.equal(r.status, 0, r.output);
@@ -190,7 +196,9 @@ test('leaves everything it did not create alone', () => {
 test('falls back to ~/.claude/skills when CLAUDE_CONFIG_DIR is unset', () => {
   const home = join(scratch, 'home');
   mkdirSync(home);
-  const env = { ...process.env, HOME: home };
+  // homedir() reads USERPROFILE on Windows and HOME elsewhere. Redirect both,
+  // or on Windows this links into the developer's real ~/.claude/skills.
+  const env = { ...process.env, HOME: home, USERPROFILE: home };
   delete env.CLAUDE_CONFIG_DIR;
   const r = spawnSync(process.execPath, [cli, 'link'], { cwd: scratch, env, encoding: 'utf8' });
   assert.equal(r.status, 0, r.stdout + r.stderr);
