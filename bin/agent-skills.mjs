@@ -4,6 +4,11 @@
 //   agent-skills sync            write the vendored copies
 //   agent-skills sync --check    verify without writing; non-zero on drift
 //   agent-skills sync --force    overwrite locally-edited vendored files
+//   agent-skills init            scaffold the lock and profile, enable the
+//                                superpowers plugin in .claude/settings.json,
+//                                and install it here if `claude` is on PATH
+//   agent-skills init --no-superpowers
+//                                scaffold without touching superpowers at all
 //
 // Typically run without installing:
 //
@@ -18,13 +23,16 @@
 // start, so they exist on a session's first turn, appear in PR diffs, and need
 // no network once vendored.
 
-import { createHash } from 'node:crypto';
+import { spawnSync } from 'node:child_process';
+import { createHash, randomBytes } from 'node:crypto';
 import {
+  chmodSync,
   copyFileSync,
   existsSync,
   mkdirSync,
   readFileSync,
   readdirSync,
+  renameSync,
   rmSync,
   lstatSync,
   statSync,
@@ -42,11 +50,20 @@ const repoRoot = process.cwd();
 const lockPath = join(repoRoot, '.claude', 'skills.json');
 const skillsDir = join(repoRoot, '.claude', 'skills');
 const profilePath = join(repoRoot, '.claude', 'project-profile.md');
+const settingsPath = join(repoRoot, '.claude', 'settings.json');
+
+// The plugin these skills are written to sit beside: superpowers owns how a
+// session plans, debugs and verifies, these skills own what lands in the diff.
+// The official marketplace id, because Claude Code knows that marketplace
+// without an `extraKnownMarketplaces` entry — this is exactly what
+// `claude plugin install --scope project` writes.
+const SUPERPOWERS = 'superpowers@claude-plugins-official';
 
 const argv = process.argv.slice(2);
 const command = argv.find((a) => !a.startsWith('--')) ?? 'sync';
 const check = argv.includes('--check');
 const force = argv.includes('--force');
+const noSuperpowers = argv.includes('--no-superpowers');
 
 const die = (message) => {
   console.error(`agent-skills: ${message}`);
@@ -55,7 +72,7 @@ const die = (message) => {
 
 const usage = () => {
   console.error('usage: agent-skills sync [--check] [--force]');
-  console.error('       agent-skills init [skill...]');
+  console.error('       agent-skills init [--no-superpowers] [skill...]');
   console.error('       agent-skills check-profile');
   console.error('       agent-skills list');
   process.exit(2);
@@ -195,6 +212,14 @@ if (command === 'list') {
 // the profile it writes is still a template full of placeholders, and a sync
 // would fail validation on it. Write, then let the adopter fill it in.
 if (command === 'init') {
+  // Reject any flag init does not know. --no-superpowers exists to prevent a
+  // durable side effect, so a misspelling of it (or a `=true` form) silently
+  // ignored would perform exactly what the adopter asked to skip.
+  const unknownFlags = argv.filter((a) => a.startsWith('--') && a !== '--no-superpowers');
+  if (unknownFlags.length) {
+    console.error(`agent-skills: unknown option${unknownFlags.length === 1 ? '' : 's'} for init: ${unknownFlags.join(' ')}`);
+    usage();
+  }
   const requested = argv.filter((a) => !a.startsWith('--') && a !== 'init');
   // Dedupe: a repeated name is a typo, not a request for two copies, and it
   // does lasting damage if it reaches the file. Every later stage keys on the
@@ -260,14 +285,302 @@ if (command === 'init') {
     copyFileSync(join(packageRoot, 'templates', 'project-profile.md'), profilePath),
   );
 
+  // Enable superpowers for the repo. This is the one write in `init` that merges
+  // rather than scaffolds, and deliberately: a repo adopting these skills very
+  // often has a .claude/settings.json already, and treating it like the two
+  // files above — present, so kept — would print "kept existing" and leave the
+  // plugin unconfigured, an adoption that reads as complete and is not. The
+  // merge only ever adds one key. Everything else in the file is the adopter's,
+  // and an existing entry for superpowers is a decision already made — `false`
+  // is an opt-out, and an install from another marketplace would load the same
+  // skills twice — so either one is left exactly as found.
+  const settingsProblems = [];
+  let install = false;
+  // What .claude/settings.json held before this run added the entry — null
+  // when the file did not exist, undefined when this run wrote nothing. Kept so
+  // a refused install can put the file back rather than leave the plugin
+  // enabled for whatever a later session finds installed under that name.
+  let previousSettings;
+  let writtenSettings;
+  const writeSettings = (text) => {
+    const temp = `${settingsPath}.agent-skills-${randomBytes(8).toString('hex')}.tmp`;
+    const mode = existsSync(settingsPath) ? statSync(settingsPath).mode & 0o777 : undefined;
+    writeFileSync(temp, text, { flag: 'wx', ...(mode === undefined ? {} : { mode }) });
+    if (mode !== undefined) chmodSync(temp, mode);
+    renameSync(temp, settingsPath);
+  };
+  // A blocked scaffold means this run already cannot initialize the repo, and
+  // it exits non-zero below. Enabling and installing a plugin for a repository
+  // init then reports as not initialized would leave durable state behind a
+  // failure, so the plugin waits for a run that can succeed.
+  const scaffoldFailed = links.length > 0 || blocked.length > 0;
+  if (!noSuperpowers && scaffoldFailed) {
+    settingsProblems.push('superpowers not set up — fix the paths above and re-run init');
+  }
+  if (!noSuperpowers && !scaffoldFailed) {
+    const label = '.claude/settings.json';
+    if (isSymlink(settingsPath)) links.push(label);
+    else if (existsSync(settingsPath) && !statSync(settingsPath).isFile()) blocked.push(label);
+    else {
+      let settings = {};
+      let readable = true;
+      if (existsSync(settingsPath)) {
+        // Unparseable is not the same as absent. Rewriting it from `{}` would
+        // discard whatever the adopter meant to be there, so refuse and say why.
+        try {
+          settings = JSON.parse(readFileSync(settingsPath, 'utf8'));
+        } catch (error) {
+          settingsProblems.push(`${label} is not valid JSON (${error.message}) — superpowers not enabled`);
+          readable = false;
+        }
+      }
+      const isObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+      if (readable && (!isObject(settings) || (settings.enabledPlugins !== undefined && !isObject(settings.enabledPlugins)))) {
+        settingsProblems.push(`${label} does not have the shape Claude Code expects — superpowers not enabled`);
+        readable = false;
+      }
+      if (readable) {
+        const plugins = settings.enabledPlugins ?? {};
+        // The official key decides when it is present, whatever else is listed;
+        // only without it does another marketplace's entry stand in, and that
+        // one is never installed over. A first-match search would make the
+        // outcome depend on key order.
+        const existing =
+          SUPERPOWERS in plugins ? SUPERPOWERS : Object.keys(plugins).find((k) => k.startsWith('superpowers@'));
+        if (existing) {
+          kept.push(`${label} (${existing} already listed)`);
+          // `true` is not the only enabled form: the settings schema also takes
+          // an array of version constraints, and that entry still needs the
+          // download as much as a bare `true` does. `false` is the opt-out.
+          const value = plugins[existing];
+          const constraints = Array.isArray(value) && value.every((v) => typeof v === 'string');
+          if (existing === SUPERPOWERS && typeof value !== 'boolean' && !constraints) {
+            // Anything else is a value Claude Code will not honor — the
+            // adopter believes the plugin is on and it is not. Say so rather
+            // than calling a broken entry kept.
+            kept.pop();
+            settingsProblems.push(
+              `${label} has "${SUPERPOWERS}": ${JSON.stringify(value)}, which is not true, false, or a list of ` +
+                'version constraints — superpowers not set up. Fix or remove the entry and re-run init.',
+            );
+          }
+          install = existing === SUPERPOWERS && (value === true || constraints);
+        } else {
+          settings.enabledPlugins = { ...plugins, [SUPERPOWERS]: true };
+          // Write beside it and rename over it. An in-place write truncates the
+          // adopter's only copy first, so an interrupted run or a full disk
+          // would leave the very file this merge exists to preserve empty.
+          // Carry the original's permission bits across, or the rename quietly
+          // widens a file the adopter had restricted to whatever the umask
+          // gives a new one.
+          // A random name opened exclusively: `wx` fails on anything already at
+          // the path, a symlink included, so a planted link cannot redirect the
+          // write outside the repository.
+          previousSettings = existsSync(settingsPath) ? readFileSync(settingsPath, 'utf8') : null;
+          writtenSettings = `${JSON.stringify(settings, null, 2)}\n`;
+          writeSettings(writtenSettings);
+          wrote.push(`${label} (enabled ${SUPERPOWERS})`);
+          install = true;
+        }
+      }
+    }
+  }
+
   for (const f of wrote) console.log(`agent-skills: wrote ${f}`);
   for (const f of kept) console.log(`agent-skills: kept existing ${f}`);
+
+  // Enabling is not installing. A project-scope `enabledPlugins` entry turns the
+  // plugin on for everyone in the repo but downloads it for no one: Claude Code
+  // reports it as enabled but not installed until each person runs the install
+  // once. Stopping at the settings write would therefore exit 0 with superpowers
+  // still absent on the very machine that asked for it. So install it here,
+  // through Claude Code's own CLI rather than by reproducing its plugin cache —
+  // that layout is Claude Code's to change. Only for the official entry, and
+  // only when it is enabled — `true` or a list of version constraints: an
+  // opt-out or another marketplace's install was left as found above, and
+  // installing over it would undo that decision.
+  // `claude` missing is not a failure of init — a machine without Claude Code
+  // has nothing to install into — but it is said, with the command to run, so
+  // the gap is visible rather than discovered later as a skill that never loads.
+  const installCommand = `claude plugin install ${SUPERPOWERS} --scope project`;
+  const MARKETPLACE = SUPERPOWERS.split('@')[1];
+  const marketplaceCommand = `claude plugin marketplace add anthropics/${MARKETPLACE}`;
+  let installed = false;
+  if (install) {
+    // Windows exposes `claude` as a .cmd shim, which spawn finds only through a
+    // shell. Every argument here is a constant, so the shell has nothing to
+    // interpret — but the shell's command search is its own hazard: cmd looks
+    // in the current directory before PATH, and the current directory is the
+    // repository being adopted. A `claude.cmd` committed there would run in
+    // place of Claude Code. NoDefaultCurrentDirectoryInExePath is Windows' own
+    // switch for dropping the current directory from that search.
+    const win = process.platform === 'win32';
+    const env = win ? { ...process.env, NoDefaultCurrentDirectoryInExePath: '1' } : process.env;
+    const claude = (args, options = {}) => spawnSync('claude', args, { shell: win, env, ...options });
+
+    // Claude Code registers the official marketplace only on the first
+    // interactive session, so on a machine that has never had one the install
+    // below fails on an unknown marketplace — and a fresh machine is exactly
+    // where `init` is likeliest to run. Register it first, but only when it is
+    // missing: `marketplace add` on a registered marketplace still writes a
+    // declaration into the user's settings, which is not this command's to touch.
+    // Missing `claude` has to be detected before anything runs through it. With
+    // a shell in between (Windows, above), a command that does not exist is the
+    // shell's own non-zero exit, not ENOENT, so the check below would see an
+    // ordinary failure and report a broken install where there is simply no
+    // Claude Code. Ask `where` directly there, restricted to PATH with its
+    // `$PATH:` form — a bare `where` also searches the current directory, so a
+    // file in the repository would answer for a Claude Code that is not
+    // installed. Elsewhere spawn reports ENOENT.
+    // By absolute path: a bare `where` is itself looked up in the current
+    // directory first, which is the repository being adopted.
+    const whereExe = join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'where.exe');
+    const missing = win && spawnSync(whereExe, ['$PATH:claude'], { stdio: 'ignore', env }).status !== 0;
+    const listed = missing ? null : claude(['plugin', 'marketplace', 'list', '--json'], { encoding: 'utf8' });
+    if (missing || listed.error?.code === 'ENOENT') {
+      console.log('agent-skills: `claude` is not on PATH, so superpowers is enabled but not installed here.');
+      console.log(`  Install Claude Code, then run: ${installCommand}`);
+    } else {
+      // Read a marketplace listing into one of three answers: the official
+      // marketplace is registered (`known`), something makes it unsafe to go
+      // on (`refusal`), or it is simply absent (neither).
+      const verify = (listing) => {
+        // Fail closed on a listing that cannot be read. Treating it as empty
+        // would go on to `marketplace add`, which can exit 0 for a same-named
+        // marketplace already on disk from another source — and then install
+        // from it with the source check below never having run.
+        let entries = null;
+        if (!listing.error && listing.status === 0) {
+          try {
+            const parsed = JSON.parse(listing.stdout);
+            if (Array.isArray(parsed)) entries = parsed;
+          } catch {}
+        }
+        if (entries === null) {
+          // The commonest cause is not tampering but age: the JSON listing
+          // needs Claude Code 2.1.273 or later. Name that, so the failure reads
+          // as an upgrade rather than a mystery.
+          return {
+            refusal:
+              `superpowers not installed: \`claude plugin marketplace list --json\` failed or returned something unreadable, ` +
+              `so the "${MARKETPLACE}" marketplace could not be verified.\n` +
+              '  That listing needs Claude Code 2.1.273 or later. Run `claude update` and re-run init, or install by hand\n' +
+              `  once \`claude plugin marketplace list\` shows anthropics/${MARKETPLACE}: ${installCommand}`,
+          };
+        }
+        // Match the source, not only the name: a registered marketplace by this
+        // name from any other repository would otherwise supply the plugin.
+        const entry = entries.find((m) => m?.name === MARKETPLACE);
+        if (!entry) return {};
+        // Two spellings of the same repository: `owner/repo` registers as a
+        // github source, the full GitHub URL as a git source. Normalize only
+        // the URL forms of github.com itself — any other host or path is not
+        // the official marketplace, however its name reads.
+        const official = `anthropics/${MARKETPLACE}`;
+        const fromUrl = (url) =>
+          typeof url === 'string' &&
+          url
+            .replace(/^git\+/, '')
+            .replace(/^(https:\/\/github\.com\/|git@github\.com:)/i, '')
+            .replace(/(\.git)?\/?$/, '')
+            .toLowerCase() === official &&
+          /^(git\+)?(https:\/\/github\.com\/|git@github\.com:)/i.test(url);
+        // GitHub owner and repository names are case-insensitive, so compare
+        // them that way; the official name is already lowercase.
+        if (entry.source === 'github' && typeof entry.repo === 'string' && entry.repo.toLowerCase() === official) {
+          return { known: true };
+        }
+        if (entry.source === 'git' && fromUrl(entry.url)) return { known: true };
+        const from = entry.repo ?? entry.url ?? entry.source ?? 'an unrecognized source';
+        return {
+          refusal:
+            `superpowers not installed: the registered "${MARKETPLACE}" marketplace points at ${from}, not ` +
+            `anthropics/${MARKETPLACE}. Check \`claude plugin marketplace list\` before installing it yourself.`,
+        };
+      };
+      const relist = () => claude(['plugin', 'marketplace', 'list', '--json'], { encoding: 'utf8' });
+
+      let { known, refusal } = verify(listed);
+      let addFailed = false;
+      if (!known && !refusal) {
+        console.log(`agent-skills: running ${marketplaceCommand}`);
+        const added = claude(['plugin', 'marketplace', 'add', `anthropics/${MARKETPLACE}`], { stdio: 'inherit' });
+        if (added.error || added.status !== 0) addFailed = true;
+        else {
+          // A successful add is not proof of the source: it also exits 0 when a
+          // marketplace by that name is merely already on disk, from wherever
+          // it came. Install only from what the listing then verifies.
+          ({ known, refusal } = verify(relist()));
+          if (!known && !refusal) {
+            refusal =
+              `superpowers not installed: \`${marketplaceCommand}\` reported success, but the listing still does not ` +
+              `show anthropics/${MARKETPLACE}. Check \`claude plugin marketplace list\` before installing it yourself.`;
+          }
+        }
+      }
+      let ready = Boolean(known);
+      if (refusal) {
+        ready = false;
+        // The entry is only safe to leave when the marketplace behind it is the
+        // official one. Here it is not, and a project-scope entry enables
+        // whatever is already installed under that ID — so undo this run's
+        // write. An entry that was already in the file is the adopter's.
+        if (previousSettings !== undefined) {
+          // Only undo what is still ours. The marketplace commands can take a
+          // while, and an editor or another tool may have rewritten the file
+          // meanwhile — restoring the pre-run text or deleting the file then
+          // would discard their change to retract ours.
+          let current = null;
+          try {
+            current = readFileSync(settingsPath, 'utf8');
+          } catch {}
+          if (current === writtenSettings) {
+            if (previousSettings === null) rmSync(settingsPath, { force: true });
+            else writeSettings(previousSettings);
+            console.log('agent-skills: undid the .claude/settings.json change above — superpowers is not enabled');
+          } else {
+            settingsProblems.push(
+              `.claude/settings.json changed while init was running, so the "${SUPERPOWERS}" entry it added was ` +
+                'left in place — remove it yourself before committing.',
+            );
+          }
+        }
+        install = false;
+        settingsProblems.push(refusal);
+      } else if (addFailed) {
+        settingsProblems.push(
+          `${marketplaceCommand} failed — superpowers is enabled in .claude/settings.json but not installed`,
+        );
+      }
+      if (ready) {
+        console.log(`agent-skills: running ${installCommand}`);
+        const runInstall = () => claude(['plugin', 'install', SUPERPOWERS, '--scope', 'project'], { stdio: 'inherit' });
+        let result = runInstall();
+        if (result.error || result.status !== 0) {
+          // A verified marketplace can still hold a stale catalog — one cached
+          // before the plugin existed, or with auto-update off — and Claude
+          // Code's own remedy for plugin-not-found is to refresh it. Do that
+          // once and retry, rather than failing a state the user can't see.
+          console.log(`agent-skills: install failed — refreshing the ${MARKETPLACE} marketplace and retrying once`);
+          const refreshed = claude(['plugin', 'marketplace', 'update', MARKETPLACE], { stdio: 'inherit' });
+          if (!refreshed.error && refreshed.status === 0) result = runInstall();
+        }
+        if (result.error || result.status !== 0) {
+          settingsProblems.push(
+            `${installCommand} failed — superpowers is enabled in .claude/settings.json but not installed`,
+          );
+        } else installed = true;
+      }
+    }
+  }
+
   for (const f of links) {
     console.error(`agent-skills: ${f} is a symlink — left alone, nothing written through it`);
   }
   for (const f of blocked) {
     console.error(`agent-skills: ${f} exists but is not a regular file — nothing written, and sync cannot read it`);
   }
+  for (const p of settingsProblems) console.error(`agent-skills: ${p}`);
   if (collisions.length) {
     console.log('');
     console.log('agent-skills: these names already exist under .claude/skills/ and are listed:');
@@ -278,6 +591,17 @@ if (command === 'init') {
   console.log('');
   console.log('Next: fill in .claude/project-profile.md — every TODO must be replaced.');
   console.log('Then: agent-skills sync    (validates the profile and vendors the skills)');
+  if (install) {
+    console.log('');
+    console.log('Commit .claude/settings.json too. It enables superpowers for everyone in this');
+    console.log('repo, but each collaborator still installs it once on their own machine:');
+    console.log(`  ${installCommand}`);
+    // The same fresh-machine gap init closes for itself above: without the
+    // marketplace step, the one command a collaborator is handed fails.
+    console.log('On a machine that has never opened an interactive Claude Code session,');
+    console.log(`register the marketplace first: ${marketplaceCommand}`);
+    if (!installed) console.log('(That includes this machine — it was not installed here.)');
+  }
   console.log('');
   console.log('An agent can do the whole thing: see "Adopting in a new repo" in the');
   console.log(`${pkg.name} README for a prompt to hand it.`);
@@ -287,7 +611,10 @@ if (command === 'init') {
   // succeeded and leaves the failure to surface one command later, detached
   // from its cause. Refusing to write through the link was the right call;
   // reporting success afterwards would undo the point of it.
-  process.exit(links.length || blocked.length ? 1 : 0);
+  // An unreadable settings file, or an install that ran and failed, is the same
+  // failure in a different shape: init was asked to set up the plugin and could
+  // not.
+  process.exit(links.length || blocked.length || settingsProblems.length ? 1 : 0);
 }
 
 if (command !== 'sync' && command !== 'check-profile') usage();

@@ -160,10 +160,33 @@ The profile states facts a skill can act on. Derive every answer; guess none.
     disk, both already exist and this step is done:
 
     ```sh
-    npx -y github:cwinters8/agent-skills#<ref> init [skill...]
+    npx -y github:cwinters8/agent-skills#<ref> init [--no-superpowers] [skill...]
     ```
 
-    It scaffolds only. The survey in phase 2 is still the work, and a profile
+    By default it also enables the superpowers plugin in
+    `.claude/settings.json`, merging one key into an existing file and leaving
+    any existing `superpowers@…` entry as found, then installs it on this
+    machine through `claude plugin install … --scope project`. Enabling is not
+    installing: the committed entry downloads nothing for anyone else, so the
+    adoption PR description should give collaborators the install command
+    `init` printed, together with the `claude plugin marketplace add` step it
+    prints for a machine that has never opened an interactive session. Commit
+    that file with the rest of the adoption, or leave superpowers out — say
+    which in the PR description, since a reviewer seeing a settings change in a
+    skills PR will otherwise ask why.
+
+    Leaving it out after a bootstrap means undoing it, not re-running: the
+    bootstrap `init` already wrote the entry and installed the plugin, and
+    `--no-superpowers` on a later run only skips the step, it removes nothing.
+    Run `claude plugin uninstall superpowers@claude-plugins-official --scope
+    project`, which drops the entry from `.claude/settings.json` as well.
+    Delete the key by hand instead where `claude` is not available, or when the
+    uninstall reports the plugin is not installed — the bootstrap writes the
+    entry even when it could not install, and uninstall then exits non-zero
+    with the entry still in place. Before a first
+    `init`, `--no-superpowers` is enough.
+
+    For the profile, it scaffolds only. The survey in phase 2 is still the work, and a profile
     left as the template it wrote fails validation exactly as it should.
 
 11. **Validate, then sync**, in that order — the validation is possible only now

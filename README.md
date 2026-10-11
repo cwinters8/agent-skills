@@ -76,7 +76,8 @@ this into a session at the root of the repo you are adopting into.
 > repository.
 >
 > 1. Run `npx -y github:cwinters8/agent-skills#main init` to scaffold
->    `.claude/skills.json` and a blank `.claude/project-profile.md`.
+>    `.claude/skills.json` and a blank `.claude/project-profile.md`, and to
+>    enable and install the superpowers plugin for this repo.
 > 2. Run `npx -y github:cwinters8/agent-skills#main sync`. It vendors the skills
 >    and then exits non-zero because the profile is still the template — that is
 >    expected, and it is what puts `.claude/skills/skills-adopt/SKILL.md` on
@@ -90,10 +91,52 @@ explaining adoption is vendored *by* step 2, before it is needed in step 3.
 `sync` writes the skills before it validates the profile, deliberately, so a
 first run always leaves the guidance on disk even though it fails.
 
-`#main` is right for the bootstrap specifically: nothing durable comes out of it
-— two scaffolded files you are about to rewrite — and the pin that *is* durable
-gets chosen and verified in `skills-adopt` phase 1, with the whole current
-feature set on disk to choose from.
+`#main` is right for the bootstrap specifically: nothing durable *that depends on
+the ref* comes out of it — two scaffolded files you are about to rewrite — and
+the pin that *is* durable gets chosen and verified in `skills-adopt` phase 1,
+with the whole current feature set on disk to choose from. The superpowers entry
+`init` adds to `.claude/settings.json` (below) does outlive the bootstrap, but it
+names the plugin's own marketplace, not this package: the plugin version comes
+from that marketplace whichever ref you pin later, so pinning an older ref
+leaves nothing to reconcile. If you don't want it, pass `--no-superpowers` to the
+bootstrap `init` or delete the entry before committing.
+
+**Superpowers comes with `init` by default.** These skills own what lands in a
+diff; [superpowers](https://github.com/obra/superpowers) owns how the session
+gets there — planning, debugging, test-driving, verifying before claiming done.
+So `init` adds `"superpowers@claude-plugins-official": true` to
+`enabledPlugins` in `.claude/settings.json`, then runs
+`claude plugin install superpowers@claude-plugins-official --scope project` to
+install it on the machine running `init`.
+
+Commit `.claude/settings.json`. That entry turns the plugin on for everyone who
+runs Claude Code locally in the repo — terminal, desktop app, IDE — but cloud
+sessions do not load plugins from a repository's settings at all, so agents
+there run without superpowers. Locally, too, it does not download the plugin:
+each collaborator runs the same `claude plugin install … --scope project` once,
+and `init` prints it. If
+`claude` is not on PATH, `init` still writes the entry and tells you to run the
+install yourself. A machine that has never opened an interactive session has
+not registered the official marketplace yet, so `init` runs
+`claude plugin marketplace add anthropics/claude-plugins-official` first when
+it is missing, and prints that step alongside the install command it hands
+collaborators, since a fresh machine of theirs has the same gap. If
+either command fails, `init` exits non-zero. The install step needs Claude Code
+2.1.273 or later, because it verifies the marketplace's source through
+`claude plugin marketplace list --json`; on anything older `init` refuses the
+install, leaves your settings as they were, and says to run `claude update`.
+
+It merges rather than scaffolds: an existing settings file keeps every other
+key, and an existing `superpowers@…` entry — `false`, or an install from another
+marketplace — is left exactly as found. A settings file that is not valid JSON,
+or is a symlink, is not touched, and `init` exits non-zero to say so. Only the
+official entry is installed, and only when it is enabled — `true`, or a list of
+version constraints; nothing else is installed over. Pass
+`--no-superpowers` to skip both the settings entry and the install:
+
+```sh
+npx -y github:cwinters8/agent-skills#main init --no-superpowers
+```
 
 **Or do it by hand.** `init` is a convenience, not a requirement.
 
@@ -146,6 +189,20 @@ feature set on disk to choose from.
    ```sh
    npx -y github:cwinters8/agent-skills#<verified-ref> check-profile
    ```
+
+6. **Set up superpowers, or decide not to.** `init` does this by default, so
+   skipping it here should be a choice rather than an omission. To match `init`,
+   install it at project scope — on a machine that has never opened an
+   interactive Claude Code session, register the marketplace first — and commit
+   the `.claude/settings.json` it writes:
+
+   ```sh
+   claude plugin marketplace add anthropics/claude-plugins-official
+   claude plugin install superpowers@claude-plugins-official --scope project
+   ```
+
+   Collaborators run the same commands once on their own machines; the
+   committed entry enables the plugin but downloads it for no one.
 
 ## The version you invoke is the version you vendor
 
