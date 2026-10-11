@@ -32,7 +32,11 @@ PR as blocked on a reviewer verdict.
     skills/ --include=SKILL.md --exclude-dir=skills-adopt
   ```
 
-- `node --check bin/agent-skills.mjs` — syntax only; there is no test suite.
+- `node --check bin/agent-skills.mjs` — syntax.
+- `node --test` — the CLI's tests under `test/`, which run it as a subprocess
+  against throwaway directories. They cover `link` only so far; `sync`, `init`
+  and `check-profile` have none yet (#14), so a change to those still rests on
+  reading it.
 - `node -e 'JSON.parse(require("fs").readFileSync("profile-schema.json","utf8"))'`
   when `profile-schema.json` changed.
 
@@ -95,8 +99,11 @@ pulls, so treat it as a supply-chain change, not a convenience.
   condensing them.
 - **`cwinters8` inside `skills/skills-adopt/`.** That skill is the package
   identifying itself; the grep excludes the directory for this reason.
-- **Missing tests or CI.** There is deliberately no test suite or workflow; the
-  mechanical checks above are the gate.
+- **Missing CI.** There is deliberately no workflow; the mechanical checks above
+  are the gate, run by hand.
+- **No tests for `sync`, `init` or `check-profile`.** Known and tracked in #14.
+  It is a finding only on a change that adds behavior to those commands without
+  a test, now that a harness exists to put one in.
 - **No `.claude/skills.json` or vendored skills in this repo.** Deliberate — see
   the note at the top of this file.
 

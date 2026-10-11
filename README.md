@@ -226,6 +226,28 @@ Bump the ref in your invocation — `#v2`, or a tag, or a commit SHA — re-run 
 sync, and commit the diff. Run `sync --check` in CI to be told when a vendored
 copy has fallen behind the version you invoke, or has been hand-edited.
 
+## Using them in your home directory
+
+To have these skills in every session on your machine, not just inside repos
+that vendor them, link them in from a clone:
+
+```sh
+git clone https://github.com/cwinters8/agent-skills.git
+node agent-skills/bin/agent-skills.mjs link
+```
+
+That symlinks each skill into `$CLAUDE_CONFIG_DIR/skills`, or `~/.claude/skills`
+when the variable is unset, so a `git pull` in the clone is the whole update.
+Run `link` again only when a skill is added, renamed or removed: it links the
+new ones and removes links to skills the clone no longer has. `link --check`
+reports what it would change and exits non-zero if anything is out of date.
+
+It touches only what it can show is its own. A real directory under a skill's
+name may be your own skill, so it is never replaced. A link under that name
+pointing somewhere else is reported and kept unless you pass `--force`. Nothing
+else in the directory is touched. It refuses to run through `npx`, because
+links into npm's cache dangle as soon as npm clears it.
+
 ## Editing a skill
 
 Skills are edited **here**, never in a consumer's `.claude/skills/` — a
