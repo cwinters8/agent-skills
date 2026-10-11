@@ -245,8 +245,9 @@ reports what it would change and exits non-zero if anything is out of date.
 It touches only what it can show is its own. A real directory under a skill's
 name may be your own skill, so it is never replaced. A link under that name
 pointing somewhere else is reported and kept unless you pass `--force`. Nothing
-else in the directory is touched. It refuses to run through `npx`, because
-links into npm's cache dangle as soon as npm clears it.
+else in the directory is touched. It refuses to run from anything but a git
+checkout, which rules out `npx`: links into npm's cache dangle as soon as npm
+clears it.
 
 ## Editing a skill
 

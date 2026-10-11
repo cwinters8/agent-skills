@@ -304,12 +304,16 @@ if (command === 'link') {
     }
   }
 
+  // 'junction' matters only on Windows, where an untyped link to a directory is
+  // created as a file link, and a directory symlink needs privileges a junction
+  // does not. Elsewhere the type is ignored.
+  const link = (to, path) => symlinkSync(to, path, 'junction');
   if (!check) {
     if (toLink.length || toReplace.length) mkdirSync(linkDir, { recursive: true });
-    for (const { path, expected } of toLink) symlinkSync(expected, path);
+    for (const { path, expected } of toLink) link(expected, path);
     for (const { path, expected } of toReplace) {
       unlinkSync(path);
-      symlinkSync(expected, path);
+      link(expected, path);
     }
     for (const { path } of toRemove) unlinkSync(path);
   }
