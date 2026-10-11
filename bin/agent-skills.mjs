@@ -265,11 +265,24 @@ if (command === 'link') {
     die(`${linkDir} exists but is not a directory — nothing can be linked into it.`);
   }
 
-  // Both spellings of this checkout's skills/, so a link written through a
-  // symlinked path to the clone still reads as one of ours.
-  const homes = new Set([packageSkills, realpathSync(packageSkills)]);
+  // A link is ours when its parent directory *is* this checkout's skills/, not
+  // when its text spells the same path. Node already resolves this script's own
+  // path through any symlink, so packageSkills is the real path — and a link
+  // written through a symlinked path to the clone, or left behind by a clone
+  // that moved and kept a link at its old place, names a different string for
+  // the same directory. Comparing strings misreported those as "not this
+  // checkout" and never removed one whose skill was gone. The parent is resolved
+  // rather than the link itself, so a stale link — whose skill no longer exists
+  // — still resolves. A parent that does not exist is no directory of ours.
+  const realSkills = realpathSync(packageSkills);
   const destination = (path) => resolve(dirname(path), readlinkSync(path));
-  const ours = (dest) => homes.has(dirname(dest));
+  const ours = (dest) => {
+    try {
+      return realpathSync(dirname(dest)) === realSkills;
+    } catch {
+      return false;
+    }
+  };
 
   const wanted = available();
   const toLink = [];

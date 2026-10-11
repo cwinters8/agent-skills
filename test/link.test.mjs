@@ -154,6 +154,24 @@ test('removes a link to a skill this checkout no longer has', () => {
   assert.match(r.stdout, /removed\s+renamed-away/);
 });
 
+test('a link written through a symlinked path to this checkout is still its own', () => {
+  // A clone reached through a symlink, or moved with a link left at its old
+  // place: the link's text names a different path to the same skills/.
+  const alias = join(scratch, 'clone-alias');
+  symlinkSync(repo, alias);
+  run([]);
+  rmSync(join(target, skills[0]));
+  symlinkSync(join(alias, 'skills', skills[0]), join(target, skills[0]));
+  const gone = join(target, 'renamed-away');
+  symlinkSync(join(alias, 'skills', 'renamed-away'), gone);
+
+  const r = run([]);
+  assert.equal(r.status, 0, r.output);
+  assert.doesNotMatch(r.output, /left alone \(--force/);
+  assert.equal(linkTarget(skills[0]), join(alias, 'skills', skills[0]));
+  assert.equal(isLink(gone), false);
+});
+
 test('leaves everything it did not create alone', () => {
   mkdirSync(join(target, 'synced', 'bucket'), { recursive: true });
   writeFileSync(join(target, 'synced', 'bucket', 'SKILL.md'), 'synced\n');
