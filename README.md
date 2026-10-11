@@ -238,6 +238,10 @@ node agent-skills/bin/agent-skills.mjs link
 
 That symlinks each skill into `$CLAUDE_CONFIG_DIR/skills`, or `~/.claude/skills`
 when the variable is unset, so a `git pull` in the clone is the whole update.
+The links follow whatever the clone has checked out. Check out a branch you
+haven't read — someone's pull request, say — and its skills are live in every
+session on the machine at once. Review those somewhere other than this clone,
+such as a separate worktree.
 Run `link` again only when a skill is added, renamed or removed: it links the
 new ones and removes links to skills the clone no longer has. `link --check`
 reports what it would change and exits non-zero if anything is out of date.
