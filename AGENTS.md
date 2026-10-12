@@ -99,7 +99,9 @@ session decides for itself.
 
 ```
 CLAUDE.md                pointer that @-imports AGENTS.md, so the rules load on turn one
-bin/agent-skills.mjs     the CLI consumers run via npx: init, sync, check-profile, list
+bin/agent-skills.mjs     the CLI consumers run via npx: init, sync, check-profile, list —
+                         plus link, run from a clone to install these skills for one user
+test/                    node:test suites for the CLI; run `node --test`; not shipped
 package.json             `bin` + `files`; `files` decides what a consumer can actually receive
 profile-schema.json      canonical section list; the validator, template and docs all derive from it
 docs/project-profile.md  the schema reference consumers read

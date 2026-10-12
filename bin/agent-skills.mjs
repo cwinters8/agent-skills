@@ -9,6 +9,11 @@
 //                                and install it here if `claude` is on PATH
 //   agent-skills init --no-superpowers
 //                                scaffold without touching superpowers at all
+//   agent-skills link            symlink every skill in this git checkout into
+//                                $CLAUDE_CONFIG_DIR/skills (default
+//                                ~/.claude/skills), for use outside any one repo
+//   agent-skills link --check    report what link would change; non-zero if any
+//   agent-skills link --force    also replace links that point somewhere else
 //
 // Typically run without installing:
 //
@@ -32,13 +37,18 @@ import {
   mkdirSync,
   readFileSync,
   readdirSync,
+  readlinkSync,
+  realpathSync,
   renameSync,
   rmSync,
   lstatSync,
   statSync,
+  symlinkSync,
+  unlinkSync,
   writeFileSync,
 } from 'node:fs';
-import { dirname, join, relative, resolve, sep } from 'node:path';
+import { homedir } from 'node:os';
+import { basename, dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -75,6 +85,7 @@ const usage = () => {
   console.error('       agent-skills init [--no-superpowers] [skill...]');
   console.error('       agent-skills check-profile');
   console.error('       agent-skills list');
+  console.error('       agent-skills link [--check] [--force]');
   process.exit(2);
 };
 
@@ -192,19 +203,150 @@ const requireWritableDir = (path, label) => {
 };
 
 // Guard each directory only for the commands that actually go through it.
-// `list` reads the package and never touches the repo. `check-profile` reads
+// `list` reads the package and never touches the repo, and `link` writes only
+// under the user's Claude config directory. `check-profile` reads
 // one file under `.claude` and never the skills tree — refusing it because of
 // the shape of a directory it does not open would fail a valid profile for a
 // reason unrelated to the profile, which is the opposite of what a validator is
 // for. Scope a guard to what it protects, or it becomes a second thing that can
 // be wrong.
-if (command !== 'list') requireWritableDir(join(repoRoot, '.claude'), '.claude');
+if (command !== 'list' && command !== 'link') requireWritableDir(join(repoRoot, '.claude'), '.claude');
 if (command === 'init' || command === 'sync') requireWritableDir(skillsDir, '.claude/skills');
 
 if (command === 'list') {
   console.log(`@cwinters8/agent-skills ${pkg.version} ships:`);
   for (const name of available()) console.log(`  ${name}`);
   process.exit(0);
+}
+
+// `link` is the one command for the maintainer's own machine rather than a
+// consumer repo: it makes every skill in this checkout a personal skill by
+// symlinking it into the user's Claude config directory. A link, not a copy, so
+// the skills there are always whatever this checkout holds — a pull is the
+// whole update, and this command only has to run again when a skill is added,
+// renamed, or removed.
+//
+// It touches only what it can prove is its own. A name it would link that is
+// already a real directory may be the user's own skill, so it is never
+// replaced, not even with --force. A link under that name pointing somewhere
+// else may be deliberate — a second checkout, a worktree — so it is reported
+// and kept unless --force says otherwise. And it removes only links into *this*
+// checkout's skills/ whose skill is gone, never anything else in the directory:
+// Claude Code keeps its own synced skills there too.
+if (command === 'link') {
+  // Reject what link does not know rather than ignoring it: a misspelled
+  // --check silently dropped would write when the user asked only to look.
+  const unknown = argv.filter((a) => (a.startsWith('--') ? a !== '--check' && a !== '--force' : a !== 'link'));
+  if (unknown.length) {
+    console.error(`agent-skills: unknown argument${unknown.length === 1 ? '' : 's'} for link: ${unknown.join(' ')}`);
+    usage();
+  }
+
+  // Run through npx, this package lives in npm's cache, which npm prunes on its
+  // own schedule — and every link into it then dangles, with no error until a
+  // session quietly has fewer skills. Links only make sense into a clone the
+  // user keeps. `.git` is a directory in a clone and a file in a worktree;
+  // either one is a checkout.
+  if (!existsSync(join(packageRoot, '.git'))) {
+    die(
+      `${packageRoot} is not a git checkout — refusing to link into it.\n` +
+        '  Clone the repository and run link from the clone, so the links point at\n' +
+        '  files that stay where they are.',
+    );
+  }
+
+  // Where Claude Code itself reads personal skills from.
+  const configDir = process.env.CLAUDE_CONFIG_DIR || join(homedir(), '.claude');
+  const linkDir = join(configDir, 'skills');
+  // A link here is followed on purpose — a dotfiles setup may well make
+  // ~/.claude/skills one — but it has to lead to a directory.
+  const present = isSymlink(linkDir) || existsSync(linkDir);
+  if (present && !(existsSync(linkDir) && statSync(linkDir).isDirectory())) {
+    die(`${linkDir} exists but is not a directory — nothing can be linked into it.`);
+  }
+
+  // A link is ours when its parent directory *is* this checkout's skills/, not
+  // when its text spells the same path. Node already resolves this script's own
+  // path through any symlink, so packageSkills is the real path — and a link
+  // written through a symlinked path to the clone, or left behind by a clone
+  // that moved and kept a link at its old place, names a different string for
+  // the same directory. Comparing strings misreported those as "not this
+  // checkout" and never removed one whose skill was gone. The parent is resolved
+  // rather than the link itself, so a stale link — whose skill no longer exists
+  // — still resolves. A parent that does not exist is no directory of ours.
+  const realSkills = realpathSync(packageSkills);
+  const destination = (path) => resolve(dirname(path), readlinkSync(path));
+  const ours = (dest) => {
+    try {
+      return realpathSync(dirname(dest)) === realSkills;
+    } catch {
+      return false;
+    }
+  };
+
+  const wanted = available();
+  const toLink = [];
+  const toReplace = [];
+  const toRemove = [];
+  const kept = [];
+  let current = 0;
+
+  for (const name of wanted) {
+    const path = join(linkDir, name);
+    const expected = join(packageSkills, name);
+    if (isSymlink(path)) {
+      const dest = destination(path);
+      if (ours(dest) && basename(dest) === name) current++;
+      else if (force) toReplace.push({ name, path, expected, dest });
+      else kept.push(`${name}: a link to ${dest}, not this checkout — left alone (--force replaces it)`);
+    } else if (existsSync(path)) {
+      kept.push(`${name}: a real ${statSync(path).isDirectory() ? 'directory' : 'file'}, not a link — never replaced, not even with --force`);
+    } else {
+      toLink.push({ name, path, expected });
+    }
+  }
+
+  if (existsSync(linkDir)) {
+    for (const entry of readdirSync(linkDir, { withFileTypes: true })) {
+      if (!entry.isSymbolicLink() || wanted.includes(entry.name)) continue;
+      const path = join(linkDir, entry.name);
+      const dest = destination(path);
+      // A link into skills/ under another name, to a skill that still exists,
+      // is an alias the user made. Only a link to a skill that is gone is stale.
+      if (ours(dest) && !wanted.includes(basename(dest))) toRemove.push({ name: entry.name, path });
+    }
+  }
+
+  // 'junction' matters only on Windows, where an untyped link to a directory is
+  // created as a file link, and a directory symlink needs privileges a junction
+  // does not. Elsewhere the type is ignored.
+  const link = (to, path) => symlinkSync(to, path, 'junction');
+  if (!check) {
+    if (toLink.length || toReplace.length) mkdirSync(linkDir, { recursive: true });
+    for (const { path, expected } of toLink) link(expected, path);
+    for (const { path, expected } of toReplace) {
+      unlinkSync(path);
+      link(expected, path);
+    }
+    for (const { path } of toRemove) unlinkSync(path);
+  }
+  for (const { name } of toLink) console.log(`  ${check ? 'would link' : 'linked'}   ${name}`);
+  for (const { name, dest } of toReplace) console.log(`  ${check ? 'would replace' : 'replaced'} ${name} (was a link to ${dest})`);
+  for (const { name } of toRemove) console.log(`  ${check ? 'would remove' : 'removed'}  ${name} (no such skill in this checkout)`);
+  for (const k of kept) console.error(`agent-skills: ${k}`);
+
+  const changes = toLink.length + toReplace.length + toRemove.length;
+  const tally = [
+    `${current} up to date`,
+    toLink.length && `${toLink.length} ${check ? 'to link' : 'new'}`,
+    toReplace.length && `${toReplace.length} ${check ? 'to replace' : 'replaced'}`,
+    toRemove.length && `${toRemove.length} ${check ? 'to remove' : 'removed'}`,
+    kept.length && `${kept.length} left alone`,
+  ].filter(Boolean);
+  console.log(`agent-skills: ${linkDir} — ${tally.join(', ')}`);
+  // A name left alone is a skill this machine does not have, so the run did
+  // not finish its job; say so in the exit status, not only in the output.
+  process.exit(kept.length || (check && changes) ? 1 : 0);
 }
 
 // `init` scaffolds the two files a consumer owns, so it is the one command that

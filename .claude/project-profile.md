@@ -1,10 +1,11 @@
 # Project profile
 
 The profile for the repo that publishes the shared skills. The skills a session
-runs here come from the maintainer's user-level install, not from a vendored
-copy, so this repo deliberately has no `.claude/skills.json` and no
-`.claude/skills/` — `init` would vendor a second copy of `skills/` beside the
-real one, and every edit would then review itself against a stale version.
+runs here come from the maintainer's user-level install (symlinks into this
+clone, made by `agent-skills link`), not from a vendored copy, so this repo
+deliberately has no `.claude/skills.json` and no `.claude/skills/` — `init`
+would vendor a second copy of `skills/` beside the real one, and every edit
+would then review itself against a stale version.
 
 AGENTS.md remains this project's single source of truth. Where this file
 summarizes it, AGENTS.md wins on any disagreement.
@@ -32,7 +33,11 @@ PR as blocked on a reviewer verdict.
     skills/ --include=SKILL.md --exclude-dir=skills-adopt
   ```
 
-- `node --check bin/agent-skills.mjs` — syntax only; there is no test suite.
+- `node --check bin/agent-skills.mjs` — syntax.
+- `node --test` — the CLI's tests under `test/`, which run it as a subprocess
+  against throwaway directories. They cover `link` only so far; `sync`, `init`
+  and `check-profile` have none yet (#14), so a change to those still rests on
+  reading it.
 - `node -e 'JSON.parse(require("fs").readFileSync("profile-schema.json","utf8"))'`
   when `profile-schema.json` changed.
 
@@ -95,8 +100,11 @@ pulls, so treat it as a supply-chain change, not a convenience.
   condensing them.
 - **`cwinters8` inside `skills/skills-adopt/`.** That skill is the package
   identifying itself; the grep excludes the directory for this reason.
-- **Missing tests or CI.** There is deliberately no test suite or workflow; the
-  mechanical checks above are the gate.
+- **Missing CI.** There is deliberately no workflow; the mechanical checks above
+  are the gate, run by hand.
+- **No tests for `sync`, `init` or `check-profile`.** Known and tracked in #14.
+  It is a finding only on a change that adds behavior to those commands without
+  a test, now that a harness exists to put one in.
 - **No `.claude/skills.json` or vendored skills in this repo.** Deliberate — see
   the note at the top of this file.
 
@@ -140,6 +148,16 @@ the fixed plugin ID are what bound it instead. A change that makes those
 arguments variable, installs anything else, or weakens the source check widens
 what an unread ref can do on an adopter's machine. Review it as a supply-chain
 change.
+
+A second exception: `link` writes outside the repo, into the user's Claude config
+directory. It is not a consumer path. It refuses to run from anything but a git
+checkout, so the `npx` copy a consumer runs cannot use it. It creates and removes
+only symlinks, and removes only those pointing into the running checkout's
+`skills/`. What it does change is *when* skill text takes effect. Every session
+on that machine follows the clone's working tree, with no `sync` diff in
+between, so checking out an unreviewed branch (a contributor's PR, say) makes its
+skills live everywhere at once. A change that lets `link` run from a non-checkout,
+write anything but those links, or delete anything else widens the first half.
 
 ## Trust boundary
 
