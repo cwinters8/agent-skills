@@ -150,12 +150,34 @@ this repo; a harness without it should substitute reasoning through the flow.
   should say what changed, why, how it was verified, and any known gaps or
   skipped review findings.
 - Call `subscribe_pr_activity` for the new PR so review comments and CI
-  failures flow back into the session, where the tooling supports it. **Then end
-  the turn.** Do not schedule a wake-up, a self check-in, or a recurring poll
-  for the PR. The subscription is the mechanism; a timer on top of it spends a
-  whole session to re-learn what the next webhook would have delivered anyway.
-  If a project wants a periodic backstop, that is a scheduled routine the
-  project configures once — not something a session arms for itself.
+  failures flow back into the session, where the tooling supports it.
+- **If the subscription is refused because the repository is not configured for
+  this session, attach it and retry once.** The refusal looks something like
+  *"repository … is not configured for this session"*. Match on that meaning,
+  because the exact wording belongs to the harness and can change. A session
+  can push and open a PR in a repository that was never attached to it, because
+  pushing goes through git while the subscription needs the repository in the
+  session's sources. So this refusal arrives *after* the PR exists, and it is
+  easy to read it as "watching isn't available here" and move on. Don't. Call
+  `add_repo` for the PR's repository with **push** access, because the
+  `review-sweep` hand-off below answers feedback by pushing fixes and read
+  access would only move the failure to that step. Skip the clone that `add_repo`
+  suggests when the current checkout already is that repository, since a second
+  copy would split the work across two trees. Then call `subscribe_pr_activity`
+  once more. Having opened the PR is reason enough to attach the repository, so
+  don't stop to ask first. If the harness asks the user to confirm and they
+  decline, that is their answer: don't retry the attach.
+- **If the subscription still fails, say so when you report the PR**, together
+  with the reason the harness gave. An unwatched PR that the report presents as
+  watched is the worst outcome here. Feedback piles up unseen, and the
+  maintainer finds out from a message offering to start watching, or not at
+  all. Retry exactly once: a second refusal means the problem is not the one an
+  attach fixes, and another round would not change that.
+- **Then end the turn.** Do not schedule a wake-up, a self check-in, or a
+  recurring poll for the PR. The subscription is the mechanism; a timer on top
+  of it spends a whole session to re-learn what the next webhook would have
+  delivered anyway. If a project wants a periodic backstop, that is a scheduled
+  routine the project configures once — not something a session arms for itself.
 
 After the PR is open, hand off to the `review-sweep` skill for incoming
 reviewer feedback — either live in this session via the subscription, or by a
