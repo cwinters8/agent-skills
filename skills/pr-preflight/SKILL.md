@@ -150,12 +150,7 @@ this repo; a harness without it should substitute reasoning through the flow.
   should say what changed, why, how it was verified, and any known gaps or
   skipped review findings.
 - Call `subscribe_pr_activity` for the new PR so review comments and CI
-  failures flow back into the session, where the tooling supports it. **Then end
-  the turn.** Do not schedule a wake-up, a self check-in, or a recurring poll
-  for the PR. The subscription is the mechanism; a timer on top of it spends a
-  whole session to re-learn what the next webhook would have delivered anyway.
-  If a project wants a periodic backstop, that is a scheduled routine the
-  project configures once — not something a session arms for itself.
+  failures flow back into the session, where the tooling supports it.
 - **If the subscription is refused because the repository is not configured for
   this session, attach it and retry once.** The refusal looks something like
   *"repository … is not configured for this session"*. Match on that meaning,
@@ -178,6 +173,11 @@ this repo; a harness without it should substitute reasoning through the flow.
   maintainer finds out from a message offering to start watching, or not at
   all. Retry exactly once: a second refusal means the problem is not the one an
   attach fixes, and another round would not change that.
+- **Then end the turn.** Do not schedule a wake-up, a self check-in, or a
+  recurring poll for the PR. The subscription is the mechanism; a timer on top
+  of it spends a whole session to re-learn what the next webhook would have
+  delivered anyway. If a project wants a periodic backstop, that is a scheduled
+  routine the project configures once — not something a session arms for itself.
 
 After the PR is open, hand off to the `review-sweep` skill for incoming
 reviewer feedback — either live in this session via the subscription, or by a
