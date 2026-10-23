@@ -121,7 +121,7 @@ none
 
 ## Ship
 
-Branches are `claude/<topic>`. Push, open a **draft** PR against `main`, call
+Branches are `claude/<topic>`. Push, open a PR against `main`, call
 `subscribe_pr_activity`, and end the turn. Per AGENTS.md → "Session behavior":
 never schedule a wake-up, self check-in or recurring poll; ask first if one is
 genuinely needed. Commit messages say when a change requires consumers to update

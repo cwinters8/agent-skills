@@ -107,7 +107,7 @@
         "pr-preflight"
       ],
       "supplies": "How this project pushes and opens PRs: branch naming, draft or not, which tooling to use, what to do after opening.",
-      "fallback": "Push the branch and open a draft PR with whatever GitHub tooling the session has."
+      "fallback": "Push the branch and open a PR ready for review with whatever GitHub tooling the session has."
     },
     {
       "heading": "Threat model",

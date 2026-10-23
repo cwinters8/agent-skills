@@ -3,7 +3,7 @@ name: pr-preflight
 description: >
   Pre-push QA gate. Run before pushing a branch or opening a PR: the project's
   mechanical checks, a self code-review, the project's own review focus and
-  security gate, then push, open a draft PR, and subscribe to its activity. Use
+  security gate, then push, open a PR, and subscribe to its activity. Use
   when a change is ready to ship, or when asked to "preflight", "run the QA
   gate", or "get this ready for review".
 ---
@@ -145,10 +145,11 @@ this repo; a harness without it should substitute reasoning through the flow.
   run them again — the gate applies to the exact tree being pushed, not the
   tree that existed at step 1.
 - Commit with a clear message and push with `git push -u origin <branch>`.
-- Open the PR the way `## Ship` says. Absent instructions: a **draft** PR, using
-  the `mcp__github__*` tools where a session has no `gh` CLI. The description
-  should say what changed, why, how it was verified, and any known gaps or
-  skipped review findings.
+- Open the PR the way `## Ship` says. Absent instructions: a PR **ready for
+  review**, using the `mcp__github__*` tools where a session has no `gh` CLI.
+  Open a draft only when `## Ship` asks for one. The description should say what
+  changed, why, how it was verified, and any known gaps or skipped review
+  findings.
 - Call `subscribe_pr_activity` for the new PR so review comments and CI
   failures flow back into the session, where the tooling supports it.
 - **If the subscription is refused because the repository is not configured for
@@ -181,7 +182,8 @@ this repo; a harness without it should substitute reasoning through the flow.
 
 After the PR is open, hand off to the `review-sweep` skill for incoming
 reviewer feedback — either live in this session via the subscription, or by a
-scheduled sweep. That skill is also what marks a draft ready for review once it
-reaches the ready-to-merge bar, so the maintainer's only remaining action is the
-merge. If it isn't vendored here, say so when you report the PR: the draft stays
-a draft, and nothing triages the feedback this step just subscribed you to.
+scheduled sweep. When `## Ship` had you open a draft, that skill is also what
+marks it ready for review once it reaches the ready-to-merge bar, so the
+maintainer's only remaining action is the merge. If it isn't vendored here, say
+so when you report the PR: nothing triages the feedback this step just
+subscribed you to, and any draft stays a draft.

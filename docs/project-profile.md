@@ -194,8 +194,8 @@ Read by `pr-preflight`.
 How this project pushes and opens PRs: branch naming, draft or not, which tooling
 to use (some environments have no `gh` CLI), and what to do after opening.
 
-*Missing:* push the branch and open a draft PR with whatever GitHub tooling the
-session has.
+*Missing:* push the branch and open a PR ready for review with whatever GitHub
+tooling the session has.
 
 ### `## Threat model` — required with `security-review`
 

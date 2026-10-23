@@ -9,7 +9,7 @@ Shipping a change:
 
 | Skill | What it does |
 | --- | --- |
-| `pr-preflight` | Pre-push QA gate: mechanical checks, self review, project checks, then push and open a draft PR |
+| `pr-preflight` | Pre-push QA gate: mechanical checks, self review, project checks, then push and open a PR |
 | `code-review` | Reviews a local branch diff or an open PR, scoring findings for confidence and dropping the weak ones |
 | `review-sweep` | Triages every review comment on open PRs to a terminal state, and knows when to stop |
 | `security-review` | Security gate driven by the project's stated trust boundary, with per-stack reference modules |
