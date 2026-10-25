@@ -5,9 +5,9 @@ description: >
   the result as one consolidated comment that review-sweep can triage: code
   review, the project's review focus and secrets policy, security review for the
   trust boundary, action versions for CI files, and docs currency. Use when
-  asked to "pr-review <n>", "run the full review on PR <n>", "review PR <n> the
-  way preflight would", "run the preflight review on an open PR", or to review a
-  PR that was opened without preflight, by someone else, or by a bot.
+  asked to "pr-review <n>", "run the full review on PR <n>", "run every review
+  on PR <n>", "run the preflight review on an open PR", or to review a PR that
+  was opened without preflight, by someone else, or by a bot.
 ---
 
 # PR review
@@ -139,18 +139,23 @@ head branch itself does not.
 ```sh
 # <remote> is the local remote whose URL is the PR's base repository. If none
 # matches, fetch from the repository's URL instead of naming a remote.
-git fetch <remote> "<base-branch>"
+git fetch <remote> "<base-sha>"                      # base.sha from the metadata
 git fetch <remote> "pull/<n>/head"
 test "$(git rev-parse FETCH_HEAD)" = "<head-sha>"   # fails if the head moved
 dir="$(mktemp -d)"
 git worktree add --detach "$dir" "<head-sha>"
 ```
 
-The fetches write no local branch, only objects, `FETCH_HEAD` and the remote's
-tracking ref for the base. `--detach` at the recorded SHA creates no branch
-either, and leaves `HEAD` in the invoking checkout alone. If the `test` fails,
-the head moved after you recorded it. Stop there and report the review abandoned
-(§6).
+**Fetch the base by its SHA, not by branch name.** Fetching a branch by name
+from a configured remote also moves that remote's tracking ref, so a user on a
+branch that tracks the base sees `git status` change from up to date to
+`behind N` after a run that was meant to touch nothing of theirs. (Verified: a
+checkout five commits behind read `## main...origin/main` before
+`git fetch origin main` and `[behind 5]` after; fetching the same commit by SHA
+left it unchanged.) A SHA fetch and the `pull/<n>/head` fetch write only objects
+and `FETCH_HEAD`. `--detach` at the recorded SHA creates no branch either, and
+leaves `HEAD` in the invoking checkout alone. If the `test` fails, the head
+moved after you recorded it. Stop there and report the review abandoned (§6).
 
 Run every routed review from inside `$dir`, against the base you resolved. Pass
 the base explicitly so no review has to ask or guess: inside the worktree,
@@ -210,12 +215,12 @@ Post exactly one conversation comment with `mcp__github__add_issue_comment`
 review object: `review-sweep` closes conversation comments with its `Re:` form,
 and a second shape of reviewer would need a second set of rules there.
 
-**The heading is `### PR review` and nothing else.** Each review gets a
-`####` subsection named for it: `#### Code review`, `#### Review focus`,
-`#### Secrets`, `#### Security review`, `#### Action versions`,
-`#### Docs currency`, and one per skill named in `## Local skills`. Order them
-the way §2 and §3 order them. Never use `### Code review` anywhere in this
-comment. `code-review`'s eligibility check and `review-sweep`'s recognition of a
+**The heading is `### PR review` and nothing else.** Every review the routing
+named gets one `####` subsection headed with that review's name, e.g.
+`#### Code review` or `#### Security review`, in the order §2 and §3 list them.
+A skill named in `## Local skills` gets its own. Take the set from the routing,
+not from the examples in this file, which would go stale the same way a copied
+routing list does. Never use `### Code review` anywhere in this comment. `code-review`'s eligibility check and `review-sweep`'s recognition of a
 `code-review` report both key on that heading, and this comment is neither.
 
 **The first line under the heading names the full head SHA**, findings and clean

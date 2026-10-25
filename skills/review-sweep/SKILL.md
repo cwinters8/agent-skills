@@ -218,10 +218,10 @@ After reaching a terminal state on an inline comment, also resolve its thread
   `pr-review`'s consolidated report (`### PR review`) is read the same way: one
   raising issues in any of its `####` subsections is triaged, and a clean one
   (`No issues found at <sha>` as the first line under the heading) is a verdict,
-  not feedback. A report of either kind that raises several issues reaches a
-  terminal state only when its closing `Re:` comments account for every one of
-  them, each fixed or declined — closing a consolidated report on its first
-  finding would strand the rest.
+  not feedback. A `### PR review` report reaches a terminal state only when its
+  closing `Re:` comments account for every finding in every subsection, each
+  fixed or declined: one comment carries several reviews' findings, and closing
+  it on the first would strand the rest.
   The distinction is authorship intent, not identity: requests, replies, and
   clean verdicts are bookkeeping; only a report that actually raises issues
   awaits triage. Reacting to or declining your own bookkeeping would both waste
