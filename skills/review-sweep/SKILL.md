@@ -199,7 +199,10 @@ finding in waiting-on-fix. The report is terminal once every finding has a
 closing, and only then react to it: 🚀 if any finding was fixed, 👎 if every one
 was declined. A bare 👎 on the
 report closes nothing. If the maintainer means to reject it whole, the reply
-that says so is their direction, and each finding is declined citing it.
+that says so is their direction, and each finding is declined citing it. §7's
+re-litigation rule applies per finding too: `pr-review` run again on a new head
+can re-raise a finding already declined, and the closing for it is
+`… #<n>: Already declined above: <url>`.
 
 After reaching a terminal state on an inline comment, also resolve its thread
 (`resolve_review_thread`) so the PR's unresolved count reflects reality.
