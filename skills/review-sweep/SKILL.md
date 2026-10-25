@@ -215,6 +215,13 @@ After reaching a terminal state on an inline comment, also resolve its thread
   comment, or they'd never reach a terminal state. Its **clean** report
   (`### Code review` / `No issues found at <sha>`) is not feedback and needs no
   triage — skip it, and read it as the reviewer verdict step 5 is looking for.
+  `pr-review`'s consolidated report (`### PR review`) is read the same way: one
+  raising issues in any of its `####` subsections is triaged, and a clean one
+  (`No issues found at <sha>` as the first line under the heading) is a verdict,
+  not feedback. A report of either kind that raises several issues reaches a
+  terminal state only when its closing `Re:` comments account for every one of
+  them, each fixed or declined — closing a consolidated report on its first
+  finding would strand the rest.
   The distinction is authorship intent, not identity: requests, replies, and
   clean verdicts are bookkeeping; only a report that actually raises issues
   awaits triage. Reacting to or declining your own bookkeeping would both waste
@@ -371,10 +378,10 @@ A PR is ready to merge when all of:
   verdict covers the current head. That holds whoever submitted it, since a
   block only makes the sweep stricter (see **Trusted authors**). Informational
   bot boilerplate doesn't count, and neither does this skill's own bookkeeping — the same forms step 1
-  skips. That exemption stops there: a `### Code review` report **raising
-  issues** shares this identity but is real feedback, and an unclosed one blocks
-  readiness like any other comment. Exempting it wholesale would let a PR be
-  called ready with its own review's findings unresolved,
+  skips. That exemption stops there: a `### Code review` or `### PR review`
+  report **raising issues** shares this identity but is real feedback, and an
+  unclosed one blocks readiness like any other comment. Exempting it wholesale
+  would let a PR be called ready with its own review's findings unresolved,
 - CI checks on the head commit are green. Zero configured checks counts as
   green only when the project genuinely has no CI — read `## Mechanical checks`:
   if it names commands that a CI system is expected to run, a PR showing no
@@ -386,12 +393,17 @@ A PR is ready to merge when all of:
   qualify: an `APPROVED` review from a trusted author whose `commit_id` **is**
   the current head — review objects carry the reviewed SHA, and submission time
   proves nothing, since an approval can be submitted late against an older
-  commit — a `code-review` clean report (`No issues found at <sha>`) from a
-  trusted author whose SHA **is** the current head, or a clean round for this
-  head from the review bot `## Repo` names, in the form the two paragraphs below
-  allow. Take the clean report before requesting a bot round:
-  the head already has an affirmative review, and re-requesting would spend a
-  round to learn what the PR already says.
+  commit — a clean report from a trusted author whose SHA **is** the current
+  head, either `code-review`'s (`### Code review` / `No issues found at <sha>`)
+  or `pr-review`'s (`### PR review` / `No issues found at <sha>` as the first
+  line under the heading), or a clean round for this head from the review bot
+  `## Repo` names, in the form the two paragraphs below allow. A `pr-review`
+  report counts only as a whole. One that raises issues anywhere is not a
+  verdict, even when its `#### Code review` subsection reads `clean`; and one
+  that lists reviews as *not run* is still clean, since which skills a project
+  vendors is its own decision. Take the clean report before requesting a bot
+  round: the head already has an affirmative review, and re-requesting would
+  spend a round to learn what the PR already says.
   **Silence is never approval** — a failed trigger or a bot outage must not
   greenlight an unreviewed head.
 

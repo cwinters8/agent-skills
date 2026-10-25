@@ -102,7 +102,10 @@ review from you at the current head SHA, or is an automated PR whose diff is
 purely generated — the profile's `## Review focus` names this project's
 generated paths, and a bot PR that only touches those is not worth a review.
 Both report shapes state the head SHA in their first line (§5), so the
-already-reviewed case is always readable without inference.
+already-reviewed case is always readable without inference. Only a
+`### Code review` comment is a code review from you. A `### PR review` comment
+from `pr-review` at the same head is a different report, even where it has a
+`#### Code review` subsection, and does not make this review skip.
 
 **Record `head.sha` when you start**, and re-run this check immediately before
 posting: a PR can close, or take new commits, while the review runs. If the

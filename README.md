@@ -11,6 +11,7 @@ Shipping a change:
 | --- | --- |
 | `pr-preflight` | Pre-push QA gate: mechanical checks, self review, project checks, then push and open a PR |
 | `code-review` | Reviews a local branch diff or an open PR, scoring findings for confidence and dropping the weak ones |
+| `pr-review` | Runs the pre-push review set against an open PR, including one opened without preflight, and posts one consolidated comment for `review-sweep` to triage |
 | `review-sweep` | Triages every review comment on open PRs to a terminal state, and knows when to stop |
 | `security-review` | Security gate driven by the project's stated trust boundary, with per-stack reference modules |
 | `docs-currency` | Finds every doc a change invalidated, including the copies that only hold the wording the diff deleted |

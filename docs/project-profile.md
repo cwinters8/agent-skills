@@ -68,7 +68,7 @@ in their report that they guessed.
 
 ### `## Repo` — required
 
-Read by `code-review`, `review-sweep`.
+Read by `code-review`, `review-sweep`, `pr-review`.
 
 `owner/repo`, visibility, the collaborator model, and the review bot if one is
 installed. `code-review` builds permalinks from `owner/repo`. The collaborator
@@ -174,7 +174,7 @@ is cheap for a single-manifest project and not cheap for one vendoring
 
 ### `## Review focus` — optional
 
-Read by `code-review`, `pr-preflight`.
+Read by `code-review`, `pr-preflight`, `pr-review`.
 
 This project's known failure modes: invariants that are easy to break, generated
 files that must not be hand-edited, conventions a reviewer should weight heavily.
@@ -194,7 +194,7 @@ time, and what stops `code-review` from generating the same noise.
 
 ### `## Local skills` — optional
 
-Read by `pr-preflight`.
+Read by `pr-preflight`, `pr-review`.
 
 Skills that live only in this repo and what each one gates, so a shared skill can
 hand off to them. Write `none` if there are none. Name what the skill decides,
@@ -205,7 +205,7 @@ is authoritative, never a copy kept here.
 
 ### `## Exemptions` — optional
 
-Read by `action-versions`, `code-review`, `pr-preflight`.
+Read by `action-versions`, `code-review`, `pr-preflight`, `pr-review`.
 
 Carve-outs, each naming the skill it applies to and why. Use this for things that
 look like a violation but are not — a CI system whose steps resemble GitHub
@@ -256,7 +256,7 @@ in its hand-off.
 
 ### `## Trust boundary` — required with `security-review`
 
-Read by `security-review`, `pr-preflight`.
+Read by `security-review`, `pr-preflight`, `pr-review`.
 
 A table of path glob to check groups. This is the authoritative trigger list: a
 changed path matching a row runs that row's groups. The groups are:
@@ -371,7 +371,7 @@ reports unconfigured.
 
 ### `## Secrets policy` — optional
 
-Read by `security-review`, `code-review`, `pr-preflight`.
+Read by `security-review`, `code-review`, `pr-preflight`, `pr-review`.
 
 Which env prefixes are public by design, where real secrets live, and what must
 never appear in a commit. State the trap explicitly if your framework has one:
