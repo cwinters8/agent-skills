@@ -3,7 +3,8 @@ name: code-review
 description: >
   Review a change for bugs and project-rule violations, filtering low-confidence
   findings before reporting. Works on the local branch diff (the default, used
-  by pr-preflight before a PR exists) or on an open PR given its number. Use
+  by pr-preflight before a PR exists, and by pr-review in a worktree of an open
+  PR's head) or on an open PR given its number. Use
   when asked to "code review", "review this change", "review PR <n>", or when
   another skill invokes code-review.
 ---

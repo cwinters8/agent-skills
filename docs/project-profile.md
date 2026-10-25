@@ -199,9 +199,12 @@ Read by `pr-preflight`, `pr-review`.
 Skills that live only in this repo and what each one gates, so a shared skill can
 hand off to them. Write `none` if there are none. Name what the skill decides,
 not how it works — the hand-off rule is that the local skill's own trigger list
-is authoritative, never a copy kept here.
+is authoritative, never a copy kept here. `pr-review` runs these against other
+people's PRs, where it executes nothing from the PR's tree, so a local skill
+that runs a repo script reads *not run* there.
 
-*Missing:* no hand-off; `pr-preflight` runs only the vendored skills.
+*Missing:* no hand-off; `pr-preflight` and `pr-review` run only the vendored
+skills.
 
 ### `## Exemptions` — optional
 

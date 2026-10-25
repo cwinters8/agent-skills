@@ -60,6 +60,7 @@ are the whole gate, and the session runs them by hand.
 | `bin/agent-skills.mjs` — CLI commands and flags | its own header comment, `README.md`, `skills/skills-adopt/SKILL.md` |
 | `skills/security-review/references/<module>.md` | the check group in `skills/security-review/SKILL.md` that cites it |
 | `AGENTS.md` | this profile, wherever it summarizes rather than points |
+| `skills/code-review/SKILL.md` §5 and `skills/pr-review/SKILL.md` §5 — the report shapes (`### Code review`, `### PR review`, the `No issues found at <sha>` first line) | `skills/review-sweep/SKILL.md` §1, the Marker protocol and §5, which recognize them; `skills/code-review/SKILL.md` §1 and `skills/pr-review/SKILL.md` §1, which read them for eligibility |
 
 `README.md` and `docs/project-profile.md` rank first: consumers read them off
 this repo and act on them in their own, so a stale flag or section name there

@@ -218,10 +218,11 @@ be read as permission.
 
 Both directions, like every other section here. **Named but gone** — confirm
 each skill this section lists still exists in the repo; a hand-off to a deleted
-or renamed skill means `pr-preflight` names a gate in its report that never ran.
+or renamed skill means `pr-preflight` (or `pr-review`) names a gate in its
+report that never ran.
 **Present but unlisted** — enumerate the repo's own skill files and subtract the
 set vendored from this package; anything left that the section does not name is
-a gate `pr-preflight` never hands off to. That is the quieter half: the listed
+a gate neither `pr-preflight` nor `pr-review` ever hands off to. That is the quieter half: the listed
 name at least fails visibly when the hand-off misses, while a local skill added
 after the profile was written simply never runs, and the refresh reports the
 section verified. Propose the addition rather than writing it — what a local

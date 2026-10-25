@@ -90,7 +90,7 @@
         "pr-review"
       ],
       "supplies": "Skills that live only in this repo and what each one gates, so a shared skill can hand off to them. Write 'none' if there are none.",
-      "fallback": "No hand-off; pr-preflight runs only the vendored skills."
+      "fallback": "No hand-off; pr-preflight and pr-review run only the vendored skills."
     },
     {
       "heading": "Exemptions",

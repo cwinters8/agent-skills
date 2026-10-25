@@ -148,7 +148,8 @@ from a source the **Trusted authors** section above trusts:
   else the tools can't tell the maintainer's 👎 from an outsider's, and an
   outsider who could close a finding with one reaction could clear the path to
   the merge cue, so re-triage the comment like any unhandled one. A maintainer
-  on such a repo declines with a one-line reply instead.
+  on such a repo declines with a one-line reply instead. The one exception is
+  a `### PR review` report, below.
 - **🚀 must be paired with its fix reply from a trusted author** (or a thread
   resolved where resolution is trusted). A 🚀 claims a fix was pushed, and the
   reply linking the commit is the evidence; a bare 🚀, or one whose only
@@ -186,6 +187,20 @@ that for a conversation comment as the original comment plus our later `Re:`
 comments referencing its URL — the staleness window and the waiting-on-fix
 check below both apply through those.
 
+**A `### PR review` report is closed per finding, not per comment.** `pr-review`
+puts several reviews' findings in one conversation comment, numbered within
+each `####` subsection. One reaction on that comment cannot say which finding
+it answers, so a reaction marks nothing terminal there. A 👎 after declining the
+first finding would otherwise close the comment and strand the rest, including
+any finding waiting on a side PR. Close each finding with its own `Re:` comment
+that names it: `Re: <html_url> — <subsection> #<n>: Fixed in <sha>` or
+`… #<n>: Declined: <reason>`. A side-PR link in the same form puts that one
+finding in waiting-on-fix. The report is terminal once every finding has a
+closing, and only then react to it: 🚀 if any finding was fixed, 👎 if every one
+was declined. A bare 👎 on the
+report closes nothing. If the maintainer means to reject it whole, the reply
+that says so is their direction, and each finding is declined citing it.
+
 After reaching a terminal state on an inline comment, also resolve its thread
 (`resolve_review_thread`) so the PR's unresolved count reflects reality.
 
@@ -203,7 +218,8 @@ After reaching a terminal state on an inline comment, also resolve its thread
   until the last page before triaging or judging readiness — feedback missed
   by pagination would otherwise be treated as nonexistent.
 - Filter to comments lacking a terminal state (see Marker protocol: a trusted
-  👎, a 🚀 paired with a trusted fix reply, or a trusted resolved thread). A
+  👎, a 🚀 paired with a trusted fix reply, or a trusted resolved thread; a
+  `### PR review` report only by its per-finding closings). A
   bare 👀 excludes a comment only while its thread shows activity inside the staleness window; a stale 👀
   does not. Skip this skill's own prior output — a `Re:` closing or
   blocker-question comment, a decline/fix reply, the ready-to-merge signal, the
@@ -218,10 +234,7 @@ After reaching a terminal state on an inline comment, also resolve its thread
   `pr-review`'s consolidated report (`### PR review`) is read the same way: one
   raising issues in any of its `####` subsections is triaged, and a clean one
   (`No issues found at <sha>` as the first line under the heading) is a verdict,
-  not feedback. A `### PR review` report reaches a terminal state only when its
-  closing `Re:` comments account for every finding in every subsection, each
-  fixed or declined: one comment carries several reviews' findings, and closing
-  it on the first would strand the rest.
+  not feedback. One raising issues closes per finding (Marker protocol).
   The distinction is authorship intent, not identity: requests, replies, and
   clean verdicts are bookkeeping; only a report that actually raises issues
   awaits triage. Reacting to or declining your own bookkeeping would both waste

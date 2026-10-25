@@ -206,7 +206,8 @@ default, a moved or deleted file, a retired command.
 
 ## Related skills
 
-`pr-preflight` invokes this skill as part of its project checks; `code-review`
+`pr-preflight` invokes this skill as part of its project checks, and
+`pr-review` routes an open PR to it the same way, report-only; `code-review`
 does not overlap with it, because that skill deliberately leaves documentation
 gaps alone. If either is named in a report and is not vendored here, say so
 rather than guessing at what it would have done.
