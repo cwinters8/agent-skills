@@ -342,8 +342,19 @@ its subscription, or a fresh session handed the PR. The longest loops this rule
 exists for never went through a sweep at all; they were fixed in-session, round
 after round, where nothing counted. So count from the PR, not from memory: the
 review-driven fix commits are the commits on the PR branch made after its first
-review, excluding merges of the base branch. A session that starts cold can
-read that number, and one that has been fixing for hours gets the same answer.
+reviewer feedback, excluding merges of the base branch.
+
+**First reviewer feedback is the earliest item, of any form, that §1 would send
+to triage**: a submitted review, an inline review comment, or a conversation
+comment that raises issues — a `code-review` report listing findings included.
+The anchor is the timestamp of that item, not of the first review *object*:
+`code-review` posts its findings as a conversation comment, not a review, so on a
+project with no review bot a PR can carry many rounds of findings while
+`get_reviews` returns nothing, and a count anchored on review objects reads
+zero forever. Bookkeeping that §1 skips — a clean report, a review-round
+request, this skill's own replies — never sets the anchor. A session that
+starts cold can read that number, and one that has been fixing for hours gets
+the same answer.
 
 - **Non-substantive round.** A round whose feedback contains nothing from §2's
   Address list is non-substantive. **Two consecutive non-substantive rounds end
