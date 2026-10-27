@@ -23,6 +23,9 @@ public, anyone can react on a PR, so `review-sweep`'s reaction-count approval
 shortcut is **not** permitted here: require an `APPROVED` review, or report the
 PR as blocked on a reviewer verdict.
 
+No review bot is installed, so `review-sweep` posts no review-round requests
+here. A `code-review` clean report for the head also counts as a verdict.
+
 ## Mechanical checks
 
 - The leak grep from AGENTS.md → "The one rule". Any hit in a `SKILL.md` is a

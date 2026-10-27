@@ -28,7 +28,9 @@ TODO
 
 <!-- REQUIRED. owner/repo, visibility, and the collaborator model. The
      collaborator model decides whether review-sweep may infer approval from a
-     reaction-count delta or must require an APPROVED review. -->
+     reaction-count delta or must require an APPROVED review. If a review bot
+     is installed, name it, the comment that requests a round, and how it
+     signals a clean round; review-sweep requests no rounds otherwise. -->
 
 TODO
 

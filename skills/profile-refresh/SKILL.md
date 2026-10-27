@@ -120,7 +120,11 @@ reaction-count delta only because the plausible reactors are known. A repo that
 went **public**, or gained collaborators, invalidates that shortcut entirely,
 and the profile is the only place that says so. A renamed repo or owner matters
 too — `code-review` builds permalinks from it, so a wrong `owner/repo` puts a
-404 in every review comment it posts.
+404 in every review comment it posts. Check a named review bot is still
+installed, and that its request form and clean signal still match how it
+behaves: a bot named here after it was removed has `review-sweep` posting
+requests nobody answers, and every PR ends up blocked on a verdict that was
+never coming.
 
 ### `## Rules source`
 

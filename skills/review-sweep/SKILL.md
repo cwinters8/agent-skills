@@ -4,17 +4,18 @@ description: >
   Triage unaddressed review feedback on a repo's open PRs: mark each new comment
   as seen, fix what's worth fixing, decline the rest with a reason, and flag PRs
   that are ready to merge. Use when asked to "sweep reviews", "triage review
-  comments", "check PR feedback", "address Codex comments", or when a scheduled
-  routine invokes /review-sweep. Accepts an optional PR number as argument; with
-  no argument it sweeps every open PR.
+  comments", "check PR feedback", "address review bot comments", or when a
+  scheduled routine invokes /review-sweep. Accepts an optional PR number as
+  argument; with no argument it sweeps every open PR.
 ---
 
 # Review sweep
 
-Keep review feedback moving without waiting on a human. Reviewers — Codex,
-another bot, or a person — comment on PRs; this skill triages every unhandled
-comment to a terminal state (**fixed** or **declined with a reason**), tells the
-maintainer when a PR needs nothing but their merge click, and knows when to stop.
+Keep review feedback moving without waiting on a human. Reviewers — a review
+bot, the `code-review` skill, or a person — comment on PRs; this skill triages
+every unhandled comment to a terminal state (**fixed** or **declined with a
+reason**), tells the maintainer when a PR needs nothing but their merge click,
+and knows when to stop.
 
 Use the GitHub MCP tools (`mcp__github__*`) for all GitHub reads and writes;
 many sessions have no `gh` CLI and block direct `api.github.com` calls. Load
@@ -25,8 +26,9 @@ and pushing fixes.
 
 Read `.claude/project-profile.md`. It supplies:
 
-- `## Repo` — which repo to sweep, and the collaborator model, which decides
-  whether §5's reaction-count shortcut is available at all.
+- `## Repo` — which repo to sweep; the collaborator model, which decides
+  whether §5's reaction-count shortcut is available at all; and the review bot,
+  if any, with how to request a round and how it signals a clean one.
 - `## Not findings` — the classes of feedback this project declines on sight,
   with the reason to cite.
 - `## Review focus` — the invariants that make a comment worth fixing.
@@ -54,7 +56,7 @@ proven differently:
 - **👎 is terminal on its own.** The tools here can't see *who* left a
   reaction, but it doesn't matter: an agent's decline arrives with its
   explanatory reply, and a bare 👎 is the maintainer rejecting the feedback
-  (Codex itself invites 👍/👎 ratings) — either way the comment is declined.
+  (some review bots invite 👍/👎 ratings) — either way the comment is declined.
   On finding a bare 👎, resolve its thread and move on; no reply needed.
 - **🚀 must be paired with its fix reply** (or a resolved thread). A 🚀
   claims a fix was pushed, and the reply linking the commit is the evidence;
@@ -102,28 +104,29 @@ After reaching a terminal state on an inline comment, also resolve its thread
   All three endpoints paginate (`perPage` with `after`/`page`): loop each
   until the last page before triaging or judging readiness — feedback missed
   by pagination would otherwise be treated as nonexistent.
-- Filter to comments lacking a terminal state (see Marker protocol: any 👎,
-  a 🚀 paired with its fix reply, or a resolved thread). A bare 👀 excludes
-  a comment only while its thread shows activity inside the staleness window;
-  a stale 👀 does not. Skip this skill's own prior output — a `Re:` closing or
+- Filter to comments lacking a terminal state (see Marker protocol: any 👎, a 🚀
+  paired with its fix reply, or a resolved thread). A bare 👀 excludes a comment
+  only while its thread shows activity inside the staleness window; a stale 👀
+  does not. Skip this skill's own prior output — a `Re:` closing or
   blocker-question comment, a decline/fix reply, the ready-to-merge signal, the
-  stop-condition summary from §7, or an `@codex review (head …)` request from
-  step 5 — but *not* every comment posted through this identity: where there is
-  no separate bot account, `code-review`'s PR-mode findings (`### Code review`
-  listing issues — see that skill) post through the same GitHub identity as this
-  skill and must be triaged like any other reviewer's comment, or they'd never
-  reach a terminal state. Its **clean** report (`### Code review` / `No issues
-  found at <sha>`) is not feedback and needs no triage — skip it, and read it as
-  the reviewer verdict step 5 is looking for. The distinction is authorship
-  intent, not identity: requests, replies, and clean verdicts are bookkeeping;
-  only a report that actually raises issues awaits triage. Reacting to or
-  declining your own bookkeeping would both waste a cycle and stall readiness.
+  stop-condition summary from §7, or a review-round request (`… (head <sha> …)`)
+  from step 5 — but *not* every comment posted through this identity: where
+  there is no separate bot account, `code-review`'s PR-mode findings
+  (`### Code review` listing issues — see that skill) post through the same
+  GitHub identity as this skill and must be triaged like any other reviewer's
+  comment, or they'd never reach a terminal state. Its **clean** report
+  (`### Code review` / `No issues found at <sha>`) is not feedback and needs no
+  triage — skip it, and read it as the reviewer verdict step 5 is looking for.
+  The distinction is authorship intent, not identity: requests, replies, and
+  clean verdicts are bookkeeping; only a report that actually raises issues
+  awaits triage. Reacting to or declining your own bookkeeping would both waste
+  a cycle and stall readiness.
 
 ### 2. Triage each comment
 
-React 👀, then judge the feedback on its merits — it may be from Codex,
-another bot, or a human. Review summaries are the exception to the seen
-marker: they can't receive reactions, so they have no 👀 state — their only
+React 👀, then judge the feedback on its merits — it may be from a review bot,
+the `code-review` skill, or a human. Review summaries are the exception to the
+seen marker: they can't receive reactions, so they have no 👀 state — their only
 recorded states are the closing `Re:` comment or a linked blocker question.
 Human comments from the maintainer get extra weight but the same process.
 
@@ -136,6 +139,19 @@ honest consideration, speculative generality (YAGNI), and everything the
 profile's `## Not findings` names — decline those citing the rules source rather
 than implementing what they ask for. Reviewers will keep raising a project's
 settled decisions; the profile exists so you can close them in one line.
+
+**Read the PR description's non-goals and trust assumptions before triaging**
+(`pr-preflight` §5 asks for both). A finding that hardens against an input the
+description names as project-controlled, or asks for something it lists as a
+non-goal, is declined by quoting that line. If the reviewer argues the
+assumption itself is wrong (the input is not actually project-controlled, or the
+non-goal leaves the change broken for real inputs), that is a substantive
+finding: judge it on its merits. The session that wrote a change knows which
+inputs cannot occur; a later session, or this one forty rounds on, does not
+unless it is written down. Without it, hypothetical-input findings get taken at
+face value, and each fix adds surface for the next round to find something in:
+one consumer's version-bump script reached 22 KB after a morning of findings
+about malformed values in a file only that script writes.
 
 When genuinely unsure whether feedback is right, lean toward declining with an
 honest reply over guessing at a fix — a wrong "fix" costs more than a wrong
@@ -236,33 +252,48 @@ A PR is ready to merge when all of:
   Three signals qualify: an `APPROVED` review whose `commit_id` **is** the
   current head — review objects carry the reviewed SHA, and submission time
   proves nothing, since an approval can be submitted late against an older
-  commit — an affirmative no-suggestions Codex round for this head, or a
-  `code-review` clean report (`No issues found at <sha>`) whose SHA **is** the
-  current head. Take the clean report before requesting a Codex round: the head
-  already has an affirmative review, and re-requesting would spend a round to
-  learn what the PR already says.
-  **Silence is never approval** — a failed trigger or a Codex outage must
-  not greenlight an unreviewed head. Obtain the Codex verdict actively:
-  when every other condition passes and the head lacks a verdict, read the
-  PR's current 👍 reaction count (`issue_read` on the PR returns per-emoji
-  counts) and post one `@codex review (head <short-sha>, 👍-baseline <n>)`
-  comment — the SHA is the dedupe key, and **at most two requests per head**:
-  the initial one, plus the single promised retry marked with `retry` in the
-  comment text (so the retry below survives the dedupe). A later pass
-  judges the response: new Codex comments go through triage as usual, and
-  the round is approving only if the PR's 👍 count **rose above the
-  recorded baseline** with no new Codex suggestions — Codex reacts 👍 on
-  the PR when it has none, and a maintainer's 👍 counts equally. If neither
-  suggestions nor a 👍 arrive within a few hours, re-request once; if still
-  nothing, report the PR as blocked on a reviewer verdict instead of
-  declaring it ready.
+  commit — a `code-review` clean report (`No issues found at <sha>`) whose SHA
+  **is** the current head, or a clean round from the review bot `## Repo`
+  names, for this head. Take the clean report before requesting a bot round:
+  the head already has an affirmative review, and re-requesting would spend a
+  round to learn what the PR already says.
+  **Silence is never approval** — a failed trigger or a bot outage must not
+  greenlight an unreviewed head.
 
-  **The count-delta path requires permission from the profile.** Reaction
-  authors aren't readable via the MCP tools and direct GitHub API calls are
-  blocked in these sessions, so the signal is unattributed. It is sound only
-  where the plausible reactors during the window are known — a private repo with
-  a single maintainer plus the review bot. Use it only when `## Repo` says so.
-  Otherwise require an `APPROVED` review and report the PR blocked without one.
+  **Request a bot round only when `## Repo` names a review bot and says how to
+  request one.** When every other condition passes and the head lacks a
+  verdict, post one request in the form the profile gives, carrying
+  `(head <short-sha>)` — the SHA is the dedupe key, and **at most two requests
+  per head**: the initial one, plus the single promised retry marked with
+  `retry` in the comment text (so the retry below survives the dedupe). If the
+  bot's clean signal is a reaction count, read the PR's current count first
+  (`issue_read` on the PR returns per-emoji counts) and record it in the
+  request as `<emoji>-baseline <n>`. A later pass judges the response: new bot
+  comments go through triage as usual, and the round is clean only if the
+  profile's clean signal arrived for this head with no new suggestions. If
+  neither suggestions nor the signal arrive within a few hours, re-request
+  once; if still nothing, report the PR as blocked on a reviewer verdict
+  instead of declaring it ready.
+
+  **With no review bot named, post no request.** A request addressed to a bot
+  that isn't installed is never answered, so it can only end in a PR reported
+  as blocked on a verdict that was never coming, on every head, after a few
+  hours' wait. Instead, when every other condition passes and the head lacks a
+  verdict, report the PR as needing an `APPROVED` review or a `code-review`
+  clean report for the current head, and name which one it lacks. That is the
+  same blocked state, reached at once and stating the action that clears it.
+  A bot that `## Repo` names without a request form gets the same treatment:
+  triage its comments when they arrive, but do not guess at how to summon it.
+
+  **A reaction-count clean signal requires permission from the profile.**
+  Reaction authors aren't readable via the MCP tools and direct GitHub API
+  calls are blocked in these sessions, so the signal is unattributed — a
+  maintainer's reaction counts the same as the bot's. It is sound only where
+  the plausible reactors during the window are known — a private repo with a
+  single maintainer plus the review bot. Use it only when `## Repo` says so.
+  Otherwise the bot's round cannot approve on its own: its suggestions are
+  still triaged, but readiness needs an `APPROVED` review or a `code-review`
+  clean report for the head, and the PR is reported blocked without one.
 
 When a PR becomes ready: if it is still a draft, mark it ready for review
 first (`update_pull_request` with `draft: false`) — a draft can't be merged,
@@ -305,6 +336,15 @@ merges. These conditions end the cycle. They bound *how long the loop runs* —
 they never lower the bar for a real defect, and a Critical or High security
 finding is always addressed no matter which round it arrives in.
 
+**They govern every commit made to address review feedback on the PR, however
+it is applied**: a sweep, a live session fixing findings as they arrive through
+its subscription, or a fresh session handed the PR. The longest loops this rule
+exists for never went through a sweep at all; they were fixed in-session, round
+after round, where nothing counted. So count from the PR, not from memory: the
+review-driven fix commits are the commits on the PR branch made after its first
+review, excluding merges of the base branch. A session that starts cold can
+read that number, and one that has been fixing for hours gets the same answer.
+
 - **Non-substantive round.** A round whose feedback contains nothing from §2's
   Address list is non-substantive. **Two consecutive non-substantive rounds end
   the cycle** on that PR.
@@ -320,12 +360,25 @@ finding is always addressed no matter which round it arrives in.
 - **Fix-commit cap.** At most **5 review-driven fix commits** on one PR. On
   reaching the cap, stop pushing and hand the PR to the maintainer — a change
   needing a sixth round of fixes has a design problem that another round won't
-  find. **The cap never applies to a Critical or High finding** (the severity
-  table in `security-review` defines those), nor to any defect that would
-  otherwise ship broken: fix those, push, and say in the hand-off that you passed
-  the cap deliberately and why. A budget that can leave a Critical security bug
-  unfixed is the wrong budget — the cap exists to stop rounds of polish, not to
-  ration correctness.
+  find. Past the cap, exactly two kinds of finding still get fixed:
+
+  - a **Critical or High** finding (the severity table in `security-review`
+    defines those), or
+  - a finding that the change **does not do what its PR says it does, on inputs
+    the project actually produces**.
+
+  Fix those, push, and say in the hand-off that you passed the cap deliberately
+  and why. A budget that can leave a Critical security bug unfixed is the wrong
+  budget — the cap exists to stop rounds of polish, not to ration correctness.
+
+  **Inputs the project itself controls do not escalate a finding into either
+  kind**: files its own tooling writes, its own manifests, values it validates
+  upstream. The PR description's trust assumptions say which inputs those are;
+  the profile's `## Threat model` is the fallback when the description has none.
+  This replaces an older exemption for "any defect that would otherwise ship
+  broken", which swallowed the cap: a reviewer phrases nearly every finding that
+  way, including a malformed value in a file only the project's own script
+  writes.
 
 **A sweep never schedules its own next run.** Finish the sweep, report, and end
 the turn — no wake-up, no self check-in, no recurring poll, whether the PR is
@@ -335,7 +388,7 @@ someone wants one. A session that re-arms itself turns a bounded task into an
 unbounded one, which is the same failure the stop conditions above exist to
 prevent.
 
-**On stopping**, do not request another Codex round. Post one comment that:
+**On stopping**, do not request another review-bot round. Post one comment that:
 names the current head SHA, lists every comment left open with the one-line
 reason each was declined, and says plainly that the PR is being handed over
 because the loop hit a stop condition (name which one). Mark the PR ready for

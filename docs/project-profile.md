@@ -70,13 +70,25 @@ in their report that they guessed.
 
 Read by `code-review`, `review-sweep`.
 
-`owner/repo`, visibility, and the collaborator model. `code-review` builds
-permalinks from `owner/repo`. The collaborator model matters because
-`review-sweep` has a shortcut — inferring reviewer approval from a reaction-count
-delta — that is only sound when the plausible reactors are known.
+`owner/repo`, visibility, the collaborator model, and the review bot if one is
+installed. `code-review` builds permalinks from `owner/repo`. The collaborator
+model matters because `review-sweep` has a shortcut — inferring reviewer
+approval from a reaction-count delta — that is only sound when the plausible
+reactors are known.
+
+For a review bot, say how to request a round (the comment to post) and how the
+bot signals a clean round with no suggestions (a reaction, an approving review,
+a summary comment). `review-sweep` requests a round only from a bot named here
+with a request form, because a request to a bot that is not installed is never
+answered and leaves every PR waiting on a verdict that will not come. If the
+clean signal is a reaction, the collaborator model must also permit the
+shortcut above.
 
 *Missing:* `owner/repo` comes from the git remote, and `review-sweep` requires an
-`APPROVED` review rather than using the shortcut.
+`APPROVED` review rather than using the shortcut. With no review bot named, or
+one named without a request form, `review-sweep` posts no review requests and
+reads readiness from an `APPROVED` review or a `code-review` clean report for
+the current head.
 
 ### `## Mechanical checks` — required
 
