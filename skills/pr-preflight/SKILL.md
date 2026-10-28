@@ -160,7 +160,9 @@ this repo; a harness without it should substitute reasoning through the flow.
   Write `none` rather than omitting either one, so an empty field reads as a
   decision, not an oversight. `review-sweep` declines findings that contradict
   them, and its fix-commit cap reads the trust assumptions to tell a real defect
-  from hardening against an input that cannot occur. The session that wrote the
+  from hardening against an input that cannot occur. Neither applies to a
+  security finding, and neither applies at all when the PR's author is not
+  trusted; that skill's §2 says why. The session that wrote the
   change is the only one that knows which inputs are impossible; the
   description is how that knowledge reaches a reviewer, a fresh session handed
   the PR, or this session many rounds later.

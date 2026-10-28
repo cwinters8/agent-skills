@@ -120,7 +120,7 @@
         "review-sweep"
       ],
       "supplies": "One paragraph: what ships to parties you do not control, and what the single real control is that keeps an attacker out of what matters \u2014 one user out of another's data on an application; an outsider off the box, and off the provider account the box can reach, on infrastructure.",
-      "fallback": "security-review cannot rank findings by what actually matters here and will say so. review-sweep, when the PR description also states no trust assumptions, treats no input as project-controlled at its fix-commit cap and says so in the hand-off."
+      "fallback": "security-review cannot rank findings by what actually matters here and will say so. review-sweep, when the PR description also states no trust assumptions that count, treats no input as project-controlled at its fix-commit cap and says so in the hand-off."
     },
     {
       "heading": "Trust boundary",

@@ -227,14 +227,17 @@ binary, so row-level security is the only thing standing between one user and
 another user's rows" tells a reviewer exactly which findings are critical and
 which are merely correctness bugs.
 
-`review-sweep` reads it for one narrower question: which inputs the project
-itself controls, so that a finding about them does not pass its fix-commit cap.
-It does so only when the PR description states no trust assumptions of its own.
+`review-sweep` reads it, at the PR's base branch, for two narrower questions.
+It judges security findings against it, never against the PR description, so a
+change cannot talk its own review out of a security finding. And it names which
+inputs the project itself controls, so that a finding about them does not pass
+the fix-commit cap, whenever the PR description states no trust assumptions or
+its author is not the session identity or a write collaborator.
 
 *Missing:* `security-review` cannot rank findings by what actually matters here
-and will say so. `review-sweep`, with no trust assumptions in the PR description
-either, treats no input as project-controlled at the cap and says so in its
-hand-off.
+and will say so. `review-sweep`, with no trust assumptions that count in the PR
+description either, treats no input as project-controlled at the cap and says so
+in its hand-off.
 
 ### `## Trust boundary` — required with `security-review`
 
