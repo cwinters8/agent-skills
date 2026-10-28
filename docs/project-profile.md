@@ -76,9 +76,12 @@ model matters because `review-sweep` has a shortcut — inferring reviewer
 approval from a reaction-count delta — that is only sound when the plausible
 reactors are known.
 
-For a review bot, say how to request a round (the comment to post) and how the
-bot signals a clean round with no suggestions (a reaction, an approving review,
-a summary comment). `review-sweep` requests a round only from a bot named here
+For a review bot, give its GitHub login, say how to request a round (the comment
+to post) and how the bot signals a clean round with no suggestions (a reaction,
+an approving review, a summary comment). `review-sweep` counts a comment or
+review signal only when that login posted it, since the bot's clean text is
+something anyone who can comment can type; without a login, the bot's signal is
+never a verdict. `review-sweep` requests a round only from a bot named here
 with a request form, because a request to a bot that is not installed is never
 answered and leaves every PR waiting on a verdict that will not come. If the
 clean signal is a reaction, the collaborator model must also permit the

@@ -26,8 +26,8 @@
         "code-review",
         "review-sweep"
       ],
-      "supplies": "owner/repo, visibility, the collaborator model (single maintainer or a team), and the review bot if one is installed: how to request a review round and how it signals a clean one.",
-      "fallback": "owner/repo is derived from the git remote. Without a stated collaborator model, review-sweep requires an APPROVED review and will not use the reaction-count shortcut. Without a named review bot and request form, review-sweep posts no review requests and reads readiness from an APPROVED review or a code-review clean report for the head from a trusted author."
+      "supplies": "owner/repo, visibility, the collaborator model (single maintainer or a team), and the review bot if one is installed: its GitHub login, how to request a review round, and how it signals a clean one.",
+      "fallback": "owner/repo is derived from the git remote. Without a stated collaborator model, review-sweep requires an APPROVED review and will not use the reaction-count shortcut. Without a named review bot and request form, review-sweep posts no review requests and reads readiness from an APPROVED review or a code-review clean report for the head from a trusted author. A bot's comment or review signal counts only when posted by the login named here."
     },
     {
       "heading": "Mechanical checks",
