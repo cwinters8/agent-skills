@@ -179,8 +179,18 @@ git fetch <remote> "<base-sha>"                      # base.sha from the metadat
 git fetch <remote> "pull/<n>/head"
 test "$(git rev-parse FETCH_HEAD)" = "<head-sha>"   # fails if the head moved
 mktemp -d                                            # prints the path; note it
-git worktree add --detach "<that path>" "<head-sha>"
+git -c core.hooksPath=/dev/null worktree add --detach "<that path>" "<head-sha>"
 ```
+
+**Add the worktree with hooks off.** `git worktree add` runs the invoking
+repository's `post-checkout` hook, and runs it with its working directory set to
+the new worktree, which is the PR head. A hook manager that reads its config from
+the working tree then runs commands the PR's author wrote, with this session's
+credentials, before any review has looked at them. (Verified on git 2.43: a
+`post-checkout` hook that runs `./cmd.sh` from its working directory executed a
+`cmd.sh` that only the PR commit contained; with `core.hooksPath=/dev/null` set
+on the same command, nothing ran.) The `-c` applies to that one command and
+changes nothing in the user's config.
 
 **Fetch the base by its SHA, not by branch name.** Fetching a branch by name
 from a configured remote also moves that remote's tracking ref, so a user on a
@@ -210,7 +220,8 @@ scope. So nothing from the worktree is executed, installed, built or tested, and
 no session or process is started with the worktree as its project root, where
 the PR's own agent configuration and hooks would load. Reviews read the tree's
 files, and run `git` and lookups such as a version query against it, but never
-anything the tree contains. A review that would run something from the PR's
+anything the tree contains, and no git hook fires on it: the `worktree add`
+above is the step that would trigger one, which is why it turns hooks off. A review that would run something from the PR's
 tree, typically a skill named in `## Local skills` that invokes a repo script,
 reads `not run: unavailable — it executes the PR's code, and the head is
 untrusted`. The skills themselves come from this session's own installed copies,
