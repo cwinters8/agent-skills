@@ -211,6 +211,8 @@ tooling the session has.
 
 ### `## Threat model` — required with `security-review`
 
+Read by `security-review`, `review-sweep`.
+
 One paragraph: what ships to parties you do not control, and what the single real
 control is that keeps an attacker out of what matters. On an application that is
 usually what keeps one user out of another's data. On infrastructure it is what
@@ -225,8 +227,14 @@ binary, so row-level security is the only thing standing between one user and
 another user's rows" tells a reviewer exactly which findings are critical and
 which are merely correctness bugs.
 
+`review-sweep` reads it for one narrower question: which inputs the project
+itself controls, so that a finding about them does not pass its fix-commit cap.
+It does so only when the PR description states no trust assumptions of its own.
+
 *Missing:* `security-review` cannot rank findings by what actually matters here
-and will say so.
+and will say so. `review-sweep`, with no trust assumptions in the PR description
+either, treats no input as project-controlled at the cap and says so in its
+hand-off.
 
 ### `## Trust boundary` — required with `security-review`
 

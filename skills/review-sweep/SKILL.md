@@ -33,6 +33,12 @@ Read `.claude/project-profile.md`. It supplies:
   with the reason to cite.
 - `## Review focus` — the invariants that make a comment worth fixing.
 - `## Mechanical checks` — what must pass before a fix is pushed.
+- `## Threat model` — the fallback for which inputs the project itself
+  controls, read by §7's fix-commit cap only when the PR description states no
+  trust assumptions. Optional: without it, and without trust assumptions in the
+  description, treat no input as project-controlled, and say in the hand-off
+  that neither source named any, so a finding the cap let through on that
+  ground can be read as the cautious default it is.
 
 Without a profile, judge feedback on general merit, require an `APPROVED` review
 for readiness, and say in the report that you swept without project context.
@@ -344,9 +350,15 @@ after round, where nothing counted. So count from the PR, not from memory: the
 review-driven fix commits are the commits on the PR branch made after its first
 reviewer feedback, excluding merges of the base branch.
 
-**First reviewer feedback is the earliest item, of any form, that §1 would send
-to triage**: a submitted review, an inline review comment, or a conversation
-comment that raises issues — a `code-review` report listing findings included.
+**First reviewer feedback is the earliest item, of any form, that §1 treats as
+feedback rather than bookkeeping, whatever its triage state is now**: a
+submitted review, an inline review comment, or a conversation comment that
+raises issues — a `code-review` report listing findings included. That is §1's
+*kind* filter, not its state filter. Round one's feedback, once fixed or
+declined, is no longer sent to triage, and an anchor read from "what §1 sends
+now" would slide forward to the oldest unhandled item each round, so the count
+restarts near zero every round and the cap never fires. Handled feedback still
+sets the anchor.
 The anchor is the timestamp of that item, not of the first review *object*:
 `code-review` posts its findings as a conversation comment, not a review, so on a
 project with no review bot a PR can carry many rounds of findings while
@@ -386,6 +398,7 @@ the same answer.
   kind**: files its own tooling writes, its own manifests, values it validates
   upstream. The PR description's trust assumptions say which inputs those are;
   the profile's `## Threat model` is the fallback when the description has none.
+  With neither, no input counts as project-controlled; say so in the hand-off.
   This replaces an older exemption for "any defect that would otherwise ship
   broken", which swallowed the cap: a reviewer phrases nearly every finding that
   way, including a malformed value in a file only the project's own script
