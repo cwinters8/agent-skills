@@ -24,7 +24,10 @@ shortcut is **not** permitted here: require an `APPROVED` review, or report the
 PR as blocked on a reviewer verdict.
 
 No review bot is installed, so `review-sweep` posts no review-round requests
-here. A `code-review` clean report for the head also counts as a verdict.
+here. A `code-review` clean report for the head also counts as a verdict, but
+only from the session's own account or a write collaborator (`review-sweep`
+§1): this is a public repo, and the maintainer cannot approve their own PRs, so
+that report is the whole gate.
 
 ## Mechanical checks
 

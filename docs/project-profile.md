@@ -88,7 +88,8 @@ shortcut above.
 `APPROVED` review rather than using the shortcut. With no review bot named, or
 one named without a request form, `review-sweep` posts no review requests and
 reads readiness from an `APPROVED` review or a `code-review` clean report for
-the current head.
+the current head, counting the report only from a trusted author (the session's
+own identity or a write collaborator).
 
 ### `## Mechanical checks` — required
 
