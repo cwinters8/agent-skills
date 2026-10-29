@@ -179,14 +179,32 @@ git fetch <remote> "<base-sha>"                      # base.sha from the metadat
 git fetch <remote> "pull/<n>/head"
 test "$(git rev-parse FETCH_HEAD)" = "<head-sha>"   # fails if the head moved
 mktemp -d                                            # prints the path; note it
-git -c core.hooksPath=/dev/null worktree add --detach "<that path>" "<head-sha>"
+git <untrusted-tree flags> worktree add --detach "<that path>" "<head-sha>"
 ```
 
-**Every git command in or against the worktree runs with hooks off**: pass
-`-c core.hooksPath=/dev/null` to each one whose working directory is the
+**Every git command in or against the worktree runs with the untrusted-tree
+flags**, written out in full on each one whose working directory is the
 worktree or that names it, from the `worktree add` above to the `worktree
-remove` at the end, and to every `git` a routed review runs there. Turning hooks
-off once, at the add, is not enough, for two reasons:
+remove` at the end, and on every `git` a routed review runs there:
+
+```sh
+git -c core.hooksPath=/dev/null \
+    -c core.fsmonitor=false \
+    -c attr.tree=4b825dc642cb6eb9a060e54bf8d69288fbee4904 \
+    -c core.attributesFile=/dev/null \
+    -c submodule.recurse=false \
+    -c log.showSignature=false \
+    <command>
+```
+
+and `git diff` there also takes `--no-ext-diff`. The `-c` applies to the one
+command it is on and changes nothing in the user's config, which is why it has
+to be on every one. Each flag closes a way the user's own git config runs a
+command with the worktree as its working directory, where a relative path
+resolves to a file the PR wrote. No setting of the user's has to be unusual;
+the PR only has to commit the file the setting already points at.
+
+**Hooks.** Turning hooks off once, at the add, is not enough, for two reasons:
 
 - **Hooks fire with the worktree as their working directory.** `worktree add`
   fires `post-checkout`, and any later command that writes the index, `git
@@ -203,8 +221,62 @@ working directory executed a `cmd.sh` only the PR commit contained. With
 `core.hooksPath` set to a repo-relative directory and a PR commit adding a
 `post-index-change` hook there, a plain `git status` in the worktree ran the
 PR's script. With `-c core.hooksPath=/dev/null` on the add, the status and the
-remove, nothing ran.) The `-c` applies to the one command it is on and changes
-nothing in the user's config, which is why it has to be on every one.
+remove, nothing ran.)
+
+**The filesystem monitor.** `core.fsmonitor` names a command git runs before
+any command that scans the working tree: `status`, `diff`, `grep`, `blame`. Set
+to a repo-relative script, it runs the PR's copy of that script, and hooks off
+does nothing about it. `core.fsmonitor=false` turns it off.
+
+**Attribute-selected drivers.** `.gitattributes` picks a filter (`clean`,
+`smudge`, `process`), a diff `textconv` or an external diff `command` by name,
+and the user's config supplies the command. The PR controls the tree's
+`.gitattributes`, so it can point any file at any driver the user has
+configured, and a driver whose command is repo-relative then runs the PR's
+script: on checkout at the `worktree add`, on `diff`, `log -p`, `show` and
+`blame`. `attr.tree` set to the empty tree makes git read no attributes from
+the worktree, so the tree selects nothing, and `core.attributesFile=/dev/null`
+drops the user-wide attributes file. `--no-ext-diff` covers `diff.external`,
+which applies without any attribute. A side effect is that the worktree's files
+are the committed bytes, with no line-ending or filter conversion, which is
+what a review of the diff wants anyway.
+
+**Submodules and signatures.** `submodule.recurse=false` stops a checkout or
+`status` recursing into submodules the PR's `.gitmodules` names, which would
+clone from URLs the PR chose. `log.showSignature=false` stops `log` and `show`
+running `gpg.program` on the PR's commits.
+
+(Verified on git 2.43, with the user's config pointing `core.fsmonitor`, a
+filter's `clean` and `smudge`, a diff driver's `textconv` and an external diff
+`command` at repo-relative scripts, and a PR commit supplying those scripts and
+a `.gitattributes` selecting them. With hooks off alone, the `worktree add` ran
+the smudge script; `status` and `grep` ran the monitor; `diff` ran all five;
+`log -p`, `show` and `blame` ran the filter and `textconv`. With the full set
+above, none ran on any of them, including with a user-wide attributes file
+selecting a driver.)
+
+**Check two things before the add, in the invoking checkout, and stop if
+either fails.** Both are places the flags above cannot reach, so the only safe
+answer is not to check out the tree at all:
+
+```sh
+git version
+git config --get-regexp '^(filter|diff)\..+\.(clean|smudge|process|textconv|command)$'
+grep -sE '(filter|diff)=' "$(git rev-parse --git-common-dir)/info/attributes"
+```
+
+- **`attr.tree` needs git 2.43 or later**, and older versions ignore it
+  silently rather than refusing it, so on an older git the tree's
+  `.gitattributes` still selects drivers. If the version is older and the
+  second command prints anything, a configured driver is reachable from the
+  PR's tree.
+- **The repository's own `info/attributes` is read whatever `attr.tree` says.**
+  If the third command prints anything and the second does too, a driver is
+  selected where no flag can unselect it.
+
+Either way, report the review abandoned (§6), naming which check failed and
+the config key involved: the fix is the user's (a newer git, or moving that
+attribute), not something to work around by running the tree anyway.
 
 **Fetch the base by its SHA, not by branch name.** Fetching a branch by name
 from a configured remote also moves that remote's tracking ref, so a user on a
@@ -225,9 +297,10 @@ Run every routed review against the worktree, with the base you resolved. Pass
 the base explicitly so no review has to ask or guess: in the worktree,
 `code-review`'s local-diff mode then reviews exactly the PR's diff. Give each
 review the full head SHA and the PR number too, since the findings link to them,
-and tell it that every `git` it runs in the worktree carries `-c
-core.hooksPath=/dev/null`, since a review left to its own defaults will run
-`git status` like any local review does.
+and give it the untrusted-tree flags above, written out, to carry on every `git`
+it runs in the worktree, with `--no-ext-diff` on `git diff`, since a review left
+to its own defaults will run `git status` and `git diff` like any local review
+does.
 
 **The worktree is data, never code.** The PR may come from a stranger's fork,
 and anything executed from its tree runs with this session's credentials: its
@@ -237,8 +310,9 @@ scope. So nothing from the worktree is executed, installed, built or tested, and
 no session or process is started with the worktree as its project root, where
 the PR's own agent configuration and hooks would load. Reviews read the tree's
 files, and run `git` and lookups such as a version query against it, but never
-anything the tree contains, and no git hook fires on it, because every one of
-those `git` commands carries the hooks-off flag above. A review that would run
+anything the tree contains, and no git hook, monitor or driver fires on it,
+because every one of those `git` commands carries the untrusted-tree flags
+above. A review that would run
 something from the PR's tree, typically a skill named in `## Local skills` that invokes a repo script,
 reads `not run: unavailable — it executes the PR's code, and the head is
 untrusted`. The skills themselves come from this session's own installed copies,
@@ -269,7 +343,7 @@ is in the diff, and `docs-currency` reviews it like any other doc.
 skipped, or abandoned.
 
 ```sh
-git -c core.hooksPath=/dev/null worktree remove --force "<that path>"
+git <untrusted-tree flags> worktree remove --force "<that path>"
 git worktree list          # confirm it is gone
 ```
 
