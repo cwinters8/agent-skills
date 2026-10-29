@@ -72,9 +72,19 @@ Read by `code-review`, `review-sweep`.
 
 `owner/repo`, visibility, the collaborator model, and the review bot if one is
 installed. `code-review` builds permalinks from `owner/repo`. The collaborator
-model matters because `review-sweep` has a shortcut — inferring reviewer
-approval from a reaction-count delta — that is only sound when the plausible
-reactors are known.
+model matters because `review-sweep` reads reactions, whose authors its tools
+cannot see, in two places that are only sound when the plausible reactors are
+known: a shortcut inferring reviewer approval from a reaction-count delta, and
+a bare 👎 closing a comment as declined. Stating that the shortcut is permitted
+permits both; leaving it out turns both off.
+
+Everything else `review-sweep` acts on, it takes only from a trusted author: the
+identity the session posts as, or a collaborator with write, maintain or admin
+access. That covers an `APPROVED` review, a `code-review` report, the PR
+description's trust assumptions, replies and `Re:` comments that close
+feedback, and answers to its blocker questions; its **Trusted authors** section
+lists every signal. Nothing here configures that, and on a public repo it is
+what stops any GitHub account from producing the merge cue.
 
 For a review bot, give its GitHub login, say how to request a round (the comment
 to post) and how the bot signals a clean round with no suggestions (a reaction,
@@ -88,11 +98,12 @@ clean signal is a reaction, the collaborator model must also permit the
 shortcut above.
 
 *Missing:* `owner/repo` comes from the git remote, and `review-sweep` requires an
-`APPROVED` review rather than using the shortcut. With no review bot named, or
-one named without a request form, `review-sweep` posts no review requests and
-reads readiness from an `APPROVED` review or a `code-review` clean report for
-the current head, counting the report only from a trusted author (the session's
-own identity or a write collaborator).
+`APPROVED` review rather than using the shortcut, and does not read a bare 👎 as
+a decline. With no review bot named, or one named without a request form,
+`review-sweep` posts no review requests and reads readiness from an `APPROVED`
+review or a `code-review` clean report for the current head, counting either
+only from a trusted author (the session's own identity or a write
+collaborator).
 
 ### `## Mechanical checks` — required
 
