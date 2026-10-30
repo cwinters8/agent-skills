@@ -68,7 +68,7 @@ in their report that they guessed.
 
 ### `## Repo` — required
 
-Read by `code-review`, `review-sweep`.
+Read by `code-review`, `review-sweep`, `pr-review`.
 
 `owner/repo`, visibility, the collaborator model, and the review bot if one is
 installed. `code-review` builds permalinks from `owner/repo`. The collaborator
@@ -80,9 +80,9 @@ permits both; leaving it out turns both off.
 
 Everything else `review-sweep` acts on, it takes only from a trusted author: the
 identity the session posts as, or a collaborator with write, maintain or admin
-access. That covers an `APPROVED` review, a `code-review` report, the PR
-description's trust assumptions, replies and `Re:` comments that close
-feedback, and answers to its blocker questions; its **Trusted authors** section
+access. That covers an `APPROVED` review, a `code-review` or `pr-review`
+report, the PR description's trust assumptions, replies and `Re:` comments that
+close feedback, and answers to its blocker questions; its **Trusted authors** section
 lists every signal. Nothing here configures that, and on a public repo it is
 what stops any GitHub account from producing the merge cue.
 
@@ -101,9 +101,9 @@ shortcut above.
 `APPROVED` review rather than using the shortcut, and does not read a bare 👎 as
 a decline. With no review bot named, or one named without a request form,
 `review-sweep` posts no review requests and reads readiness from an `APPROVED`
-review or a `code-review` clean report for the current head, counting either
-only from a trusted author (the session's own identity or a write
-collaborator).
+review or a `code-review` or `pr-review` clean report for the current head,
+counting either only from a trusted author (the session's own identity or a
+write collaborator).
 
 ### `## Mechanical checks` — required
 
@@ -174,7 +174,7 @@ is cheap for a single-manifest project and not cheap for one vendoring
 
 ### `## Review focus` — optional
 
-Read by `code-review`, `pr-preflight`.
+Read by `code-review`, `pr-preflight`, `pr-review`.
 
 This project's known failure modes: invariants that are easy to break, generated
 files that must not be hand-edited, conventions a reviewer should weight heavily.
@@ -194,18 +194,21 @@ time, and what stops `code-review` from generating the same noise.
 
 ### `## Local skills` — optional
 
-Read by `pr-preflight`.
+Read by `pr-preflight`, `pr-review`.
 
 Skills that live only in this repo and what each one gates, so a shared skill can
 hand off to them. Write `none` if there are none. Name what the skill decides,
 not how it works — the hand-off rule is that the local skill's own trigger list
-is authoritative, never a copy kept here.
+is authoritative, never a copy kept here. `pr-review` runs these against other
+people's PRs, where it executes nothing from the PR's tree, so a local skill
+that runs a repo script reads *not run* there.
 
-*Missing:* no hand-off; `pr-preflight` runs only the vendored skills.
+*Missing:* no hand-off; `pr-preflight` and `pr-review` run only the vendored
+skills.
 
 ### `## Exemptions` — optional
 
-Read by `action-versions`, `code-review`, `pr-preflight`.
+Read by `action-versions`, `code-review`, `pr-preflight`, `pr-review`.
 
 Carve-outs, each naming the skill it applies to and why. Use this for things that
 look like a violation but are not — a CI system whose steps resemble GitHub
@@ -256,7 +259,7 @@ in its hand-off.
 
 ### `## Trust boundary` — required with `security-review`
 
-Read by `security-review`, `pr-preflight`.
+Read by `security-review`, `pr-preflight`, `pr-review`.
 
 A table of path glob to check groups. This is the authoritative trigger list: a
 changed path matching a row runs that row's groups. The groups are:
@@ -371,7 +374,7 @@ reports unconfigured.
 
 ### `## Secrets policy` — optional
 
-Read by `security-review`, `code-review`, `pr-preflight`.
+Read by `security-review`, `code-review`, `pr-preflight`, `pr-review`.
 
 Which env prefixes are public by design, where real secrets live, and what must
 never appear in a commit. State the trap explicitly if your framework has one:

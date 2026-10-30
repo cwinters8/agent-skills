@@ -24,10 +24,11 @@
       "required": true,
       "readBy": [
         "code-review",
-        "review-sweep"
+        "review-sweep",
+        "pr-review"
       ],
       "supplies": "owner/repo, visibility, the collaborator model (single maintainer or a team), and the review bot if one is installed: its GitHub login, how to request a review round, and how it signals a clean one.",
-      "fallback": "owner/repo is derived from the git remote. Without a stated collaborator model, review-sweep requires an APPROVED review, will not use the reaction-count shortcut, and does not read a bare thumbs-down reaction as a decline. Without a named review bot and request form, review-sweep posts no review requests and reads readiness from an APPROVED review or a code-review clean report for the head, either one only from a trusted author (the session's identity or a write collaborator). A bot's comment or review signal counts only when posted by the login named here."
+      "fallback": "owner/repo is derived from the git remote. Without a stated collaborator model, review-sweep requires an APPROVED review, will not use the reaction-count shortcut, and does not read a bare thumbs-down reaction as a decline. Without a named review bot and request form, review-sweep posts no review requests and reads readiness from an APPROVED review or a code-review or pr-review clean report for the head, either one only from a trusted author (the session's identity or a write collaborator). A bot's comment or review signal counts only when posted by the login named here."
     },
     {
       "heading": "Mechanical checks",
@@ -65,7 +66,8 @@
       "required": false,
       "readBy": [
         "code-review",
-        "pr-preflight"
+        "pr-preflight",
+        "pr-review"
       ],
       "supplies": "This project's known failure modes: invariants that are easy to break, generated files that must not be hand-edited, conventions a reviewer should weight heavily.",
       "fallback": "Reviews run the generic passes only and flag nothing project-specific."
@@ -84,10 +86,11 @@
       "heading": "Local skills",
       "required": false,
       "readBy": [
-        "pr-preflight"
+        "pr-preflight",
+        "pr-review"
       ],
       "supplies": "Skills that live only in this repo and what each one gates, so a shared skill can hand off to them. Write 'none' if there are none.",
-      "fallback": "No hand-off; pr-preflight runs only the vendored skills."
+      "fallback": "No hand-off; pr-preflight and pr-review run only the vendored skills."
     },
     {
       "heading": "Exemptions",
@@ -95,7 +98,8 @@
       "readBy": [
         "action-versions",
         "code-review",
-        "pr-preflight"
+        "pr-preflight",
+        "pr-review"
       ],
       "supplies": "Carve-outs, each naming the skill it applies to and why. Use for things that look like a violation but are not.",
       "fallback": "No carve-outs; expect false positives where a project convention diverges from the generic rule."
@@ -130,7 +134,8 @@
       ],
       "readBy": [
         "security-review",
-        "pr-preflight"
+        "pr-preflight",
+        "pr-review"
       ],
       "supplies": "A table of path glob to check groups. This is the authoritative trigger list: a changed path matching a row runs that row's groups. Groups are authorization, auth-session, secrets, client-data, supply-chain, release.",
       "fallback": "security-review runs the secrets and supply-chain groups over the whole diff and reports every other group as not configured."
@@ -162,7 +167,8 @@
       "readBy": [
         "security-review",
         "code-review",
-        "pr-preflight"
+        "pr-preflight",
+        "pr-review"
       ],
       "supplies": "Which env prefixes are public by design, where real secrets live, and what must never appear in a commit.",
       "fallback": "The secrets group flags only obvious credential patterns and cannot tell a public key from a private one."
