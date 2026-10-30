@@ -26,8 +26,8 @@
         "code-review",
         "review-sweep"
       ],
-      "supplies": "owner/repo, visibility, and the collaborator model (single maintainer or a team).",
-      "fallback": "owner/repo is derived from the git remote. Without a stated collaborator model, review-sweep requires an APPROVED review and will not use the reaction-count shortcut."
+      "supplies": "owner/repo, visibility, the collaborator model (single maintainer or a team), and the review bot if one is installed: its GitHub login, how to request a review round, and how it signals a clean one.",
+      "fallback": "owner/repo is derived from the git remote. Without a stated collaborator model, review-sweep requires an APPROVED review, will not use the reaction-count shortcut, and does not read a bare thumbs-down reaction as a decline. Without a named review bot and request form, review-sweep posts no review requests and reads readiness from an APPROVED review or a code-review clean report for the head, either one only from a trusted author (the session's identity or a write collaborator). A bot's comment or review signal counts only when posted by the login named here."
     },
     {
       "heading": "Mechanical checks",
@@ -116,10 +116,11 @@
         "security-review"
       ],
       "readBy": [
-        "security-review"
+        "security-review",
+        "review-sweep"
       ],
       "supplies": "One paragraph: what ships to parties you do not control, and what the single real control is that keeps an attacker out of what matters \u2014 one user out of another's data on an application; an outsider off the box, and off the provider account the box can reach, on infrastructure.",
-      "fallback": "security-review cannot rank findings by what actually matters here and will say so."
+      "fallback": "security-review cannot rank findings by what actually matters here and will say so. review-sweep, when the PR description also states no trust assumptions that count, treats no input as project-controlled at its fix-commit cap and says so in the hand-off."
     },
     {
       "heading": "Trust boundary",

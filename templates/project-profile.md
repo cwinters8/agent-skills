@@ -28,7 +28,12 @@ TODO
 
 <!-- REQUIRED. owner/repo, visibility, and the collaborator model. The
      collaborator model decides whether review-sweep may infer approval from a
-     reaction-count delta or must require an APPROVED review. -->
+     reaction-count delta (and read a bare thumbs-down as a decline) or must
+     require an APPROVED review from a trusted author. If a review bot
+     is installed, name it, its GitHub login, the comment that requests a
+     round, and how it signals a clean round; review-sweep requests no rounds
+     otherwise, and counts a bot's comment or review as clean only from that
+     login. -->
 
 TODO
 

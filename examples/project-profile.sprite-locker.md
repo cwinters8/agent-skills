@@ -19,6 +19,9 @@ reviewers are Codex and the `code-review` skill, both posting through known
 identities. `review-sweep`'s reaction-count approval shortcut is permitted on
 that basis; revisit it if the repo goes public or gains collaborators.
 
+Review bot: Codex. Request a round with `@codex review`; a clean round is a 👍
+reaction on the PR with no new suggestions.
+
 ## Mechanical checks
 
 - `npm run typecheck` — `tsc --noEmit`. The only mechanical gate.

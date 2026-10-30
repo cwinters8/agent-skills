@@ -116,11 +116,17 @@ needs rewording, which is a report and not a fix.
 
 Check visibility and the collaborator model against the repo's current state.
 Visibility is load-bearing: `review-sweep` may infer reviewer approval from a
-reaction-count delta only because the plausible reactors are known. A repo that
-went **public**, or gained collaborators, invalidates that shortcut entirely,
-and the profile is the only place that says so. A renamed repo or owner matters
-too — `code-review` builds permalinks from it, so a wrong `owner/repo` puts a
-404 in every review comment it posts.
+reaction-count delta, or read a bare 👎 as a decline, only because the
+plausible reactors are known. A repo that went **public**, or gained
+collaborators, invalidates that shortcut entirely, and the profile is the only
+place that says so. A renamed repo or owner matters too — `code-review` builds
+permalinks from it, so a wrong `owner/repo` puts a 404 in every review comment
+it posts. Check a named review bot is still installed, that its login is still
+the account that posts its reviews, and that its request form and clean signal
+still match how it behaves. A stale login means `review-sweep` never counts the
+bot's real clean signal; a bot named here after it was removed has
+`review-sweep` posting requests nobody answers. Either way every PR ends up
+blocked on a verdict that was never coming.
 
 ### `## Rules source`
 

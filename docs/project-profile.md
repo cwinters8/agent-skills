@@ -70,13 +70,40 @@ in their report that they guessed.
 
 Read by `code-review`, `review-sweep`.
 
-`owner/repo`, visibility, and the collaborator model. `code-review` builds
-permalinks from `owner/repo`. The collaborator model matters because
-`review-sweep` has a shortcut — inferring reviewer approval from a reaction-count
-delta — that is only sound when the plausible reactors are known.
+`owner/repo`, visibility, the collaborator model, and the review bot if one is
+installed. `code-review` builds permalinks from `owner/repo`. The collaborator
+model matters because `review-sweep` reads reactions, whose authors its tools
+cannot see, in two places that are only sound when the plausible reactors are
+known: a shortcut inferring reviewer approval from a reaction-count delta, and
+a bare 👎 closing a comment as declined. Stating that the shortcut is permitted
+permits both; leaving it out turns both off.
+
+Everything else `review-sweep` acts on, it takes only from a trusted author: the
+identity the session posts as, or a collaborator with write, maintain or admin
+access. That covers an `APPROVED` review, a `code-review` report, the PR
+description's trust assumptions, replies and `Re:` comments that close
+feedback, and answers to its blocker questions; its **Trusted authors** section
+lists every signal. Nothing here configures that, and on a public repo it is
+what stops any GitHub account from producing the merge cue.
+
+For a review bot, give its GitHub login, say how to request a round (the comment
+to post) and how the bot signals a clean round with no suggestions (a reaction,
+an approving review, a summary comment). `review-sweep` counts a comment or
+review signal only when that login posted it, since the bot's clean text is
+something anyone who can comment can type; without a login, the bot's signal is
+never a verdict. `review-sweep` requests a round only from a bot named here
+with a request form, because a request to a bot that is not installed is never
+answered and leaves every PR waiting on a verdict that will not come. If the
+clean signal is a reaction, the collaborator model must also permit the
+shortcut above.
 
 *Missing:* `owner/repo` comes from the git remote, and `review-sweep` requires an
-`APPROVED` review rather than using the shortcut.
+`APPROVED` review rather than using the shortcut, and does not read a bare 👎 as
+a decline. With no review bot named, or one named without a request form,
+`review-sweep` posts no review requests and reads readiness from an `APPROVED`
+review or a `code-review` clean report for the current head, counting either
+only from a trusted author (the session's own identity or a write
+collaborator).
 
 ### `## Mechanical checks` — required
 
@@ -199,6 +226,8 @@ tooling the session has.
 
 ### `## Threat model` — required with `security-review`
 
+Read by `security-review`, `review-sweep`.
+
 One paragraph: what ships to parties you do not control, and what the single real
 control is that keeps an attacker out of what matters. On an application that is
 usually what keeps one user out of another's data. On infrastructure it is what
@@ -213,8 +242,17 @@ binary, so row-level security is the only thing standing between one user and
 another user's rows" tells a reviewer exactly which findings are critical and
 which are merely correctness bugs.
 
+`review-sweep` reads it, at the PR's base branch, for two narrower questions.
+It judges security findings against it, never against the PR description, so a
+change cannot talk its own review out of a security finding. And it names which
+inputs the project itself controls, so that a finding about them does not pass
+the fix-commit cap, whenever the PR description states no trust assumptions or
+its author is not the session identity or a write collaborator.
+
 *Missing:* `security-review` cannot rank findings by what actually matters here
-and will say so.
+and will say so. `review-sweep`, with no trust assumptions that count in the PR
+description either, treats no input as project-controlled at the cap and says so
+in its hand-off.
 
 ### `## Trust boundary` — required with `security-review`
 
