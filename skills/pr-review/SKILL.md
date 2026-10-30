@@ -179,7 +179,7 @@ git fetch <remote> "<base-sha>"                      # base.sha from the metadat
 git fetch <remote> "pull/<n>/head"
 test "$(git rev-parse FETCH_HEAD)" = "<head-sha>"   # fails if the head moved
 mktemp -d                                            # prints the path; note it
-git <untrusted-tree flags> worktree add --detach "<that path>" "<head-sha>"
+GIT_ATTR_NOSYSTEM=1 git <untrusted-tree -c flags> worktree add --detach "<that path>" "<head-sha>"
 ```
 
 **Every git command in or against the worktree runs with the untrusted-tree
@@ -188,20 +188,23 @@ worktree or that names it, from the `worktree add` above to the `worktree
 remove` at the end, and on every `git` a routed review runs there:
 
 ```sh
-git -c core.hooksPath=/dev/null \
+GIT_ATTR_NOSYSTEM=1 git -c core.hooksPath=/dev/null \
     -c core.fsmonitor=false \
     -c attr.tree=4b825dc642cb6eb9a060e54bf8d69288fbee4904 \
     -c core.attributesFile=/dev/null \
+    -c safe.bareRepository=explicit \
     -c submodule.recurse=false \
     -c log.showSignature=false \
     <command>
 ```
 
-and `git diff` there also takes `--no-ext-diff`. The `-c` applies to the one
-command it is on and changes nothing in the user's config, which is why it has
-to be on every one. Each flag closes a way the user's own git config runs a
-command with the worktree as its working directory, where a relative path
-resolves to a file the PR wrote. No setting of the user's has to be unusual;
+and `git diff` there also takes `--no-ext-diff`. The environment assignment is
+part of the set: it is written on the same line, before `git`. The `-c` and the
+assignment apply to the one command they are on and change nothing in the
+user's config or environment, which is why they have to be on every one.
+Each flag closes a way the user's own git config runs a command with the
+worktree as its working directory, where a relative path resolves to a file
+the PR wrote. No setting of the user's has to be unusual;
 the PR only has to commit the file the setting already points at.
 
 **Hooks.** Turning hooks off once, at the add, is not enough, for two reasons:
@@ -235,11 +238,29 @@ and the user's config supplies the command. The PR controls the tree's
 configured, and a driver whose command is repo-relative then runs the PR's
 script: on checkout at the `worktree add`, on `diff`, `log -p`, `show` and
 `blame`. `attr.tree` set to the empty tree makes git read no attributes from
-the worktree, so the tree selects nothing, and `core.attributesFile=/dev/null`
-drops the user-wide attributes file. `--no-ext-diff` covers `diff.external`,
-which applies without any attribute. A side effect is that the worktree's files
+the worktree, so the tree selects nothing, `core.attributesFile=/dev/null`
+drops the user-wide attributes file, and `GIT_ATTR_NOSYSTEM=1` drops the
+system-wide one (`git var GIT_ATTR_SYSTEM` names it), which `attr.tree` does
+not touch: a pattern there selecting a driver whose command the user configured
+repo-relative runs the PR's copy of that command. `--no-ext-diff` covers
+`diff.external`, which applies without any attribute. A side effect is that the worktree's files
 are the committed bytes, with no line-ending or filter conversion, which is
 what a review of the diff wants anyway.
+
+**A repository inside the tree.** A PR can commit a directory laid out as a
+bare repository: `HEAD`, `objects/`, `refs/`, and a `config` and
+`info/attributes` of the PR's choosing. Git run with that directory as its
+working directory discovers it as the repository before it ever reaches the
+worktree's own, and then reads the PR's `config` as repository config, so a
+`textconv` it defines and its `info/attributes` selects runs on `log -p` or
+`show` there. None of the flags above unselect it: they name keys, and the
+PR's config can define any other. `safe.bareRepository=explicit` makes git
+refuse a bare repository it only discovered, so a review that changes into a
+subdirectory gets an error instead. It does not affect the worktree itself,
+whose `.git` is a file pointing at the invoking repository, including when
+that repository is itself bare with worktrees. It does mean the `worktree add`
+has to be run from a working tree, not from inside a bare repository's own
+directory.
 
 **Submodules and signatures.** `submodule.recurse=false` stops a checkout or
 `status` recursing into submodules the PR's `.gitmodules` names, which would
@@ -253,11 +274,18 @@ a `.gitattributes` selecting them. With hooks off alone, the `worktree add` ran
 the smudge script; `status` and `grep` ran the monitor; `diff` ran all five;
 `log -p`, `show` and `blame` ran the filter and `textconv`. With the full set
 above, none ran on any of them, including with a user-wide attributes file
-selecting a driver.)
+selecting a driver. A system-wide attributes file selecting a driver the user
+had configured with a repo-relative `textconv` ran the PR's script on `log -p`
+until `GIT_ATTR_NOSYSTEM=1` was added, and a PR-committed bare repository in a
+subdirectory, whose own config and `info/attributes` named a `textconv`, ran it
+on `log -p` from that subdirectory until `safe.bareRepository=explicit` was
+added; with both, neither ran, and `status`, `diff`, `log -p`, `show`, `blame`
+and `grep` in the worktree still worked, including from a worktree of a bare
+repository.)
 
-**Check two things before the add, in the invoking checkout, and stop if
-either fails.** Both are places the flags above cannot reach, so the only safe
-answer is not to check out the tree at all:
+**Check these before the add, in the invoking checkout, and stop if any
+fails.** Each is a place the flags above cannot reach, so the only safe answer
+is not to check out the tree at all:
 
 ```sh
 git version
@@ -270,13 +298,17 @@ grep -sE '(filter|diff)=' "$(git rev-parse --git-common-dir)/info/attributes"
   `.gitattributes` still selects drivers. If the version is older and the
   second command prints anything, a configured driver is reachable from the
   PR's tree.
+- **`safe.bareRepository` needs git 2.38 or later**, and older versions ignore
+  it the same way. A bare repository committed in the tree needs nothing from
+  the user's config, so below 2.38 stop whatever the second command prints.
 - **The repository's own `info/attributes` is read whatever `attr.tree` says.**
   If the third command prints anything and the second does too, a driver is
   selected where no flag can unselect it.
 
-Either way, report the review abandoned (§6), naming which check failed and
-the config key involved: the fix is the user's (a newer git, or moving that
-attribute), not something to work around by running the tree anyway.
+In any of these cases, report the review abandoned (§6), naming which check
+failed and the config key involved: the fix is the user's (a newer git, or
+moving that attribute), not something to work around by running the tree
+anyway.
 
 **Fetch the base by its SHA, not by branch name.** Fetching a branch by name
 from a configured remote also moves that remote's tracking ref, so a user on a
@@ -343,7 +375,7 @@ is in the diff, and `docs-currency` reviews it like any other doc.
 skipped, or abandoned.
 
 ```sh
-git <untrusted-tree flags> worktree remove --force "<that path>"
+GIT_ATTR_NOSYSTEM=1 git <untrusted-tree -c flags> worktree remove --force "<that path>"
 git worktree list          # confirm it is gone
 ```
 
