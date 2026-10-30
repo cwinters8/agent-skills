@@ -26,7 +26,7 @@ verdict. For the same reason a bare 👎 does not close a comment here; decline
 with a one-line reply.
 
 No review bot is installed, so `review-sweep` posts no review-round requests
-here. A `code-review` clean report for the head also counts as a verdict, but
+here. A `code-review` or `pr-review` clean report for the head also counts as a verdict, but
 only from the session's own account or a write collaborator (`review-sweep`
 **Trusted authors**): this is a public repo, and the maintainer cannot approve their own PRs, so
 that report is the whole gate.
