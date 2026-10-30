@@ -539,7 +539,8 @@ reviewer feedback, excluding merges of the base branch.
 **First reviewer feedback is the earliest item, of any form, that §1 treats as
 feedback rather than bookkeeping, whatever its triage state is now**: a
 submitted review, an inline review comment, or a conversation comment that
-raises issues — a `code-review` report listing findings included. That is §1's
+raises issues — a `code-review` or `pr-review` report listing findings
+included. That is §1's
 *kind* filter, not its state filter. Round one's feedback, once fixed or
 declined, is no longer sent to triage, and an anchor read from "what §1 sends
 now" would slide forward to the oldest unhandled item each round, so the count

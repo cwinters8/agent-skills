@@ -80,9 +80,9 @@ permits both; leaving it out turns both off.
 
 Everything else `review-sweep` acts on, it takes only from a trusted author: the
 identity the session posts as, or a collaborator with write, maintain or admin
-access. That covers an `APPROVED` review, a `code-review` report, the PR
-description's trust assumptions, replies and `Re:` comments that close
-feedback, and answers to its blocker questions; its **Trusted authors** section
+access. That covers an `APPROVED` review, a `code-review` or `pr-review`
+report, the PR description's trust assumptions, replies and `Re:` comments that
+close feedback, and answers to its blocker questions; its **Trusted authors** section
 lists every signal. Nothing here configures that, and on a public repo it is
 what stops any GitHub account from producing the merge cue.
 
@@ -101,9 +101,9 @@ shortcut above.
 `APPROVED` review rather than using the shortcut, and does not read a bare 👎 as
 a decline. With no review bot named, or one named without a request form,
 `review-sweep` posts no review requests and reads readiness from an `APPROVED`
-review or a `code-review` clean report for the current head, counting either
-only from a trusted author (the session's own identity or a write
-collaborator).
+review or a `code-review` or `pr-review` clean report for the current head,
+counting either only from a trusted author (the session's own identity or a
+write collaborator).
 
 ### `## Mechanical checks` — required
 
