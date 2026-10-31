@@ -31,6 +31,26 @@ Working on the user's machine:
 | --- | --- |
 | `apple-photos` | Queries, exports from and imports into Apple Photos with `osxphotos`, relayed through a terminal app that holds the macOS privacy grants |
 
+How the session works, vendored from [Superpowers](https://github.com/obra/superpowers)
+(MIT, Copyright (c) 2025 Jesse Vincent; see [Superpowers, vendored](#superpowers-vendored)):
+
+| Skill | What it does |
+| --- | --- |
+| `using-superpowers` | Tells the session to look for and invoke a relevant skill before acting |
+| `brainstorming` | Turns an idea into an agreed design before any code, with an optional browser companion |
+| `writing-plans` | Writes a task-by-task implementation plan from a spec |
+| `executing-plans` | Works through a written plan in the current session, with review checkpoints |
+| `subagent-driven-development` | Runs a plan by dispatching a fresh subagent per task and reviewing each one |
+| `dispatching-parallel-agents` | Splits independent problems across parallel subagents |
+| `test-driven-development` | Red, green, refactor: a failing test before any implementation |
+| `systematic-debugging` | Root cause first, before proposing a fix |
+| `verification-before-completion` | Run the check and read its output before claiming done |
+| `requesting-code-review` | Dispatches a reviewer subagent against the work before merging |
+| `receiving-code-review` | Weighs review feedback technically instead of agreeing by reflex |
+| `using-git-worktrees` | Sets up an isolated worktree for feature work |
+| `finishing-a-development-branch` | Decides how finished work lands: merge, PR, or cleanup |
+| `writing-skills` | Test-driven authoring of new skills |
+
 ## How consumers get them
 
 **Vendored, not linked.** A consumer repo copies the skills it wants into its
@@ -113,7 +133,8 @@ install it on the machine running `init`.
 Commit `.claude/settings.json`. That entry turns the plugin on for everyone who
 runs Claude Code locally in the repo — terminal, desktop app, IDE — but cloud
 sessions do not load plugins from a repository's settings at all, so agents
-there run without superpowers. Locally, too, it does not download the plugin:
+there run without superpowers unless the repo also vendors the Superpowers
+skills this package ships (see [Superpowers, vendored](#superpowers-vendored)). Locally, too, it does not download the plugin:
 each collaborator runs the same `claude plugin install … --scope project` once,
 and `init` prints it. If
 `claude` is not on PATH, `init` still writes the entry and tells you to run the
@@ -205,6 +226,42 @@ npx -y github:cwinters8/agent-skills#main init --no-superpowers
    Collaborators run the same commands once on their own machines; the
    committed entry enables the plugin but downloads it for no one.
 
+## Superpowers, vendored
+
+The plugin reaches local sessions only. To give cloud sessions the same
+process skills, this package ships the Superpowers skills listed above as
+ordinary skills, so a repo lists them in `.claude/skills.json` and `sync`
+vendors them like any other. `init` with no skill names lists every skill this
+version ships, so a fresh adoption gets them by default.
+
+- **Pinned to one upstream commit.** `vendor/superpowers.json` in this repo
+  records the commit and the skills taken from it, and
+  `scripts/vendor-superpowers.mjs` re-vendors from exactly that commit. The pin
+  your repo gets is still the npx spec: these skills change only when this
+  package's version does.
+- **License travels with the files.** Each vendored directory carries the
+  upstream `LICENSE` and a `NOTICE.md` naming the source commit and every
+  change made to it.
+- **One change from upstream.** References written `superpowers:<skill>` are
+  rewritten to the plain skill name, because a vendored skill has no plugin
+  namespace to resolve them against.
+- **One skill left out.** `diagnosing-superpowers` diagnoses the plugin itself
+  and builds reports for its maintainers.
+- **No session-start hook.** The plugin injects `using-superpowers` into every
+  session through a hook. Vendored, it is a plain skill and triggers on its
+  description like any other.
+- **List the set together.** Several of these skills invoke each other, and
+  `executing-plans` runs scripts from `subagent-driven-development` and reads
+  `requesting-code-review`'s prompt by relative path. `sync` reports a sibling
+  reached that way when it is missing, but a partial set is a degraded set.
+- **Plugin and vendored copies are separate.** A local session with the plugin
+  enabled and the skills vendored sees both, `brainstorming` beside
+  `superpowers:brainstorming`, possibly at different versions. Pick one for a
+  repo, or accept the duplicates locally in exchange for cloud coverage.
+
+Edit these skills upstream at Superpowers, never here: a change made in this
+repo is overwritten by the next re-vendor.
+
 ## The version you invoke is the version you vendor
 
 The skills ship **inside this package**, so `sync` copies from the version you
@@ -259,6 +316,8 @@ clears it.
 Skills are edited **here**, never in a consumer's `.claude/skills/` — a
 hand-edit there is silently overwritten by the next sync and is invisible to
 every other repo. If the change is project-specific, it belongs in that
-project's profile instead.
+project's profile instead. The Superpowers skills are the exception: they are
+edited upstream and re-vendored, as [Superpowers, vendored](#superpowers-vendored)
+says.
 
 See `AGENTS.md` for the conventions these skills are written to.

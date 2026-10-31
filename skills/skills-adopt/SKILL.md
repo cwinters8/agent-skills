@@ -186,6 +186,17 @@ The profile states facts a skill can act on. Derive every answer; guess none.
     with the entry still in place. Before a first
     `init`, `--no-superpowers` is enough.
 
+    The entry does nothing in cloud sessions, which load no plugins from a
+    repository's settings. This package also ships the Superpowers skills as
+    ordinary skills for that reason, and `init` with no skill names lists them
+    along with the rest; the README's "Superpowers, vendored" section names the
+    set. Keeping both means a local session sees each skill twice,
+    `brainstorming` beside `superpowers:brainstorming`, possibly at different
+    versions. That trade is the repo's to make, so state in the PR description
+    which of plugin, vendored set or both it took. If it vendors them, list the
+    set whole: its skills reach each other by relative path, and a partial set
+    runs with steps missing.
+
     For the profile, it scaffolds only. The survey in phase 2 is still the work, and a profile
     left as the template it wrote fails validation exactly as it should.
 

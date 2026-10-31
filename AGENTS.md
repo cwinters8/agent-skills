@@ -108,6 +108,8 @@ docs/project-profile.md  the schema reference consumers read
 templates/               the annotated blank consumers copy
 examples/                complete real profiles
 skills/<name>/SKILL.md   one skill; supporting files live alongside it
+vendor/superpowers.json  the upstream commit and skill list the Superpowers skills come from
+scripts/                 repo-only maintainer scripts; vendor-superpowers.mjs re-vendors from that pin
 ```
 
 **The package ships the skills, so the invoked version is the vendored version.**
@@ -170,7 +172,9 @@ section over renaming an existing one.
   installation finds out it is missing a step instead of discovering it in a
   degraded report months later. It detects that from the phrasing: **run**,
   **invoke**, **hand off to** or **defer to**, followed by the backticked skill
-  name. A backticked name on its own is deliberately not enough — skills name
+  name. A relative path into a sibling's directory (`../<name>/`) counts as
+  well, since a step that runs or reads a file there has no other way to work.
+  A backticked name on its own is deliberately not enough — skills name
   each other to draw boundaries and cite shared rules far more often than they
   delegate, and flagging those would recommend skills the consumer has no use
   for and train them to ignore the warning that matters. So if a step genuinely
@@ -191,6 +195,34 @@ section over renaming an existing one.
   session working in this repo may *do*. Both are needed — a skill reaches a
   session only once something triggers it, and the moment a wake-up gets armed
   is usually not one of those.
+
+## Vendored third-party skills
+
+Some directories under `skills/` are not written here. The Superpowers skills
+are copied from upstream by `scripts/vendor-superpowers.mjs`, at the commit
+pinned in `vendor/superpowers.json`, and each one is marked by a `NOTICE.md`
+whose first line says so. The rest of this file is about content written in
+this repo, and none of it applies to them:
+
+- **Never edit them here.** The next re-vendor overwrites the change, and a
+  local fork of an upstream skill is invisible to anyone reading the manifest.
+  Fix it upstream, or leave the skill out of the manifest. The only change the
+  script makes is the `superpowers:<skill>` rewrite, and the notice lists every
+  file it touched.
+- **The writing rules above do not bind them.** They read no profile, carry
+  more frontmatter than `name` and `description` when upstream does, and hand
+  off in upstream's own phrasing. Judging them against **Writing a skill** would
+  mean editing them, which the rule above forbids.
+- **The one rule still does.** A vendored skill naming a consumer's project is
+  still a leak, so the grep above covers these directories too. A hit here means
+  dropping the skill or fixing it upstream, not excluding the directory.
+- **Keep `LICENSE` and `NOTICE.md` in every vendored directory.** `sync` copies
+  one skill directory at a time, so a license kept anywhere else never reaches
+  the consumer repo that the MIT terms require it to reach.
+- **Bump by commit, read the diff.** Run the script with `--commit <sha>`, read
+  everything it changed under `skills/`, and bump `version` in `package.json`
+  as for any skill change. `node --test` checks the tree still matches the
+  manifest.
 
 ## Changing a skill that consumers have vendored
 

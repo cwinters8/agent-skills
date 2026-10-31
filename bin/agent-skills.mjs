@@ -1049,9 +1049,13 @@ console.log(
 // verb and the name, and inside a multi-word verb ("hand off / to"). Every
 // literal space in the pattern was a missed hand-off until this normalized
 // first; two separate rounds of that bug is enough to stop writing spaces.
+// A relative path into a sibling's directory (`../<name>/scripts/x`) is a
+// harder dependency than any verb: the step runs that file, and without the
+// sibling vendored the path does not exist. Vendored third-party skills are
+// written this way rather than with this repo's hand-off verbs.
 const flatten = (s) => s.replace(/\s+/g, ' ');
 const HANDOFF = (name) =>
-  new RegExp(`(run|runs|invoke|invokes|hands? off to|defers? to)( the)? \`${name}\``, 'i');
+  new RegExp(`(run|runs|invoke|invokes|hands? off to|defers? to)( the)? \`${name}\`|\\.\\./${name}/`, 'i');
 
 const missingSiblings = new Map();
 for (const skill of lock.skills) {
