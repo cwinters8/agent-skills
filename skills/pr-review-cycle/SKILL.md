@@ -101,11 +101,15 @@ The instructions:
   whatever the routing says**. `pr-review` describes that mode under "What
   runs, and who decides".
 - Post the result as `pr-review` always does: one `### PR review` comment.
-- If the environment lets the reviewer message this session, also send the
-  comment's link back. Some harnesses do not deliver a comment posted by the
-  session's own identity as a PR event, and the reviewer usually posts as the
-  same identity as the builder. The comment on the PR is the record either
-  way; the message only makes sure it is seen.
+- If the environment lets the reviewer message this session, send back what
+  `pr-review` §6 reported, whichever outcome it was: the comment's link when it
+  posted, and the outcome itself when it posted nothing (a stop condition, an
+  abandoned run, an already-reviewed head). Some harnesses do not deliver a
+  comment posted by the session's own identity as a PR event, and the reviewer
+  usually posts as the same identity as the builder. And at a stop condition
+  with nothing Critical or High, `pr-review` posts no comment at all, so the
+  message is the only thing that can reach this session. The comment, when
+  there is one, is the record; the message makes sure the outcome is seen.
 - Do not fix anything. `pr-review` is report-only, and a reviewer that also
   fixes produces commits nobody reviewed.
 
@@ -120,6 +124,21 @@ The subscription is the mechanism, and a timer on top of it spends a whole
 session to learn what the next event would have delivered anyway.
 
 ### 3. Read the result
+
+The result arrives as a `### PR review` comment, as the reviewer's message, or
+both. A message that reports an outcome with no comment is handled by outcome:
+
+- **Stop condition, nothing posted**: `review-sweep` §7 has ended the cycle.
+  Go to §6, and list the withheld findings the reviewer reported.
+- **Abandoned**, because the head moved: request a fresh review of the new head
+  (§2).
+- **Already reviewed**: the current head has a `### PR review` comment. Read
+  that one.
+
+When a reviewer could not message back and no comment has arrived, the event
+that would have woken this session may never come. That is the one case where
+the maintainer may need to ask, so say in the session, before ending the turn in
+§2, that the outcome reaches this session only through a posted comment.
 
 When a `### PR review` comment arrives, check two things before acting on it:
 
@@ -165,15 +184,25 @@ round as the end of the cycle and go to §6, with the declines listed.
 
 A clean review is half the bar. The other half is CI on the same head:
 
-- **Every check run on the head SHA has completed**, and none concluded
-  `failure`, `cancelled`, `timed_out` or `action_required`. `success`,
-  `neutral` and `skipped` pass.
-- **Still running**: end the turn. The CI result arrives as a PR event.
-- **Failed**: reproduce the failure locally first and show the same check
+CI reports two ways, and green needs both. Read the check runs on the head
+SHA and the combined commit status for it, since a project whose CI reports
+through the status API has no check runs at all.
+
+- **Green**: every check run has completed with a conclusion of `success`,
+  `neutral` or `skipped`, and the combined status is `success` or has no
+  statuses in it. This is an allow-list on purpose. Anything else, `stale` and
+  `startup_failure` included, and any conclusion GitHub adds later, is not
+  green. A list of failing conclusions would pass the one nobody thought to
+  name.
+- **Still running**: a check run not yet completed, or a combined status of
+  `pending`. End the turn. The CI result arrives as a PR event.
+- **Not green**: reproduce the failure locally first and show the same check
   passing after the fix, then push. That is a new head, so go back to §2. A CI
   fix is code nobody has reviewed yet.
-- **No CI configured** for the repository: that is not a failure, but the
-  maintainer should know nothing ran. Say so in the hand-off.
+- **No CI**: no check runs and no statuses on the head. That is not a failure,
+  but the maintainer should know nothing ran. Say so in the hand-off. Check
+  the repository has no CI definitions before concluding this, because a
+  workflow that never started on the head looks the same and is not green.
 
 Readiness also needs `review-sweep` §5's ready-to-merge bar, which covers what
 a clean review does not: every other reviewer's comments in a terminal state, no
