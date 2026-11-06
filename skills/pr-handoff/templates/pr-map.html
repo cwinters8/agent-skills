@@ -63,6 +63,8 @@ a:focus-visible,summary:focus-visible,button:focus-visible{outline:3px solid var
 .c-a4{--c:var(--a4);--cb:var(--a4-bg)}
 
 .eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.eyebrow a{color:inherit;text-decoration:underline;text-decoration-color:var(--line);text-underline-offset:3px}
+.eyebrow a:hover{color:var(--link);text-decoration-color:currentColor}
 .hero{display:flex;flex-direction:column;gap:12px}
 .hero .sub{font-size:19px;color:var(--muted);max-width:62ch}
 .status{display:flex;flex-wrap:wrap;gap:8px}
@@ -158,7 +160,8 @@ details ul{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:4px
 <div class="wrap" data-pr="{{OWNER}}/{{REPO_NAME}}#{{PR_NUMBER}}">
 
 <header class="hero">
-  <div class="eyebrow">{{OWNER}}/{{REPO_NAME}} · PR #{{PR_NUMBER}} · closes #{{ISSUE_NUMBER}}</div>
+  <!-- Every part of the eyebrow is a link, so the PR is one tap away from the top. -->
+  <div class="eyebrow"><a href="https://github.com/{{OWNER}}/{{REPO_NAME}}">{{OWNER}}/{{REPO_NAME}}</a> · <a href="{{PR_URL}}">PR #{{PR_NUMBER}}</a> · closes <a href="https://github.com/{{OWNER}}/{{REPO_NAME}}/issues/{{ISSUE_NUMBER}}">#{{ISSUE_NUMBER}}</a></div>
   <h1>{{PLAIN_LANGUAGE_TITLE}}</h1>
   <p class="sub">{{ONE_SENTENCE_ON_WHAT_THE_PR_DOES}}</p>
   <!-- One pill each: CI, last review, manual steps, size. good / warn / bad. -->

@@ -98,7 +98,8 @@ no "since your last look" on a first version) rather than leaving it empty.
 
 The order on the page, top to bottom:
 
-1. **Header**: repository, PR number and issue, a plain-language title, one
+1. **Header**: repository, PR number and issue, each a link so the PR is one
+   tap from the top of the page, then a plain-language title, one
    sentence on what the PR does, and status pills: CI, the last review, manual
    steps, and size.
 2. **Since your last look** (updates only, §5).
