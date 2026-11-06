@@ -188,9 +188,11 @@ CI reports two ways, and green needs both. Read the check runs on the head
 SHA and the combined commit status for it, since a project whose CI reports
 through the status API has no check runs at all.
 
-- **Green**: every check run has completed with a conclusion of `success`,
+- **Green**: there is at least one check run or at least one status on the
+  head, every check run has completed with a conclusion of `success`,
   `neutral` or `skipped`, and the combined status is `success` or has no
-  statuses in it. This is an allow-list on purpose. Anything else, `stale` and
+  statuses in it. A head with neither check runs nor statuses is never green;
+  it is No CI, below, and needs that bullet's check. This is an allow-list on purpose. Anything else, `stale` and
   `startup_failure` included, and any conclusion GitHub adds later, is not
   green. A list of failing conclusions would pass the one nobody thought to
   name.
