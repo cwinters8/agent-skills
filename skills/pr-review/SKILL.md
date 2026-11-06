@@ -80,6 +80,22 @@ reviewing something this session does not own.
   `pr-review`. So here `docs-currency` not being vendored is *unavailable* like
   any other skill, and the degraded grep does not run.
 
+### When the invoker asks for `security-review` every time
+
+Some projects want the security review on every PR, not only on the ones whose
+diff touches `## Trust boundary`. `pr-review-cycle` asks for it that way on
+every round. When the invocation asks for it, run the `security-review` skill
+in its per-change mode even where §3's routing would have skipped it, and
+report it under `#### Security review` like a routed review. Note `security
+review run on request` on the comment's first line, so a reader can tell it
+from a routed run.
+
+That is the invoker's choice, not a routing rule, so it does not count as an
+addition to the routed set: the `pr-preflight` fallback below and the
+no-profile case already include `security-review`, and nothing else may be
+added to either. If `security-review` is not vendored, the subsection reads
+`not run: unavailable` as usual. Asking for a review does not make it exist.
+
 ### When `code-review` is not vendored
 
 Then this skill does not run. Say so in the session, post nothing, and end the
