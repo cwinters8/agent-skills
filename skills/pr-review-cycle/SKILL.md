@@ -195,7 +195,15 @@ through the status API has no check runs at all.
   green. A list of failing conclusions would pass the one nobody thought to
   name.
 - **Still running**: a check run not yet completed, or a combined status of
-  `pending`. End the turn. The CI result arrives as a PR event.
+  `pending` with at least one status in it. End the turn. The CI result
+  arrives as a PR event.
+
+**A combined status with no statuses in it counts as empty, whatever its
+`state` field says.** GitHub reports `pending` for a head that has no statuses
+at all (`total_count` of 0), which is the normal case on a repository whose CI
+uses only check runs, or has no CI. Reading that `pending` as still running
+waits for a CI event that will never come, and a clean, green PR never reaches
+the maintainer. Count the statuses, not the state.
 - **Not green**: reproduce the failure locally first and show the same check
   passing after the fix, then push. That is a new head, so go back to §2. A CI
   fix is code nobody has reviewed yet.
