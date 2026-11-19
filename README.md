@@ -264,3 +264,9 @@ every other repo. If the change is project-specific, it belongs in that
 project's profile instead.
 
 See `AGENTS.md` for the conventions these skills are written to.
+
+## License
+
+[MIT](./LICENSE). Permissive on purpose: the whole model here is copying these
+skills into other repositories and committing them, and the license should not
+get in the way of that.
